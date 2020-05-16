@@ -1,0 +1,30 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Generate Messages",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/synrpc_generator/synrpcgen.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Run synrpc tests",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/synrpc_generator/test_usbcon.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Generate stm32f103c8",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/startproject.py",
+            "console": "integratedTerminal",
+            "args": ["stm32f103c8", "8192"]
+        }
+    ]
+}
