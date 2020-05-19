@@ -5,11 +5,12 @@ using namespace syn;
 Routine* Kernel::_current;
 Routine Kernel::_routinelist[SYN_OS_ROUTINE_COUNT];
 Routine Kernel::_idler;
-#if (SYN_OS_TIMER_COUNT > 0)
-Timer Kernel::_timerlist[SYN_OS_TIMER_COUNT];
-#endif
 uint8_t Kernel::_current_ticks_left;
 uint8_t Kernel::_readycount;
+
+#if (SYN_OS_TIMER_COUNT > 0)
+static SoftTimer _timerlist[SYN_OS_TIMER_COUNT];
+#endif
 
 void Routine::_init(void* functor, void* arg, uint8_t* stack)
 {
@@ -58,6 +59,40 @@ void Routine::_init(void* functor, void* arg, uint8_t* stack)
   *stack-- = 0;    // ?b15
   _stackptr = stack;
 }
+
+#if (SYN_OS_TIMER_COUNT > 0)
+void SoftTimer::init(SoftTimer::timer_functor functor, uint8_t reload)
+{
+  assert(reload > 0);
+  SoftTimer* ptimer = _timerlist;
+  for(;;++ptimer)
+  {
+    assert(ptimer != &_timerlist[SYN_OS_TIMER_COUNT]);
+    if(ptimer->_next_exec_time == 0)
+    {
+      ptimer->_next_exec_time = reload;
+      ptimer->_reload = reload;
+      ptimer->_functor = functor;
+      break;
+    }
+  }
+}
+
+void SoftTimer::_checkAndExec()
+{
+  uint8_t millis = System::millis8();
+  SoftTimer *ptim = _timerlist;
+  do
+  {
+    if(millis == ptim->_next_exec_time)
+    {
+      ptim->_next_exec_time = millis + ptim->_reload;
+      ptim->_functor();
+    }
+    ++ptim;
+  } while(ptim != &_timerlist[SYN_OS_TIMER_COUNT]);
+}
+#endif // (SYN_OS_TIMER_COUNT > 0)
 
 void Kernel::init()
 {
@@ -138,5 +173,8 @@ INTERRUPT_HANDLER_TRAP(TRAP) {
 
 INTERRUPT_HANDLER(TIMER4_OV, 23) {
   System::_systick_isr();
+#if (SYN_OS_TIMER_COUNT > 0)
+  SoftTimer::_checkAndExec();
+#endif
   Kernel::_tickySwitch();
 }

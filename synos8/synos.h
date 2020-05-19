@@ -41,12 +41,18 @@ namespace syn
     uint8_t _state_2;
   };
 
-  class Timer
+  class SoftTimer
   {
   public:
     typedef void(*timer_functor)(void);
+
+    static void init(timer_functor, uint8_t reload);
+
+    // called from systick, dont call manually
+    static void _checkAndExec();
   private:
-    uint16_t _match;
+    uint8_t _next_exec_time;
+    uint8_t _reload;
     timer_functor _functor;
   };
 
@@ -68,9 +74,7 @@ namespace syn
     static Routine* _current;
     static Routine _routinelist[SYN_OS_ROUTINE_COUNT];
     static Routine _idler;
-#if (SYN_OS_TIMER_COUNT > 0)
-    static Timer _timerlist[SYN_OS_TIMER_COUNT];
-#endif
+
     static uint8_t _current_ticks_left;
     static uint8_t _readycount;
   };

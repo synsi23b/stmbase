@@ -574,6 +574,11 @@ namespace syn {
       return sMillis;
     }
 
+    // return the lower 8 bit of the millis counter
+    static uint8_t millis8() {
+      return *(((uint8_t*)&sMillis)+1);
+    }
+
     // block for the specidifed ammount of millis using systick
     static void delay(uint16_t millis) {
       uint16_t end = millis + sMillis;
