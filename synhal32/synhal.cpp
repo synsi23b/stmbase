@@ -26,9 +26,10 @@ void SoftTimer::_reload(SoftTimer *this_timer)
   this_timer->restart();
 }
 
-void Thread::runner(const void *this_thread)
+void Thread::runner(Thread *this_thread)
 {
-  ((Thread *)this_thread)->run();
+  this_thread->run();
+  this_thread->terminate();
 }
 
 void System::init()
@@ -116,11 +117,11 @@ public:
     stop();
     uint16_t psize = sizeof(Peri_t) >> 1;
     uint16_t msize = sizeof(Mem_t) >> 1;
-    _pChannel->CCR = (msize << 10) | (psize << 8) | DMA_CCR_MINC | DMA_CCR_CIRC;
+    _pChannel->CCR = (msize << 10) | (psize << 8) | DMA_CCR1_MINC | DMA_CCR1_CIRC;
     _pChannel->CNDTR = size;
     _pChannel->CMAR = (uint32_t)dst;
     _pChannel->CPAR = (uint32_t)src;
-    _pChannel->CCR |= DMA_CCR_EN;
+    _pChannel->CCR |= DMA_CCR1_EN;
   }
 
 private:

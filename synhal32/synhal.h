@@ -1,14 +1,15 @@
 #pragma once
 
 #ifdef STM32F103xB
-#include "../embos/stm32f103c8/stm32f103xb.h"
+#include "../embos/stm32f103c8/stm32f10x.h"
 #define EMBOS_IRQN(x) x + 16
 #endif
 
-#include "../../synhal_cfg.h"
+#include "../../src/synhal_cfg.h"
 #include "mtl.h"
 
 #include "../embos/common/RTOS.h"
+
 
 namespace syn
 {
@@ -162,7 +163,7 @@ namespace syn
   public:
     void init()
     {
-      OS_MUTEX_CREATE(&_handle);
+      OS_MUTEX_Create(&_handle);
     }
 
     void lock()
@@ -466,7 +467,7 @@ namespace syn
     OS_TIME _lastwake;
   };
 
-  class Thread
+  class Thread : private OS_TASK
   {
     typedef void (*thread_run)(void *);
 
@@ -474,80 +475,70 @@ namespace syn
     // when using a dynamic stack, make sure that the threads dont get terminated
     // else you end up with a memory leak.
     // static stack threads however can just terminate themself if they want
-    Thread(const char *name, OS_PRIO priority = 100, uint16_t stacksize = 512,
-           OS_REGS *pstack = 0, uint8_t timeslice = 20)
+    Thread(const char *name, OS_PRIO priority = 100, uint32_t stacksize = 192,
+           uint32_t *pstack = 0, uint8_t timeslice = 20)
     {
-      _handle.pStack = pstack;
-      _handle.Timeout = stacksize;
-      _handle.Priority = priority;
-      _handle.TimeSliceReload = timeslice;
-      _handle.Name = name;
+      pStack = (OS_REGS OS_STACKPTR*)pstack;
+      BasePrio = stacksize;
+      Priority = priority;
+      TimeSliceReload = timeslice;
+      Name = name;
     }
 
     // creates the task, don't call twice. use resume after suspend instead
     void start()
     {
-      OS_REGS *pstack = _handle.pStack;
-      if (pstack == 0)
+      if (pStack == 0)
       {
-        pstack = new OS_REGS[_handle.Timeout];
+        pStack = (OS_REGS OS_STACKPTR *)new int32_t[BasePrio];
       }
       OS_CreateTaskEx(
-          &_handle,
-          _handle.Name,
-          _handle.Priority,
-          reinterpret_cast<thread_run>(Thread::runner),
-          pstack, _handle.Timeout,
-          _handle.TimeSliceReload,
-          this);
+          this,
+          Name,
+          Priority,
+          (thread_run)&Thread::runner,
+          pStack,
+          BasePrio * sizeof(int32_t), // stacksize is in byte, not in registers
+          TimeSliceReload,
+          (void*)this);
     }
 
-    virtual ~Thread()
+    ~Thread()
     {
-      OS_TASK_Terminate(&_handle);
+      OS_TASK_Terminate(this);
     }
 
     void suspend()
     {
-      OS_TASK_Suspend(&_handle);
+      OS_TASK_Suspend(this);
     }
 
     void resume()
     {
-      OS_TASK_Resume(&_handle);
+      OS_TASK_Resume(this);
     }
 
     // this is dangerous for dynamic allocated stacks, 気をつけてね
     void terminate()
     {
-      OS_TASK_Terminate(&_handle);
+      OS_TASK_Terminate(this);
     }
 
     // send any number for event bits on this thread
     void notify(OS_TASKEVENT bitmask)
     {
-      OS_TASKEVENT_Set(&_handle, bitmask);
+      OS_TASKEVENT_Set(this, bitmask);
     }
 
     // get the events set, but don't clear them
     OS_TASKEVENT checkNotify() const
     {
-      return OS_TASKEVENT_Get(&_handle);
+      return OS_TASKEVENT_Get(this);
     }
 
     void clearNotify()
     {
-      OS_TASKEVENT_Clear(&_handle);
-    }
-
-    // disabled task switching but not interrupts
-    static void prevent_taskswitch()
-    {
-      OS_EnterRegion();
-    }
-
-    static void restore_taskswitch()
-    {
+      OS_TASKEVENT_Clear(this);
     }
 
   protected:
@@ -578,9 +569,9 @@ namespace syn
 
   private:
     virtual void run() = 0;
-    static void runner(const void *this_thread);
+    static void runner(Thread *this_thread);
 
-    OS_TASK _handle;
+    //OS_TASK _handle;
   };
 
   template <typename Message_t, uint32_t Size>

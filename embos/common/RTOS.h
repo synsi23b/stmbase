@@ -1192,7 +1192,10 @@ file for embOS.
 typedef enum {
   OS_OK                                  =   (0u),  // No error, everything ok.
 // User 1..99  ***********************************
-
+  ERR_BAD_INDEX                          =   (1u),
+  ERR_NULL_POINTER                       =   (2u),
+  ERR_BAD_PORT_NAME                      =   (3u),
+  ERR_DEVICE_NOT_ENABLED                 =   (4u),
 // Port 100..109 *********************************
   OS_ERR_ISR_INDEX                       = (100u),  // Index value out of bounds during interrupt controller initialization or interrupt installation.
   OS_ERR_ISR_VECTOR                      = (101u),  // Default interrupt handler called, but interrupt vector not initialized.
