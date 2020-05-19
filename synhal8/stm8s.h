@@ -45,7 +45,7 @@
  /* #define STM8S005 */      /*!< STM8S Value Line Medium density devices */
  /* #define STM8AF626x */    /*!< STM8A Medium density devices */
  /* #define STM8AF622x */    /*!< STM8A Low density devices */
-#define STM8S103      /*!< STM8S Low density devices */
+ /* #define STM8S103 */     /*!< STM8S Low density devices */
  /* #define STM8S003 */      /*!< STM8S Value Line Low density devices */
  /* #define STM8S903 */      /*!< STM8S Low density devices */
 
@@ -207,15 +207,15 @@
 #define     __IO    volatile         /*!< defines 'read / write' permissions  */
 
 /*!< Signed integer types  */
-//typedef   signed char     int8_t;
-//typedef   signed short    int16_t;
-//typedef   signed long     int32_t;
+typedef   signed char     int8_t;
+typedef   signed short    int16_t;
+typedef   signed long     int32_t;
 
 /*!< Unsigned integer types  */
-//typedef unsigned char     uint8_t;
-//typedef unsigned short    uint16_t;
-//typedef unsigned long     uint32_t;
-#include <stdint.h>
+typedef unsigned char     uint8_t;
+typedef unsigned short    uint16_t;
+typedef unsigned long     uint32_t;
+//#include <stdint.h>
 
 /*!< STM8 Standard Peripheral Library old types (maintained for legacy purpose) */
 

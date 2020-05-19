@@ -61,6 +61,3 @@ INTERRUPT_HANDLER(I2C_ISR, 19) {
 #endif
 #endif
 
-INTERRUPT_HANDLER(TIMER4_OV, 23) {
-  System::systick_isr();
-}

@@ -461,7 +461,7 @@ namespace syn {
       // set up the systick
       systick_init();
       // enable all interrupts
-      rim();
+      //rim();
     }
 
     // disable everything but systick and AWU
@@ -564,7 +564,7 @@ namespace syn {
     }
 
     // returns the raw content of the systick
-    // is 4�sec per lsb
+    // is 4 microsec per lsb
     static uint8_t systickRaw() {
       return TIM4->CNTR;
     }
@@ -582,17 +582,26 @@ namespace syn {
     }
 
     // Systick ISR, don't call manually
-    static void systick_isr() {
+    static void _systick_isr() {
       TIM4->SR1 = 0; // clear irq flag
       ++sMillis;
     }
   private:
     static void systick_init() {
-      TIM4->PSCR = 6; // 16MHz / 64 -> 250KHz
-      TIM4->ARR = 249; // 250KHz / 250 -> 1KHz
+#if (SYN_SYSTICK_FREQ == 1)
+      TIM4->PSCR = 0x6; // 16MHz / 64 -> 250KHz
+      TIM4->ARR = 249; // 125KHz / 250 -> 1000Hz
       TIM4->EGR = TIM4_EGR_UG; // load the values from shadow registers
       TIM4->IER = TIM4_IER_UIE;
       TIM4->CR1 = TIM4_CR1_URS | TIM4_CR1_CEN;
+#endif
+#if (SYN_SYSTICK_FREQ == 2)
+      TIM4->PSCR = 0x7; // 16MHz / 128 -> 125KHz
+      TIM4->ARR = 249; // 125KHz / 250 -> 500Hz
+      TIM4->EGR = TIM4_EGR_UG; // load the values from shadow registers
+      TIM4->IER = TIM4_IER_UIE;
+      TIM4->CR1 = TIM4_CR1_URS | TIM4_CR1_CEN;
+#endif
     }
 
     static volatile uint16_t sMillis;
