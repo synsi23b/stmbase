@@ -1,15 +1,23 @@
 #include "synos.h"
 
+extern "C" {
+  extern void archContextSwitch (syn::Routine* p_old, syn::Routine* p_new);
+  extern void archFirstThreadRestore(syn::Routine* p_first);
+  extern void synRunFirstTime();
+  __task extern void synRunOnMainStack(void* functor, uint8_t* _synos_mainstack);
+}
+
 using namespace syn;
 
-Routine* Kernel::_current;
 Routine Kernel::_routinelist[SYN_OS_ROUTINE_COUNT];
-Routine Kernel::_idler;
 uint8_t Kernel::_current_ticks_left;
 uint8_t Kernel::_readycount;
 
+static Routine* _current_routine;
+static uint8_t* _mainstack;
+
 #if (SYN_OS_TIMER_COUNT > 0)
-static SoftTimer _timerlist[SYN_OS_TIMER_COUNT];
+SoftTimer SoftTimer::_timerlist[SYN_OS_TIMER_COUNT];
 #endif
 
 void Routine::_init(void* functor, void* arg, uint8_t* stack)
@@ -60,22 +68,20 @@ void Routine::_init(void* functor, void* arg, uint8_t* stack)
   _stackptr = stack;
 }
 
-#if (SYN_OS_TIMER_COUNT > 0)
-void SoftTimer::init(SoftTimer::timer_functor functor, uint8_t reload)
+void Routine::pause()
 {
-  assert(reload > 0);
-  SoftTimer* ptimer = _timerlist;
-  for(;;++ptimer)
-  {
-    assert(ptimer != &_timerlist[SYN_OS_TIMER_COUNT]);
-    if(ptimer->_next_exec_time == 0)
-    {
-      ptimer->_next_exec_time = reload;
-      ptimer->_reload = reload;
-      ptimer->_functor = functor;
-      break;
-    }
-  }
+  Atomic a; // disable interrupts
+  _current_routine->_id_runnable &= 0xFE; // clear runnable bit
+  --Kernel::_readycount; // decrease ready count
+  Kernel::_contextSwitch(); // switch out the routine cooperatively
+}
+
+#if (SYN_OS_TIMER_COUNT > 0)
+void SoftTimer::_init(SoftTimer::timer_functor_t functor, uint8_t reload)
+{
+  _next_exec_time = reload;
+  _reload = reload;
+  _functor = functor;
 }
 
 void SoftTimer::_checkAndExec()
@@ -98,8 +104,6 @@ void Kernel::init()
 {
   // initialize clocks and peripherals
   System::init();
-  // setup the current active routine counter to be used by Routine::init
-  _current = _routinelist;
 }
 
 void Kernel::spin()
@@ -107,13 +111,17 @@ void Kernel::spin()
   // allocate a local variable to find out the current stack depth
   uint8_t stack_address;
   // reset current count, got counted up by adding routines
-  _current = _routinelist;
-  _current_ticks_left = _current->_state_1;
+  _current_routine = _routinelist;
+#ifndef SYN_OS_ROUTINE_RR_SLICE_MS
+  _current_ticks_left = _current_routine->_rr_reload;
+#else
+  _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS / SYN_SYSTICK_FREQ;
+#endif
   _readycount = SYN_OS_ROUTINE_COUNT; // all should be ready
   // setup the idle routine
   // substract some off stackpointer, else no return (we overwrite the return jump..)
-  _idler._init((void*)&_idle, 0, &stack_address - 3);
-  // but clear the event flag to prevent spurious irq
+  ((Routine*)&_mainstack)->_init((void*)&_idle, 0, &stack_address - 3);
+  // clear the event flag to prevent spurious irq
   TIM4->SR1 = 0; 
   // restore first Thread, should never return
   archFirstThreadRestore(_routinelist);
@@ -146,11 +154,39 @@ void Kernel::_idle()
 
 void Kernel::_contextSwitch()
 {
-  Routine *pold = _current++;
-  if(_current == &_routinelist[SYN_OS_ROUTINE_COUNT])
-    _current = _routinelist;
-  _current_ticks_left = _current->_state_1;
-  archContextSwitch(pold, _current);
+  if(_readycount != 0)
+  {
+    // find the next runnable routine, is not current
+    Routine *pold = _current_routine;
+    // make sure we can switch out of the idle routine properly
+    if(_current_routine == (Routine*)&_mainstack)
+      _current_routine = _routinelist - 1;
+    while(true)
+    {
+      // get next routine, roll over if we hit the end
+      // this also works of current is the idle routine
+      // we are guaranteed to break, because runnable count is not zero
+      if(++_current_routine == &_routinelist[SYN_OS_ROUTINE_COUNT])
+        _current_routine = _routinelist;
+      if(_current_routine->_id_runnable & 0x01)
+      {
+#ifndef SYN_OS_ROUTINE_RR_SLICE_MS
+        _current_ticks_left = _current_routine->_rr_reload;
+#else
+        _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS / SYN_SYSTICK_FREQ;
+#endif
+        archContextSwitch(pold, _current_routine);
+        break;
+      }
+    }
+  }
+  else if(_current_routine != (Routine*)&_mainstack)
+  {
+    Routine *pold = _current_routine;
+    _current_routine = (Routine*)&_mainstack;
+    archContextSwitch(pold, _current_routine);
+  }
+  // else idle task already running and no runnables, do nothing
 }
 
 void Kernel::_tickySwitch()
@@ -158,7 +194,19 @@ void Kernel::_tickySwitch()
   --_current_ticks_left;
   if(_current_ticks_left == 0)
   {
-    _contextSwitch();
+    if(_readycount == 1 && _current_routine->_id_runnable & 0x01)
+    {
+      // no switch needed, just refresh this routines tick count
+#ifndef SYN_OS_ROUTINE_RR_SLICE_MS
+      _current_ticks_left = _current_routine->_rr_reload;
+#else
+      _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS / SYN_SYSTICK_FREQ;
+#endif
+    }
+    else
+    {
+      _contextSwitch();
+    }
   }
 }
 
@@ -174,7 +222,14 @@ INTERRUPT_HANDLER_TRAP(TRAP) {
 INTERRUPT_HANDLER(TIMER4_OV, 23) {
   System::_systick_isr();
 #if (SYN_OS_TIMER_COUNT > 0)
+#ifdef SYN_OS_RUN_TIMER_ON_MAINSTACK
+  if(_current_routine != (Routine*)&_mainstack)
+    synRunOnMainStack((void*)&SoftTimer::_checkAndExec, _mainstack);
+  else
+    SoftTimer::_checkAndExec();
+#else
   SoftTimer::_checkAndExec();
+#endif
 #endif
   Kernel::_tickySwitch();
 }

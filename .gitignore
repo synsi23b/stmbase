@@ -32,3 +32,6 @@
 *.app
 
 .directory
+# ignore atomthreads stuff
+synos8/ports/
+synos8/kernel/

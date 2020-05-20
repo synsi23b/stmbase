@@ -38,6 +38,7 @@
 #include "vregs.inc"
 
 
+
 ;  \b archContextSwitch
 ;
 ;  Architecture-specific context switch routine.
@@ -403,5 +404,27 @@ synRunFirstTime:
   ; and we call ret to jump to the actual routine, that should be on the stack
   RET
 
+  ; __task void synRunOnMainStack(void* functor, uint8_t* mainstack);
+  PUBLIC synRunOnMainStack
+synRunOnMainStack:
+  ; Register X -> functor
+  ; Register Y -> mainstack
+
+  ; swap out the stack pointer
+  ldw     ?b0, X   ; move the functor temporarily to scratch register 1
+  ldw     X, SP    ; move current stack pointer into X register
+  ldw     SP, Y    ; switch out the stack pointer
+  pushw   X        ; retain current stack pointer
+
+  ; call the functor
+  ldw     X, ?b0   ; load the functor again
+  call    (X)        ; and jump to it
+
+  ; swap the stack pointer back in
+  popw    X
+  ldw     SP, X
+
+  RET
 
   end
+
