@@ -2,9 +2,9 @@
 
 extern "C" {
   extern void archContextSwitch (syn::Routine* p_old, syn::Routine* p_new);
-  extern void archFirstThreadRestore(syn::Routine* p_first);
-  extern void synRunFirstTime();
-  __task extern void synRunOnMainStack(void* functor, uint8_t* _synos_mainstack);
+  extern void synFirstThreadRestore(void(*idle_entry)(void), uint8_t** mainstack, syn::Routine* p_first);
+  extern void synRunFirstTime(syn::Routine* p_first);
+  extern void synRunOnMainStack(void* functor, uint8_t* mainstack);
 }
 
 using namespace syn;
@@ -14,7 +14,7 @@ uint8_t Kernel::_current_ticks_left;
 uint8_t Kernel::_readycount;
 uint8_t Kernel::_isr_reschedule_request;
 
-static Routine* _current_routine;
+static Routine* volatile _current_routine;
 static uint8_t* _mainstack;
 
 #if (SYN_OS_TICK_HOOK_COUNT > 0)
@@ -72,6 +72,11 @@ void Routine::_init(void* functor, void* arg, uint8_t* stack)
 void Routine::yield()
 {
   Atomic a;
+  yield_protected();
+}
+
+void Routine::yield_protected()
+{
   Kernel::_contextYield(false);
 }
 
@@ -173,8 +178,6 @@ void Kernel::init()
 
 void Kernel::spin()
 {
-  // allocate a local variable to find out the current stack depth
-  uint8_t stack_address;
   // reset current count, got counted up by adding routines
   _current_routine = _routinelist;
 #ifndef SYN_OS_ROUTINE_RR_SLICE_MS
@@ -185,11 +188,13 @@ void Kernel::spin()
   _readycount = SYN_OS_ROUTINE_COUNT; // all should be ready
   // setup the idle routine
   // substract some off stackpointer, else no return (we overwrite the return jump..)
-  ((Routine*)&_mainstack)->_init((void*)&_idle, 0, &stack_address - 3);
+  //((Routine*)&_mainstack)->_init((void*)&_idle, 0, &stack_address - 3);
   // clear the event flag to prevent spurious irq
   TIM4->SR1 = 0; 
-  // restore first Thread, should never return
-  archFirstThreadRestore(_routinelist);
+  // setup idle stack and start first thread
+  synFirstThreadRestore(&_idle, &_mainstack, _routinelist);
+  while(true != false)
+    ;
 }
 
 bool Kernel::is_idle()
@@ -215,6 +220,7 @@ uint8_t* Kernel::_base_stack_setup(uint8_t* stack, uint16_t size)
 
 void Kernel::_idle()
 {
+  rim();
   while(1)
     syn_os_idle_hook();
 }
@@ -235,7 +241,6 @@ void Kernel::exit_isr()
 #endif
     archContextSwitch((Routine*)&_mainstack, _current_routine);
   }
-  _isr_reschedule_request = 0;
 }
 
 void Kernel::_enterWaitlist(Routine*& listhead)
@@ -369,6 +374,11 @@ void Kernel::_tickySwitch()
 {
   if(_isr_reschedule_request & 0x80)
   {
+    // for some reason without this nop the compiler thinks its a cool
+    // idea to clear the reschedule_request before even reading it.
+    // doesn't matter if its set to volatile or not.
+    // so removed volatile and instead, added different clearing scheme
+    //nop();
     _isr_reschedule_request = 0;
     // request 0x80 is set when an interrupt enables a routine
     // but since we don't practice eager preemption, this only
@@ -380,11 +390,12 @@ void Kernel::_tickySwitch()
 #else
     _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS / SYN_SYSTICK_FREQ;
 #endif
+    
     archContextSwitch((Routine*)&_mainstack, _current_routine);
   }
   else
   {
-    _isr_reschedule_request = 0;
+    --_isr_reschedule_request;
     --_current_ticks_left;
     if(_current_ticks_left == 0)
     {

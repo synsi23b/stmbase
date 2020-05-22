@@ -32,8 +32,11 @@ namespace syn
 
     // leave execution context if other routinbe is runnable
     static void yield();
-
+    
     bool is_runnable() const;
+    
+    // optimized yield that is only valid in a protected area. use cautious or not at all
+    static void yield_protected();
   private:
     void _init(void* functor, void* arg, uint8_t* stack);
 
@@ -103,7 +106,7 @@ namespace syn
     static void enter_isr()
     {
       assert(_isr_reschedule_request == 0);
-      ++_isr_reschedule_request;
+      _isr_reschedule_request = 1;
     }
     static void exit_isr();
 
@@ -140,6 +143,7 @@ namespace syn
   {
   public:
     MailBox()
+      : _sig_write(Size)
     {
       _pread = _pwrite = _mails;
     }
@@ -147,12 +151,11 @@ namespace syn
     bool push_isr(const Mail_t& mail)
     {
       bool ret = false;
-      if(_signal.count() != Size)
+      
+      if(_sig_write.get_isr())
       {
-        *_pwrite++ = mail;
-        if(_pwrite == &_mails[Size])
-          _pwrite = _mails;
-        _signal.give_isr();
+        _write(mail);
+        _sig_read.give_isr();
         ret = true;
       }
       return ret;
@@ -166,19 +169,21 @@ namespace syn
 
     void push(const Mail_t& mail)
     {
-      Atomic a;
-      while(!push_isr(mail))
-        Routine::yield();
+      _sig_write.get();
+      {
+        Atomic a;
+        _write(mail);
+        _sig_read.give_isr();
+      }
     }
 
     bool pop_isr(Mail_t& mail)
     {
       bool ret = false;
-      if(_signal.try_get())
+      if(_sig_read.get_isr())
       {
-        mail = *_pread++;
-        if(_pread == &_mails[Size])
-          _pread = _mails;
+        _read(mail);
+        _sig_write.give_isr();
         ret = true;
       }
       return ret;
@@ -192,23 +197,24 @@ namespace syn
 
     void pop(Mail_t& mail)
     {
-      Atomic a;
-      _signal.get();
-      mail = *_pread++;
-      if(_pread == &_mails[Size])
-        _pread = _mails;
+      _sig_read.get();
+      {
+        Atomic a;
+        _read(mail);
+        _sig_write.give_isr();
+      }
     }
     
     // alternative API for zero-copy operation
-    // however, best used with single producer single consumer!
+    // however, best used with just single producer & single consumer!
 
     bool reserve_isr(Mail_t** mail)
     {
       assert(write_dirty == false);
       bool ret = false;
-      if(_signal.count() != Size)
+      if(_sig_write.get_isr())
       {
-        mail = _pwrite;
+        *mail = _pwrite;
         ret = true;
         assert(write_dirty = true);
       }
@@ -224,19 +230,18 @@ namespace syn
     void reserve(Mail_t** mail)
     {
       assert(write_dirty == false);
-      Atomic a;
-      while(_signal.count() == Size)
-        Routine::yield();
+      _sig_write.get();
       assert(write_dirty = true);
-      mail = _pwrite;
+      *mail = _pwrite;
     }
 
     void release_isr()
     {
       assert(write_dirty == true);
-      _pwrite++;
+      if(++_pwrite == &_mails[Size])
+        _pwrite = _mails;
       assert((write_dirty = false) == false);
-      _signal.give_isr();
+      _sig_read.give_isr();
     }
 
     void release()
@@ -245,38 +250,40 @@ namespace syn
       release_isr();
     }
 
-    bool peek_isr(Mail_t*& mail)
+    bool peek_isr(Mail_t** mail)
     {
       assert(read_dirty == false);
       bool ret = false;
-      if(_signal.count() != 0)
+      if(_sig_read.get_isr())
       {
         assert(read_dirty = true);
-        mail = _pread;
+        *mail = _pread;
         ret = true;
       }
       return ret;
     }
 
-    bool try_peek(Mail_t*& mail)
+    bool try_peek(Mail_t** mail)
     {
       Atomic a;
       return peek_isr(mail);
     }
 
-    void peek(Mail_t*& mail)
+    void peek(Mail_t** mail)
     {
-      while(!try_peek(mail))
-        Routine::yield();
+      assert(read_dirty == false);
+      _sig_read.get();
+      assert(read_dirty = true);
+      *mail = _pread;
     }
 
     void purge_isr()
     {
       assert(read_dirty == true);
-      assert(_signal.get_isr());
       if(++_pread == &_mails[Size])
         _pread = _mails;
       assert((read_dirty = false) == false);
+      _sig_write.give_isr();
     }
 
     void purge()
@@ -285,9 +292,24 @@ namespace syn
       purge_isr();
     }
   private:
+    void _write(const Mail_t &mail)
+    {
+      *_pwrite++ = mail;
+      if(_pwrite == &_mails[Size])
+        _pwrite = _mails;
+    }
+
+    void _read(Mail_t &mail)
+    {
+      mail = *_pread++;
+      if(_pread == &_mails[Size])
+        _pread = _mails;
+    }
+
     Mail_t *_pread;
     Mail_t *_pwrite;
-    Semaphore _signal;
+    Semaphore _sig_read;
+    Semaphore _sig_write;
     Mail_t _mails[Size];
 #ifdef DEBUG
     bool read_dirty, write_dirty;

@@ -349,11 +349,30 @@ archContextSwitch:
 ;
 ; @return None
 ;
-; void archFirstThreadRestore (ATOM_TCB *new_tcb_ptr)
-  PUBLIC archFirstThreadRestore
-archFirstThreadRestore:
+; void synFirstThreadRestore (void(*idlefunc)(void), uint8_t** mainstack, Routine* first)
+  PUBLIC synFirstThreadRestore
+synFirstThreadRestore:
     ; Parameter locations:
-    ;  new_tcb_ptr = X register (word-width)
+    ;  idlefunc = X register (word-width)
+    ;  mainstack = Y register (word-width)
+    ;  first routine = virtual reg 0 (word-width)
+
+    ; first, setup the current (main)stack to mimic a routine,
+    ; than switch to the first routine
+
+    add   SP, #0x04 ; delete current (nested) return address from stack, as we dont care
+    pushw X         ; push idle entry point
+    clr   A         ; push non-scratch virtual registers to the stack
+    push  A         ; ?b15
+    push  A         ; ?b14
+    push  A         ; ?b13
+    push  A         ; ?b12
+    push  A         ; ?b11
+    push  A         ; ?b10
+    push  A         ; ?b9
+    push  A         ; ?b8
+    ldw   X, SP     ; grab the stackpointer
+    ldw   (Y), X ; and store it to mainstack variable
 
     ; As described above, first thread restores in this port do not
     ; expect any initial register context to be pre-initialised in
@@ -372,7 +391,7 @@ archFirstThreadRestore:
     ; new_tcb_ptr is stored in the parameter register X. The stack
     ; pointer it conveniently located at the top of the TCB so no
     ; indexing is required to pull it out.
-    ldw X,(X)
+    ldw X,[?b0.w]
 
     ; Switch our current stack pointer to that of the new thread.
     ldw SP,X
