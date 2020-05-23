@@ -170,6 +170,147 @@ bool Semaphore::try_get()
   return get_isr();
 }
 
+void Mutex::lock()
+{
+  assert(Kernel::is_isr() == false);
+  Atomic a;
+  while(_owner != _current_routine)
+  {
+    if(_owner == 0)
+    {
+      _owner = _current_routine;
+    }
+    else
+    {
+      Kernel::_enterWaitlist(_waitlist);
+    }
+  }
+  ++_count;
+  // watch for mutex overlock
+  assert(_count != 0);
+}
+
+bool Mutex::try_lock()
+{
+  assert(Kernel::is_isr() == false);
+  Atomic a;
+  bool ret = false;
+  if(_owner == 0)
+  {
+    _owner = _current_routine;
+  }
+  if(_owner == _current_routine)
+  {
+    ++_count;
+    // watch for mutex overlock
+    assert(_count != 0);
+    ret = true;
+  }
+  return ret;
+}
+
+void Mutex::unlock()
+{
+  Atomic a;
+  assert(_owner == _current_routine);
+  assert(_count != 0);
+  if(--_count == 0)
+  {
+    _owner = 0;
+    Kernel::_unblockWaitlist(_waitlist);
+  }
+}
+
+#ifdef SYN_OS_USE_EVENTS
+// used by events, is private
+void Routine::_setEventValue(uint8_t value)
+{
+  _eventval = value;
+}
+// set the regardless of its state from an isr
+// value of zero is forbidden / is the same as clearing the event
+void Event::set_isr(uint8_t value)
+{
+  _value = value;
+  Kernel::_unblockEventlist(_waitlist, value);
+}
+
+// set the event regardless of its state
+// value of zero is forbidden / is the same as clearing the event
+void Event::set(uint8_t value)
+{
+  Atomic a;
+  set_isr(value);
+}
+// set the event regardless of its state from an isr
+// return true if the event was already set
+// value of zero is forbidden / is the same as clearing the event
+bool Event::set_check_isr(uint8_t value)
+{
+  bool ret = _value != 0;
+  set_isr(value);
+  return ret;
+}
+// set the event regardless of its state
+// return true if the event was already set
+// value of zero is forbidden / is the same as clearing the event
+bool Event::set_check(uint8_t value)
+{
+  Atomic a;
+  return set_check_isr(value);
+}
+
+// wait for the event to be set and return its value
+// doesn't clear the event value
+uint8_t Event::wait()
+{
+  Atomic a;
+  if(_value == 0)
+  {
+    Kernel::_enterWaitlist(_waitlist);
+  }
+  else
+  {
+    _current_routine->_setEventValue(_value);
+  }
+  return _current_routine->lastEvent();
+}
+
+// wait for the event to be set and return its value
+// auto clears the event value upon exit of the function
+uint8_t Event::wait_clr()
+{
+  Atomic a;
+  if(_value == 0)
+  {
+    Kernel::_enterWaitlist(_waitlist);
+  }
+  else
+  {
+    _current_routine->_setEventValue(_value);
+  }
+  _value = 0;
+  return _current_routine->lastEvent();
+}
+
+void Kernel::_unblockEventlist(Routine *&listhead, uint8_t value)
+{
+  if(listhead != 0)
+  {
+    Routine *prt = listhead;
+    do
+    {
+      prt->_setEventValue(value);
+      prt->unblock();
+      prt = prt->_next;
+    } while (prt != 0);
+    prt = listhead;
+    listhead = 0;
+    _contextUnblocked(prt);
+  }
+}
+#endif
+
 void Kernel::init()
 {
   // initialize clocks and peripherals
@@ -270,22 +411,6 @@ void Kernel::_unblockWaitlist(Routine*& listhead)
     Routine *prt = listhead;
     prt->unblock();
     listhead = prt->_next;
-    _contextUnblocked(prt);
-  }
-}
-
-void Kernel::_unblockWaitlistAll(Routine*& listhead)
-{
-  if(listhead != 0)
-  {
-    Routine *prt = listhead;
-    do
-    {
-      prt->unblock();
-      prt = prt->_next;
-    } while (prt != 0);
-    prt = listhead;
-    listhead = 0;
     _contextUnblocked(prt);
   }
 }
