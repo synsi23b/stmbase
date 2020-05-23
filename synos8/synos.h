@@ -91,6 +91,7 @@ namespace syn
     void give_isr();
 
     void get();
+    bool get(uint16_t timeout);
     bool get_isr();
     bool try_get();
 
@@ -175,7 +176,6 @@ namespace syn
     static void exit_isr();
 
     static void _tickySwitch();
-
   private:
     // general purpose context switch that always scedules next runnable, or idle
     // however, next runnable could also be the same routine.
@@ -195,6 +195,27 @@ namespace syn
     static void _unblockWaitlist(Routine *&listhead);
     // remove unblock the entire list and schedule the head if idle, set routine event value
     static void _unblockEventlist(Routine *&listhead, uint8_t value);
+    // remove the specified routine from the waitlist, but don't reschedule
+    static void _removeWaitlist(Routine **listhead, Routine *to_remove);
+#ifdef SYN_OS_ENABLE_TIMOUT_API
+    class Timeout
+    {
+    public:
+      Timeout(uint16_t timeout, Routine** waitlist);
+
+      bool is_expired() const;
+      void unlist();
+      static void tick();
+    private:
+      static Timeout *_timeoutlist;
+
+      Timeout* _next; // has to be the first for some trick in tick() to work
+      uint16_t _endtime;
+      Routine* _routine;
+      Routine** _waitlist;
+      bool _expired;
+    };
+#endif
 
     static Routine _routinelist[SYN_OS_ROUTINE_COUNT];
     static uint8_t _current_ticks_left;

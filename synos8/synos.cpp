@@ -13,9 +13,75 @@ Routine Kernel::_routinelist[SYN_OS_ROUTINE_COUNT];
 uint8_t Kernel::_current_ticks_left;
 uint8_t Kernel::_readycount;
 uint8_t Kernel::_isr_reschedule_request;
-
 static Routine* volatile _current_routine;
 static uint8_t* _mainstack;
+
+
+#ifdef SYN_OS_ENABLE_TIMOUT_API
+Kernel::Timeout* Kernel::Timeout::_timeoutlist;
+
+Kernel::Timeout::Timeout(uint16_t timeout, Routine** waitlist)
+{
+  // join timeoutlist at the head
+  _next = _timeoutlist;
+  _timeoutlist = this;
+  _endtime = timeout + System::millis();
+  _routine = _current_routine;
+  _waitlist = waitlist;
+  _expired = false;
+}
+
+bool Kernel::Timeout::is_expired() const
+{
+  return _expired;
+}
+
+void Kernel::Timeout::unlist()
+{
+  if(!_expired)
+  {
+    // the timeout didn't expire, so it is still in the timouts list
+    // fake prev pointer for easy running trhough single linked list
+    Timeout* pprev = (Timeout*)&_timeoutlist;
+    Timeout* ptout = _timeoutlist;
+    while(ptout != 0)
+    {
+      if(ptout == this)
+      {
+        pprev->_next = _next;
+        break;
+      }
+      pprev = ptout;
+      ptout = ptout->_next;
+    }
+  }
+}
+
+void Kernel::Timeout::tick()
+{
+  // fake prev pointer for easy running trhough single linked list
+  Timeout* pprev = (Timeout*)&_timeoutlist;
+  Timeout* ptout = _timeoutlist;
+  uint16_t curtime = System::millis();
+  while(ptout != 0)
+  {
+    if(curtime == ptout->_endtime)
+    {
+      ptout->_expired = true;
+      // unblock the element from the waitlist
+      Kernel::_removeWaitlist(ptout->_waitlist, ptout->_routine);
+      // finally, remove the timeout from timeouts list
+      pprev->_next = ptout->_next;
+      ptout = ptout->_next;
+    }
+    else
+    {
+      pprev = ptout;
+      ptout = ptout->_next;
+    }
+  }
+}
+#endif
 
 #if (SYN_OS_TICK_HOOK_COUNT > 0)
 SysTickHook SysTickHook::_timerlist[SYN_OS_TICK_HOOK_COUNT];
@@ -151,6 +217,30 @@ void Semaphore::get()
     Kernel::_enterWaitlist(_waitlist);
   }
   --_count;
+}
+
+bool Semaphore::get(uint16_t timeout)
+{
+  Atomic a;
+  if(_count == 0)
+  {
+    Kernel::Timeout t(timeout, &_waitlist);
+    while(_count == 0 && !t.is_expired())
+    {
+      Kernel::_enterWaitlist(_waitlist);
+    }
+    if(t.is_expired())
+    {
+      return false;
+    }
+    else
+    {
+      // not expired, so we have to remove from the list here.
+      t.unlist();
+    }
+  }
+  --_count;
+  return true;
 }
 
 bool Semaphore::get_isr()
@@ -415,6 +505,34 @@ void Kernel::_unblockWaitlist(Routine*& listhead)
   }
 }
 
+void Kernel::_removeWaitlist(Routine **listhead, Routine *to_remove)
+{
+  to_remove->unblock();
+  // check if there is no list, maybe we don't have to rebuild it
+  if(listhead != 0)
+  {
+    Routine *pcur = *listhead;
+    if(pcur == to_remove)
+    {
+      // the element to remove is the first of the list, very easy
+      *listhead = to_remove-> _next;
+    }
+    else
+    {
+      while(pcur != 0)
+      {
+        // the element is not the first, and the list is not empty
+        if(pcur->_next == to_remove)
+        {
+          pcur->_next = to_remove->_next;
+          break;
+        }
+        pcur = pcur->_next;
+      }
+    }
+  }
+}
+
 void Kernel::_contextSwitch()
 {
   if(_readycount != 0)
@@ -497,6 +615,9 @@ void Kernel::_contextUnblocked(Routine* unblocked)
 
 void Kernel::_tickySwitch()
 {
+#ifdef SYN_OS_ENABLE_TIMOUT_API
+  Timeout::tick();
+#endif
   if(_isr_reschedule_request & 0x80)
   {
     // for some reason without this nop the compiler thinks its a cool
