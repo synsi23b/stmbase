@@ -13,73 +13,73 @@ Routine Kernel::_routinelist[SYN_OS_ROUTINE_COUNT];
 uint8_t Kernel::_current_ticks_left;
 uint8_t Kernel::_readycount;
 uint8_t Kernel::_isr_reschedule_request;
+
 static Routine* volatile _current_routine;
 static uint8_t* _mainstack;
 
+Routine* Kernel::_fake_idle_routine()
+{
+  return (Routine*)(((uint8_t*)_mainstack) - 1);
+}
+
+template<typename Functor>
+void Kernel::for_each_routine(Functor functor)
+{
+  Routine* pr = _routinelist;
+  while(pr != &_routinelist[SYN_OS_ROUTINE_COUNT])
+  {
+    functor(pr);
+    ++pr;
+  }
+}
 
 #ifdef SYN_OS_ENABLE_TIMOUT_API
-Kernel::Timeout* Kernel::Timeout::_timeoutlist;
-
-Kernel::Timeout::Timeout(uint16_t timeout, Routine** waitlist)
+void Routine::sleep(uint16_t timeout)
 {
-  // join timeoutlist at the head
-  _next = _timeoutlist;
-  _timeoutlist = this;
-  _endtime = timeout + System::millis();
-  _routine = _current_routine;
+  _current_routine->_setupTimeout(timeout, 0);
+  Kernel::_contextYield(sleeping);
+}
+
+void Routine::_setupTimeout(uint16_t timeout, Routine** waitlist)
+{
+  _timeout = timeout + System::millis();
+  if(_timeout == 0)
+  {
+    // protect from roll over bug will wait 1 milli longer, but no problem
+    _timeout = 1;
+  }
   _waitlist = waitlist;
-  _expired = false;
 }
 
-bool Kernel::Timeout::is_expired() const
+bool Routine::_timeout_is_expired() const
 {
-  return _expired;
+  return _timeout == 0;
 }
 
-void Kernel::Timeout::unlist()
+Routine::TestTimoutExpired::TestTimoutExpired()
 {
-  if(!_expired)
+  _millis = System::millis();
+}
+
+void Routine::TestTimoutExpired::operator()(Routine *pr)
+{
+  if(pr->_state & sleeping)
   {
-    // the timeout didn't expire, so it is still in the timouts list
-    // fake prev pointer for easy running trhough single linked list
-    Timeout* pprev = (Timeout*)&_timeoutlist;
-    Timeout* ptout = _timeoutlist;
-    while(ptout != 0)
+    if(pr->_timeout == _millis)
     {
-      if(ptout == this)
+      if(Kernel::_removeWaitlist(pr->_waitlist, pr))
       {
-        pprev->_next = _next;
-        break;
+        // is expired
+        pr->_timeout = 0;
       }
-      pprev = ptout;
-      ptout = ptout->_next;
     }
   }
 }
 
-void Kernel::Timeout::tick()
+void Routine::timeouttick()
 {
-  // fake prev pointer for easy running trhough single linked list
-  Timeout* pprev = (Timeout*)&_timeoutlist;
-  Timeout* ptout = _timeoutlist;
-  uint16_t curtime = System::millis();
-  while(ptout != 0)
-  {
-    if(curtime == ptout->_endtime)
-    {
-      ptout->_expired = true;
-      // unblock the element from the waitlist
-      Kernel::_removeWaitlist(ptout->_waitlist, ptout->_routine);
-      // finally, remove the timeout from timeouts list
-      pprev->_next = ptout->_next;
-      ptout = ptout->_next;
-    }
-    else
-    {
-      pprev = ptout;
-      ptout = ptout->_next;
-    }
-  }
+  TestTimoutExpired fn;
+  Kernel::for_each_routine(fn);
 }
 #endif
 
@@ -143,23 +143,23 @@ void Routine::yield()
 
 void Routine::yield_protected()
 {
-  Kernel::_contextYield(false);
+  Kernel::_contextYield(runnable);
 }
 
 bool Routine::is_runnable() const
 {
-  return _id_runnable & 0x01;
+  return _state == runnable;
 }
 
-void Routine::block()
+void Routine::block(State blocking_reason)
 {
-  _id_runnable &= 0x7E;
+  _state = blocking_reason;
   --Kernel::_readycount; // decrease ready count
 }
 
 void Routine::unblock()
 {
-  _id_runnable |= 0x01;
+  _state = runnable;
   ++Kernel::_readycount; // increase ready count
 }
 
@@ -214,7 +214,7 @@ void Semaphore::get()
   Atomic a;
   while(_count == 0)
   {
-    Kernel::_enterWaitlist(_waitlist);
+    Kernel::_enterWaitlist(_waitlist, Routine::wait_semaphore);
   }
   --_count;
 }
@@ -224,19 +224,14 @@ bool Semaphore::get(uint16_t timeout)
   Atomic a;
   if(_count == 0)
   {
-    Kernel::Timeout t(timeout, &_waitlist);
-    while(_count == 0 && !t.is_expired())
+    _current_routine->_setupTimeout(timeout, &_waitlist);
+    while(_count == 0)
     {
-      Kernel::_enterWaitlist(_waitlist);
-    }
-    if(t.is_expired())
-    {
-      return false;
-    }
-    else
-    {
-      // not expired, so we have to remove from the list here.
-      t.unlist();
+      Kernel::_enterWaitlist(_waitlist, Routine::timeout_semaphore);
+      if(_current_routine->_timeout_is_expired())
+      {
+        return false;
+      }
     }
   }
   --_count;
@@ -262,7 +257,6 @@ bool Semaphore::try_get()
 
 void Mutex::lock()
 {
-  assert(Kernel::is_isr() == false);
   Atomic a;
   while(_owner != _current_routine)
   {
@@ -272,7 +266,7 @@ void Mutex::lock()
     }
     else
     {
-      Kernel::_enterWaitlist(_waitlist);
+      Kernel::_enterWaitlist(_waitlist, Routine::wait_mutex);
     }
   }
   ++_count;
@@ -280,9 +274,44 @@ void Mutex::lock()
   assert(_count != 0);
 }
 
+bool Mutex::lock(uint16_t timeout)
+{
+  bool ret = false;
+  Atomic a;
+  if(_owner == 0)
+  {
+    _owner = _current_routine;
+  }
+  if(_owner == _current_routine)
+  {
+    ++_count;
+    // watch for mutex overlock
+    assert(_count != 0);
+    ret = true;
+  }
+  else
+  {
+    _current_routine->_setupTimeout(timeout, &_waitlist);
+    while(_owner != _current_routine)
+    {
+      Kernel::_enterWaitlist(_waitlist, Routine::timeout_mutex);
+      if(_current_routine->_timeout_is_expired())
+      {
+        break;
+      }
+      if(_owner == 0)
+      {
+        _owner = _current_routine;
+        ++_count;
+        ret = true;
+      }
+    }
+  }
+  return ret;
+}
+
 bool Mutex::try_lock()
 {
-  assert(Kernel::is_isr() == false);
   Atomic a;
   bool ret = false;
   if(_owner == 0)
@@ -357,7 +386,9 @@ uint8_t Event::wait()
   Atomic a;
   if(_value == 0)
   {
-    Kernel::_enterWaitlist(_waitlist);
+    // not looping forever because if the event is set
+    // any waiting routine will receive the value by the kernel
+    Kernel::_enterWaitlist(_waitlist, Routine::wait_event);
   }
   else
   {
@@ -367,19 +398,24 @@ uint8_t Event::wait()
 }
 
 // wait for the event to be set and return its value
-// auto clears the event value upon exit of the function
-uint8_t Event::wait_clr()
+// doesn't clear the event value
+// returns 0 if timeout
+uint8_t Event::wait(uint16_t timeout)
 {
   Atomic a;
   if(_value == 0)
   {
-    Kernel::_enterWaitlist(_waitlist);
+    _current_routine->_setupTimeout(timeout, &_waitlist);
+    Kernel::_enterWaitlist(_waitlist, Routine::timeout_event);
+    if(_current_routine->_timeout_is_expired())
+    {
+      _current_routine->_setEventValue(0);
+    }
   }
   else
   {
     _current_routine->_setEventValue(_value);
   }
-  _value = 0;
   return _current_routine->lastEvent();
 }
 
@@ -430,7 +466,7 @@ void Kernel::spin()
 
 bool Kernel::is_idle()
 {
-  return _current_routine == (Routine*)&_mainstack;
+  return _current_routine == _fake_idle_routine();
 }
 
 // transform stack point to point at the top
@@ -470,11 +506,11 @@ void Kernel::exit_isr()
 #else
     _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS / SYN_SYSTICK_FREQ;
 #endif
-    archContextSwitch((Routine*)&_mainstack, _current_routine);
+    archContextSwitch(_fake_idle_routine(), _current_routine);
   }
 }
 
-void Kernel::_enterWaitlist(Routine*& listhead)
+void Kernel::_enterWaitlist(Routine*& listhead, Routine::State blocking_reason)
 {
   if(listhead == 0)
   {
@@ -491,7 +527,7 @@ void Kernel::_enterWaitlist(Routine*& listhead)
     tmp->_next = _current_routine;
     _current_routine->_next = 0;
   }
-  _contextYield(true);
+  _contextYield(blocking_reason);
 }
 
 void Kernel::_unblockWaitlist(Routine*& listhead)
@@ -505,8 +541,9 @@ void Kernel::_unblockWaitlist(Routine*& listhead)
   }
 }
 
-void Kernel::_removeWaitlist(Routine **listhead, Routine *to_remove)
+bool Kernel::_removeWaitlist(Routine **listhead, Routine *to_remove)
 {
+  bool ret = false;
   to_remove->unblock();
   // check if there is no list, maybe we don't have to rebuild it
   if(listhead != 0)
@@ -516,6 +553,7 @@ void Kernel::_removeWaitlist(Routine **listhead, Routine *to_remove)
     {
       // the element to remove is the first of the list, very easy
       *listhead = to_remove-> _next;
+      ret = true;
     }
     else
     {
@@ -525,12 +563,14 @@ void Kernel::_removeWaitlist(Routine **listhead, Routine *to_remove)
         if(pcur->_next == to_remove)
         {
           pcur->_next = to_remove->_next;
+          ret = true;
           break;
         }
         pcur = pcur->_next;
       }
     }
   }
+  return ret;
 }
 
 void Kernel::_contextSwitch()
@@ -540,7 +580,7 @@ void Kernel::_contextSwitch()
     // find the next runnable routine, is not current
     Routine *pold = _current_routine;
     // make sure we can switch out of the idle routine properly
-    if(_current_routine == (Routine*)&_mainstack)
+    if(_current_routine == _fake_idle_routine())
       _current_routine = _routinelist - 1;
     while(true)
     {
@@ -549,7 +589,7 @@ void Kernel::_contextSwitch()
       // we are guaranteed to break, because runnable count is not zero
       if(++_current_routine == &_routinelist[SYN_OS_ROUTINE_COUNT])
         _current_routine = _routinelist;
-      if(_current_routine->_id_runnable & 0x01)
+      if(_current_routine->is_runnable())
       {
 #ifndef SYN_OS_ROUTINE_RR_SLICE_MS
         _current_ticks_left = _current_routine->_rr_reload;
@@ -561,10 +601,10 @@ void Kernel::_contextSwitch()
       }
     }
   }
-  else if(_current_routine != (Routine*)&_mainstack)
+  else if(_current_routine != _fake_idle_routine())
   {
     Routine *pold = _current_routine;
-    _current_routine = (Routine*)&_mainstack;
+    _current_routine = _fake_idle_routine();
     archContextSwitch(pold, _current_routine);
   }
   // else idle task already running and no runnables, do nothing
@@ -573,11 +613,11 @@ void Kernel::_contextSwitch()
 // method to use if a routine gives up control by itself
 // either through yielding or by some blocking action
 // paramter defines wether or not the routine can continue
-void Kernel::_contextYield(bool current_is_block)
+void Kernel::_contextYield(Routine::State blocking_reason)
 {
-  if(current_is_block)
+  if(blocking_reason != 0)
   {
-    _current_routine->block();
+    _current_routine->block(blocking_reason);
     _contextSwitch();
   }
   else if (_readycount != 1)
@@ -602,7 +642,7 @@ void Kernel::_contextUnblocked(Routine* unblocked)
 #else
       _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS / SYN_SYSTICK_FREQ;
 #endif
-      archContextSwitch((Routine*)&_mainstack, _current_routine);
+      archContextSwitch(_fake_idle_routine(), _current_routine);
     }
     else
     {
@@ -616,7 +656,7 @@ void Kernel::_contextUnblocked(Routine* unblocked)
 void Kernel::_tickySwitch()
 {
 #ifdef SYN_OS_ENABLE_TIMOUT_API
-  Timeout::tick();
+  Routine::timeouttick();
 #endif
   if(_isr_reschedule_request & 0x80)
   {
@@ -637,7 +677,7 @@ void Kernel::_tickySwitch()
     _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS / SYN_SYSTICK_FREQ;
 #endif
     
-    archContextSwitch((Routine*)&_mainstack, _current_routine);
+    archContextSwitch(_fake_idle_routine(), _current_routine);
   }
   else
   {

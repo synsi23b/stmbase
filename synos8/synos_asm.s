@@ -135,6 +135,7 @@ archContextSwitch:
 
     ; Store current stack pointer as first entry in old_tcb_ptr
     ldw Y, SP    ; Move current stack pointer into Y register
+    incw X       ; stackpointer is offset by one byte in the routine
     ldw (X), Y   ; Store current stack pointer at first offset in TCB
 
 
@@ -163,6 +164,7 @@ archContextSwitch:
 
     ; Pull the first entry out of new_tcb_ptr (the new thread's
     ; stack pointer) into X register.
+    incw X  ; one byte offset
     ldw X,(X)
 
     ; Switch our current stack pointer to that of the new thread.
@@ -391,7 +393,9 @@ synFirstThreadRestore:
     ; new_tcb_ptr is stored in the parameter register X. The stack
     ; pointer it conveniently located at the top of the TCB so no
     ; indexing is required to pull it out.
-    ldw X,[?b0.w]
+    ldw X, ?b0
+    incw X
+    ldw X, (X)
 
     ; Switch our current stack pointer to that of the new thread.
     ldw SP,X
@@ -437,7 +441,7 @@ synRunOnMainStack:
 
   ; call the functor
   ldw     X, ?b0   ; load the functor again
-  call    (X)        ; and jump to it
+  call    (X)      ; and jump to it
 
   ; swap the stack pointer back in
   popw    X

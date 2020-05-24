@@ -29,12 +29,27 @@ namespace syn
     friend class Kernel;
 
   public:
+    typedef enum State
+    {
+      runnable = 0x00,
+      wait_semaphore = 0x01,
+      wait_mutex = 0x02,
+      wait_event = 0x04,
+      timeout_semaphore = 0x81,
+      timeout_mutex = 0x82,
+      timeout_event = 0x84,
+      sleeping = 0x80
+    } State_t;
+
     template <uint8_t Index, uint16_t rr_millis, typename Functor_t, typename Argument_t>
     static void init(Functor_t functor, Argument_t arg, uint8_t *stack, uint16_t stacksize);
 
     // leave execution context if other routinbe is runnable
     static void yield();
-
+    // block routine for specified time in ticks, not milliseconds
+    // requieres enabling of timeout api
+    static void sleep(uint16_t timeout);
+    // wether or not this routine is runnable
     bool is_runnable() const;
 
     // optimized yield that is only valid in a protected area. use cautious or not at all
@@ -42,22 +57,40 @@ namespace syn
 
     uint8_t lastEvent() const;
 
-    // used by events, is private
+    // "private" functions, dont want to friend every class, shouldn't be called by application
     void _setEventValue(uint8_t value);
+    void _setupTimeout(uint16_t timeout, Routine **waitlist);
+    bool _timeout_is_expired() const;
   private:
     void _init(void *functor, void *arg, uint8_t *stack);
 
-    void block();
+    void block(State reason);
     void unblock();
 
+    State_t _state;
     uint8_t *_stackptr;
-    uint8_t _id_runnable;
 #ifndef SYN_OS_ROUTINE_RR_SLICE_MS
     uint8_t _rr_reload;
 #endif
     Routine *_next;
 #ifdef SYN_OS_USE_EVENTS
     uint8_t _eventval;
+#endif
+#ifdef SYN_OS_ENABLE_TIMOUT_API
+
+    static void timeouttick();
+
+    class TestTimoutExpired
+    {
+    public:
+      TestTimoutExpired();
+      void operator()(Routine *pr);
+    private:
+      uint16_t _millis;
+    };
+
+    uint16_t _timeout;
+    Routine **_waitlist;
 #endif
   };
 
@@ -106,6 +139,7 @@ namespace syn
   {
   public:
     void lock();
+    bool lock(uint16_t timeout);
     bool try_lock();
 
     void unlock();
@@ -135,6 +169,14 @@ namespace syn
     // return true if the event was already set
     // value of zero is forbidden / is the same as clearing the event
     bool set_check(uint8_t value);
+    // set the event, if no routine is waiting, else pulse, from an isr
+    void set_or_pulse_isr(uint8_t value);
+    // set the event, if no routine is waiting, else pulse
+    void set_or_pulse(uint8_t value);
+    // wake up any waiting routine but don't store the value, from an isr
+    void pulse_isr(uint8_t value);
+    // wake up any waiting routine but don't store the value, from an isr
+    void pulse(uint8_t value);
     // unconditionally clear the event
     void clear();
     // try to read the event, returns the event value, or 0 if not set
@@ -149,8 +191,9 @@ namespace syn
     // doesn't clear the event value
     uint8_t wait();
     // wait for the event to be set and return its value
-    // auto clears the event value upon exit of the function
-    uint8_t wait_clr();
+    // doesn't clear the event value
+    // returns 0 if timeout
+    uint8_t wait(uint16_t timeout);
 
   private:
     uint8_t _value;
@@ -176,46 +219,32 @@ namespace syn
     static void exit_isr();
 
     static void _tickySwitch();
+
   private:
+    template<typename Functor>
+    static void for_each_routine(Functor functor);
     // general purpose context switch that always scedules next runnable, or idle
     // however, next runnable could also be the same routine.
     // so its not always smart to call, but always safe
     static void _contextSwitch();
     // optimized function to call if the current routine exits and might be blocked
-    static void _contextYield(bool routine_shall_block);
+    static void _contextYield(Routine::State blocking_state);
     // optimized function to call when we already know something unblocked
     static void _contextUnblocked(Routine *unblocked);
 
     static uint8_t *_base_stack_setup(uint8_t *stack, uint16_t size);
     static void _idle();
+    static Routine* _fake_idle_routine();
 
     // put current Routine into the list, reshedule. Not allowed by ISR
-    static void _enterWaitlist(Routine *&listhead);
+    static void _enterWaitlist(Routine *&listhead, Routine::State blocking_reason);
     // unblock the head and reschedule if idle
     static void _unblockWaitlist(Routine *&listhead);
     // remove unblock the entire list and schedule the head if idle, set routine event value
     static void _unblockEventlist(Routine *&listhead, uint8_t value);
     // remove the specified routine from the waitlist, but don't reschedule
-    static void _removeWaitlist(Routine **listhead, Routine *to_remove);
-#ifdef SYN_OS_ENABLE_TIMOUT_API
-    class Timeout
-    {
-    public:
-      Timeout(uint16_t timeout, Routine** waitlist);
-
-      bool is_expired() const;
-      void unlist();
-      static void tick();
-    private:
-      static Timeout *_timeoutlist;
-
-      Timeout* _next; // has to be the first for some trick in tick() to work
-      uint16_t _endtime;
-      Routine* _routine;
-      Routine** _waitlist;
-      bool _expired;
-    };
-#endif
+    // returns true if the routine is actually in the waitlist
+    static bool _removeWaitlist(Routine **listhead, Routine *to_remove);
 
     static Routine _routinelist[SYN_OS_ROUTINE_COUNT];
     static uint8_t _current_ticks_left;
@@ -413,7 +442,7 @@ namespace syn
     static_assert((rr_millis / SYN_SYSTICK_FREQ) < 256, "ROund robin reload needs to be less than 256");
     Kernel::_routinelist[Index]._rr_reload = rr_millis / SYN_SYSTICK_FREQ;
 #endif
-    Kernel::_routinelist[Index]._id_runnable = ((Index + 1) << 1) | 0x01;
+    Kernel::_routinelist[Index]._state = runnable;
     Kernel::_routinelist[Index]._init((void *)functor, (void *)arg, stack);
   }
 
@@ -461,6 +490,38 @@ namespace syn
   {
     Atomic a;
     return get_clr_isr();
+  }
+
+  // set the event, if no routine is waiting, else pulse, from an isr
+  inline void Event::set_or_pulse_isr(uint8_t value)
+  {
+    if (_waitlist == 0)
+    {
+      _value = value;
+    }
+    else
+    {
+      _value = 0;
+      Kernel::_unblockEventlist(_waitlist, value);
+    }
+  }
+
+  // set the event, if no routine is waiting, else pulse
+  inline void Event::set_or_pulse(uint8_t value)
+  {
+    Atomic a;
+    set_or_pulse_isr(value);
+  }
+
+  inline void Event::pulse_isr(uint8_t value)
+  {
+    Kernel::_unblockEventlist(_waitlist, value);
+  }
+
+  inline void Event::pulse(uint8_t value)
+  {
+    Atomic a;
+    Kernel::_unblockEventlist(_waitlist, value);
   }
 
   inline uint8_t Routine::lastEvent() const
