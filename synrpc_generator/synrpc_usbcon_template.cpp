@@ -1,4 +1,4 @@
-#include <synrpc_usbcon.h>
+#include "synrpc_usbcon.h"
 #include <cstring> // strcopy for error msg
 using namespace syn;
 

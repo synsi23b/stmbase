@@ -323,8 +323,8 @@ namespace syn
   public:
     typedef enum
     {
-      bits_manual_clear_logic_or = OS_EVENT_RESET_MODE_MANUAL,
-      bits_auto_clear_logic_or = OS_EVENT_RESET_MODE_AUTO,
+      bits_manual_clear = OS_EVENT_RESET_MODE_MANUAL,
+      bits_auto_clear = OS_EVENT_RESET_MODE_AUTO,
     } Mode;
 
     void init(Mode mode)
@@ -1085,6 +1085,12 @@ namespace syn
   class Exti
   {
   public:
+    // line is equivalent to port pin number
+    // port shall be 'A' 'B' or 'C'
+    // priority shall be between 0 and 255
+    // lower value means higher priority
+    // interrupts with level between 0 and 127 are prohibited to call OS functions
+    // select the correct exti type in the synhal_cfg
     static void enable(uint16_t line, char port, bool rising, bool falling, uint32_t priority = 200)
     {
       OS_ASSERT('A' <= port && port >= 'C', ERR_BAD_PORT_NAME);

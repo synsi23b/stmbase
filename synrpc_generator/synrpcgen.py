@@ -11,8 +11,8 @@ def main():
 
     if args.bits == "STM32":
         wdir = os.getcwd()
-        basepath = wdir + os.sep + ".." + os.sep + ".."
-        srcpath = basepath
+        basepath = wdir + os.sep + ".."
+        srcpath = basepath + os.sep + 'src'
         msgpath = basepath + os.sep + 'msg'
         handlerpath = srcpath + os.sep + "synrpc_handlers.cpp"
         headerpath =  srcpath + os.sep + "synrpc_usbcon.h"
@@ -43,7 +43,7 @@ def writeHandlerCpp(handlerpath, messages):
             getUserCode(lines, messages)
     with open(handlerpath, 'w') as f:
         f.write("""
-#include <synrpc_usbcon.h>\n
+#include "synrpc_usbcon.h"\n
 /* Here come the handler definitions. They will be evoked with the message in an internal buffer
  * and on the PacketHandler Thread, thus any RTOS function calls are allowed.
  * The packet reception continues in the background to another buffer. If you stall too long, it
@@ -101,7 +101,7 @@ def getUserCode(lines, messages):
                 currcode = currcode + line + "\n"
 
 def writeHeaderCpp(headerpath, messages):
-    with open("synrpc_usbcon_template.h", 'r') as f:
+    with open("synrpc_generator/synrpc_usbcon_template.h", 'r') as f:
         header = f.read()
     header += "\nconst uint16_t MAX_HANDLER_TYPE = {};\n".format(len(messages))
     for k, m in messages.items():
@@ -111,7 +111,7 @@ def writeHeaderCpp(headerpath, messages):
         f.write(header)
 
 def writeEvokerCpp(evokerpath, messages):
-    with open("synrpc_usbcon_template.cpp", 'r') as f:
+    with open("synrpc_generator/synrpc_usbcon_template.cpp", 'r') as f:
         code = f.read()
     for k, m in messages.items():
         code += m.genCppConverter()
@@ -136,7 +136,7 @@ const char* handlePacket(const Packet& p){
         f.write(code)
 
 def writePythonBridge(path, messages):
-    with open("synrpc_usbcon_template.py", 'r') as f:
+    with open("synrpc_generator/synrpc_usbcon_template.py", 'r') as f:
         content = f.read()
     for k, m in messages.items():
         content += m.genPyClass()

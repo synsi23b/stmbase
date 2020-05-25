@@ -5,8 +5,9 @@ using namespace syn;
 namespace usb
 {
   static Ringbuffer<uint8_t, SYN_USBCDC_BUFFSIZE, Atomic> rxringbuffer;
-  static Event ev_tx_done;
+  static Signal sig_tx_done;
   static Signal sig_rx_buff;
+  static Mutex tx_mutex;
 
   // start of the special usb memory region. 1.25kb
   static uint32_t *const usb_memory_start = (uint32_t *)0x40006000;
@@ -116,10 +117,14 @@ namespace usb
     BufferTableEntry_t bufdesc[endpoint_count];
     BufferState_t bufstate[endpoint_count];
     // TODO ctrl and command packets should only be 8 byte, why use 32 * 4 bytes?
+    // max packet is 64 bytes, but the memory is 16 bit wide
+    // however access is 32 bit wide. so by usint 32bit int, we guarantee alignment
+    // and by dividing by 2 we guarantee the correct size in bytes
+    // but why is cdc command with 8 bytes not divided, this is a 16 byte buffer
     uint32_t buffer_ctrl_ep_out[max_packet / 2];
     uint32_t buffer_ctrl_ep_in[max_packet / 2];
     uint32_t buffer_cdc_out[max_packet / 2];
-    uint32_t buffer_cdc_in[max_packet / 2];
+    uint32_t buffer_cdc_in[max_packet / 2]; 
     uint32_t buffer_cdc_com_in[max_cdc_command];
     volatile uint32_t address;     // store the device address when it gets set by host
     volatile uint32_t stage;       // store the current stage of ctrl endpoint
@@ -128,7 +133,6 @@ namespace usb
     volatile uint32_t data_rx_off; // store the state of the data rx (on /off) for flow control (host to fast)
     volatile uint32_t ctrl_opcode; // store opcode from setup request when we are receiving ctrl data during in stage
     volatile uint32_t ctrl_epval;  // store bits of ctrl endpoint so we can access them in the reception handler
-    volatile uint32_t cdc_tx_busy; // bool wether or not some task is sending data currently
 
     uint16_t readEndpoint(uint16_t endpoint)
     {
@@ -367,14 +371,13 @@ namespace usb
         }
         else
         {
-          mem->cdc_tx_busy = 0; // done with transmission on endpoint 1, assert tx done signal
           sig_tx_done.set();
         }
       }
     }
   } // namespace lowlevel
-  // returns false if the endpoint was already busy transmitting
-  bool transmit(uint16_t endpoint, const uint8_t *buffer, uint16_t size)
+  
+  void transmit(uint16_t endpoint, const uint8_t *buffer, uint16_t size)
   {
     BufferState_t *pbs = &mem->bufstate[endpoint];
     if (endpoint == 0)
@@ -382,19 +385,8 @@ namespace usb
       OS_ASSERT(mem->stage == lowlevel::ctrl_stage_rdy, ERR_IMPOSSIBRU);
       mem->stage = lowlevel::ctrl_stage_data_in;
     }
-    else if (endpoint == 1)
-    {
-      // disable context switches, only one thread should own this device
-      Region r; 
-      if (mem->cdc_tx_busy)
-      {
-        return false;
-      }
-      mem->cdc_tx_busy = 1;
-    }
     pbs->tx_remaining = size;
     lowlevel::transmit(endpoint, buffer);
-    return true;
   }
 
   typedef struct
@@ -410,6 +402,7 @@ namespace usb
 
   bool notAvailable(SetupRequest_t &req)
   {
+    req = req;
     // TODO
     //lowlevel::ctrlError();
     asm("bkpt 255");
@@ -424,6 +417,7 @@ namespace usb
 
       const uint8_t *device(SetupRequest_t &req, uint16_t &len)
       {
+        req = req;
         static const uint8_t hUSBDDeviceDesc[18] = {
             0x12,       /* bLength */
             0x01,       /* bDescriptorType */
@@ -448,6 +442,7 @@ namespace usb
 
       const uint8_t *configuration(SetupRequest_t &req, uint16_t &len)
       {
+        req = req;
         static const uint8_t USBD_CDC_CfgFSDesc[0x43] = {
             /*Configuration Descriptor*/
             0x09,       /* bLength: Configuration Descriptor size */
@@ -574,6 +569,7 @@ namespace usb
     // opcode 0x00
     bool getStatus(SetupRequest_t &req)
     {
+      req = req;
       uint16_t status = mem->status;
       transmit(0, (const uint8_t *)&status, 2);
       return true;
@@ -583,6 +579,7 @@ namespace usb
     bool clrFeature(SetupRequest_t &req)
     {
       // TODO
+      req = req;
       asm("bkpt 255");
       return false;
     }
@@ -591,6 +588,7 @@ namespace usb
     bool setFeature(SetupRequest_t &req)
     {
       // TODO
+      req = req;
       asm("bkpt 255");
       return false;
     }
@@ -634,6 +632,7 @@ namespace usb
     bool getConfiguration(SetupRequest_t &req)
     {
       // TODO
+      req = req;
       asm("bkpt 255");
       return false;
     }
@@ -758,6 +757,7 @@ bool usb::Interface::handle(usb::SetupRequest_t &req)
 
 bool usb::Endpoint::handle(usb::SetupRequest_t &req)
 {
+  req = req;
   // TODO
   asm("bkpt 255");
   return false;
@@ -836,6 +836,9 @@ bool usb::rxCdcEndpoint(const uint8_t *buffer, uint16_t size)
 
 bool usb::rxCmdEndpoint(const uint8_t *buffer, uint16_t size)
 {
+  OS_ASSERT(true == false, ERR_IMPOSSIBRU);
+  buffer = buffer;
+  size = size;
   // the cmd endpoint is only in, this should never ever occur!
   return false; // just dont activate the receiver, ever
 }
@@ -889,10 +892,10 @@ void UsbCdc::init()
   usb::mem->config = 0;      // no config
   usb::mem->data_rx_off = 0; // its on
   usb::mem->ctrl_opcode = 0xFF;
-  usb::mem->cdc_tx_busy = 0;
   // setup the eventset
   usb::sig_rx_buff.init();
   usb::sig_tx_done.init();
+  usb::tx_mutex.init();
   // enable gpio
   Gpio pin_dm('A', 11);
   pin_dm.mode(Gpio::in_pullup_pulldown, Gpio::Input);
@@ -907,9 +910,7 @@ void UsbCdc::init()
   // enable IRQs
   USB->CNTR = USB_CNTR_CTRM | USB_CNTR_RESETM | USB_CNTR_WKUPM | USB_CNTR_SUSPM;
   // set irq priority highest possible with beeing able to call free rtos functions
-  NVIC_SetPriority(USB_LP_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY + 1);
-  // enable interrupt
-  NVIC_EnableIRQ(USB_LP_IRQn);
+  Core::enable_isr(USB_LP_CAN1_RX0_IRQn, 128);
 }
 
 // returns the number of bytes in the inbuffer
@@ -1009,7 +1010,7 @@ int32_t UsbCdc::readline(uint8_t *data, uint16_t size, OS_TIME timeout)
     }
     else
     {
-      if (!waitData(10) && timeout < xTaskGetTickCount())
+      if (!waitData(10) && timeout < System::milliseconds())
       {
         // timed out and ran out of time
         return 0;
@@ -1021,41 +1022,30 @@ int32_t UsbCdc::readline(uint8_t *data, uint16_t size, OS_TIME timeout)
 // blocks until the buffer was written
 void UsbCdc::write(const uint8_t *data, uint16_t size)
 {
+  usb::tx_mutex.lock();
   while (usb::mem->config != 1)
   {
-    
+    // usb device not numerated by host
   }
-  while (!usb::transmit(1, data, size))
-  {
-    usb::sig_tx_done.wait(10); // check every 10ms at least to make sure never stuck
-  }
+  usb::transmit(1, data, size);
   // managed to start the transmission, wait for donezo signal again
   while (false == !true)
   {
-    if (usb::sig_tx_done.wait(10))
+    if (usb::sig_tx_done.wait(100))
       break;
     if (usb::mem->bufstate[1].tx_remaining == 0)
       break;
   }
+  usb::tx_mutex.unlock();
 }
 
 extern "C"
 {
-#if (configUSE_TRACE_FACILITY == 1)
-  traceHandle UsbLpHandle = xTraceSetISRProperties("USB_LP", USB_LP_CAN1_RX0_IRQn);
   void USB_LP_CAN1_RX0_IRQHandler()
   {
-    vTraceStoreISRBegin(UsbLpHandle);
-    usb::isr_lp();
-    CoreReader::isrEnd();
-  }
-#else
-  void USB_LP_CAN1_RX0_IRQHandler()
-  {
-    Core::enter_isr()
+    Core::enter_isr();
     usb::isr_lp();
     Core::leave_isr();
   }
-#endif
 } // END extern C
 #endif
