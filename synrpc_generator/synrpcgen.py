@@ -1,32 +1,38 @@
 import re, os, hashlib, shutil
+import argparse
 from collections import OrderedDict
 
 SYNRPC_MAX_MSGSIZE = 255
 
 def main():
-    wdir = os.getcwd()
-    basepath = wdir + os.sep + ".." + os.sep + ".."
-    srcpath = basepath
-    msgpath = basepath + os.sep + 'msg'
-    handlerpath = srcpath + os.sep + "synrpc_handlers.cpp"
-    headerpath =  srcpath + os.sep + "synrpc_usbcon.h"
-    evokerpath =  srcpath + os.sep + "synrpc_usbcon.cpp"
-    pybridgehere = wdir + os.sep + "synrpc_usbcon.py"
-    pybridgepath = basepath + os.sep + "synrpc_usbcon.py"
-    files = next(os.walk(msgpath))[2]
-    messages = OrderedDict()
-    for f in files:
-        print(f"Generating Message: {f}")
-        m = Message(msgpath, f)
-        messages[m.msgname] = m
-    if os.path.isfile(handlerpath):
-        shutil.copy(handlerpath, handlerpath + ".back")
-    print("Writing new source files")
-    writeHandlerCpp(handlerpath, messages)
-    writeHeaderCpp(headerpath, messages)
-    writeEvokerCpp(evokerpath, messages)
-    writePythonBridge(pybridgehere, messages)
-    writePythonBridge(pybridgepath, messages)
+    parser = argparse.ArgumentParser(description='Generate synrpc messages')
+    parser.add_argument('bits', type=str, help="STM8 or STM32")
+    args = parser.parse_args()
+
+    if args.bits == "STM32":
+        wdir = os.getcwd()
+        basepath = wdir + os.sep + ".." + os.sep + ".."
+        srcpath = basepath
+        msgpath = basepath + os.sep + 'msg'
+        handlerpath = srcpath + os.sep + "synrpc_handlers.cpp"
+        headerpath =  srcpath + os.sep + "synrpc_usbcon.h"
+        evokerpath =  srcpath + os.sep + "synrpc_usbcon.cpp"
+        pybridgehere = wdir + os.sep + "synrpc_usbcon.py"
+        pybridgepath = basepath + os.sep + "synrpc_usbcon.py"
+        files = next(os.walk(msgpath))[2]
+        messages = OrderedDict()
+        for f in files:
+            print(f"Generating Message: {f}")
+            m = Message(msgpath, f)
+            messages[m.msgname] = m
+        if os.path.isfile(handlerpath):
+            shutil.copy(handlerpath, handlerpath + ".back")
+        print("Writing new source files")
+        writeHandlerCpp(handlerpath, messages)
+        writeHeaderCpp(headerpath, messages)
+        writeEvokerCpp(evokerpath, messages)
+        writePythonBridge(pybridgehere, messages)
+        writePythonBridge(pybridgepath, messages)
 
 def writeHandlerCpp(handlerpath, messages):
     userincludes = "/// USER INCLUDES ///\n/// USER INCLUDES END ///\n"

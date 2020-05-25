@@ -135,8 +135,7 @@ void Timer::configPwm(uint16_t prescaler, uint16_t reload, uint16_t startvalue)
 void Timer::enablePwm(uint16_t channel, Gpio::Speed speed)
 {
   --channel;
-  while (channel > 3)
-    ;
+  OS_ASSERT(channel < 4, ERR_BAD_INDEX);
 
   int8_t port = 'A';
   uint8_t pinnum = 0;

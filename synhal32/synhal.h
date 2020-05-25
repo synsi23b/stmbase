@@ -570,8 +570,6 @@ namespace syn
   private:
     virtual void run() = 0;
     static void runner(Thread *this_thread);
-
-    //OS_TASK _handle;
   };
 
   template <typename Message_t, uint32_t Size>
