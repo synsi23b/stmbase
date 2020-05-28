@@ -5,29 +5,38 @@ using namespace syn;
 namespace usb
 {
   static Ringbuffer<uint8_t, SYN_USBCDC_BUFFSIZE, Atomic> rxringbuffer;
+  // this signal is set when a transmission on endpoint 1 IN is finished
   static Signal sig_tx_done;
+  // this signal is set when new data was pushed into the reception ringbuffer
   static Signal sig_rx_buff;
+  // the mutex protexts the transmission at the clientside (endpoint 1 IN)
   static Mutex tx_mutex;
 
-  // start of the special usb memory region. 1.25kb
+  static const uint32_t max_packet = 64;
+  static const uint32_t max_descriptor = 68; // actually 67, but we need to round up
+  static const uint32_t max_buffer_cdc = 127;
+  static const uint32_t max_cdc_command = 8;
+
+  // 32 bit to ensure allignment
+  static uint32_t rx_buffer[max_packet / 4];
+
+  // start of the special usb memory region. 512 byte
   static uint32_t *const usb_memory_start = (uint32_t *)0x40006000;
 
-  typedef bool (*reception_handler_t)(const uint8_t *buffer, uint16_t size);
-
-  bool rxCtrlEndpoint(const uint8_t *buffer, uint16_t size);
-  bool rxCdcEndpoint(const uint8_t *buffer, uint16_t size);
-  bool rxCmdEndpoint(const uint8_t *buffer, uint16_t size);
+  // forward declaration of data reception packet handlers
+  void rxCtrlEndpoint();
+  void rxCdcEndpoint();
 
   typedef struct
   {
     uint16_t tx_address;
-    uint16_t reserved_0;
+    uint16_t padding_0;
     uint16_t tx_count;
-    uint16_t reserved_1;
+    uint16_t padding_1;
     uint16_t rx_address;
-    uint16_t reserved_2;
+    uint16_t padding_2;
     volatile uint16_t rx_count;
-    uint16_t reserved_3;
+    uint16_t padding_3;
 
     void setTX(uint32_t *buffer)
     {
@@ -38,6 +47,13 @@ namespace usb
     {
       rx_address = (buffer - usb_memory_start) * 2;
       setRxCount(size);
+    }
+
+    void setTxCount(uint16_t size)
+    {
+      if(size > max_packet)
+        size = max_packet;
+      tx_count = size;
     }
 
     void setRxCount(uint16_t size)
@@ -66,79 +82,83 @@ namespace usb
       return usb_memory_start + (rx_address / 2);
     }
 
-    uint16_t getRxCount()
+    uint16_t getRxCount() const
     {
       return rx_count & 0x3FF;
+    }
+
+    uint16_t getTxCount() const
+    {
+      return tx_count;
+    }
+
+    void advanceTx(uint16_t remaining)
+    {
+      tx_address += tx_count;
+      tx_count = remaining;
     }
   } BufferTableEntry_t;
 
   typedef struct
   {
     volatile uint16_t rx_remaining;
-    uint16_t reserved_1;
-    volatile uint16_t tx_buff_adr_hi;
-    uint16_t reserved_2;
-    volatile uint16_t tx_buff_adr_lo;
-    uint16_t reserved_3;
+    uint16_t padding_1;
     volatile uint16_t tx_remaining;
-    uint16_t reserved_4;
-
-    void setTxAddress(const uint8_t *buf)
-    {
-      uint32_t b = (uint32_t)buf;
-      tx_buff_adr_hi = uint16_t(b >> 16);
-      tx_buff_adr_lo = uint16_t(b);
-    }
-
-    const uint8_t *getTxAddress()
-    {
-      uint32_t b = tx_buff_adr_hi;
-      b <<= 16;
-      b |= tx_buff_adr_lo;
-      return (const uint8_t *)b;
-    }
+    uint16_t padding_3;
   } BufferState_t;
-
-  static const uint32_t endpoint_count = 3;
-  static const uint32_t max_packet = 64;
-  static const uint32_t max_cdc_command = 8;
-  static const reception_handler_t rx_handlers[endpoint_count] = {&rxCtrlEndpoint, &rxCdcEndpoint, &rxCmdEndpoint};
-  static uint8_t rx_buffer[max_packet];
 
   typedef struct
   {
+    // for reference https://beyondlogic.org/usbnutshell/usb4.shtml
     // this is a description of the special memory area reserved
-    // for USB communication. First the internal buffers are described
-    // by BufferTableEntries, Hardwarwe will read them (maybe?)
-    // After that, their individual states are stored
-    // than come the actual buffers
-    // and last, internally used variables using the remainin space and not
-    // wasting application memory
-    BufferTableEntry_t bufdesc[endpoint_count];
-    BufferState_t bufstate[endpoint_count];
-    // TODO ctrl and command packets should only be 8 byte, why use 32 * 4 bytes?
-    // max packet is 64 bytes, but the memory is 16 bit wide
-    // however access is 32 bit wide. so by usint 32bit int, we guarantee alignment
-    // and by dividing by 2 we guarantee the correct size in bytes
-    // but why is cdc command with 8 bytes not divided, this is a 16 byte buffer
-    uint32_t buffer_ctrl_ep_out[max_packet / 2];
-    uint32_t buffer_ctrl_ep_in[max_packet / 2];
-    uint32_t buffer_cdc_out[max_packet / 2];
-    uint32_t buffer_cdc_in[max_packet / 2]; 
-    uint32_t buffer_cdc_com_in[max_cdc_command];
-    volatile uint32_t address;     // store the device address when it gets set by host
-    volatile uint32_t stage;       // store the current stage of ctrl endpoint
-    volatile uint32_t status;      // store the device status (usb standard)
-    volatile uint32_t config;      // store the current selected config
-    volatile uint32_t data_rx_off; // store the state of the data rx (on /off) for flow control (host to fast)
-    volatile uint32_t ctrl_opcode; // store opcode from setup request when we are receiving ctrl data during in stage
-    volatile uint32_t ctrl_epval;  // store bits of ctrl endpoint so we can access them in the reception handler
+    // for USB and CAN communication. First the internal buffers are described
+    // by BufferTableEntries, Hardwarwe will read them to know where to expect
+    // sending and receiving packages.
+    // because this is a full speed device, the control endpoint has to receive
+    // or send up to 64 bytes.
+    // the configuration we are doing is a cdc devie, so we have one endpoint for
+    // bulk data in and out, 64 byte packets each.
+    // and an interrupt endpoint, but we are not using it.
+    //
+    // One Problem is, the memory is accessed as 32bit by the ABP, but actually
+    // it is only 16 bit wide as the USB controler sees it. So we have to think
+    // about padding bytes, and unfortunatelly, we can't just write directly to it.
+    //
+    // to shorten the time spend in the interrupt, we are going to cast the special
+    // setuprequest package on the endpoint_0 buffer, as well as the LineEncoding package
+    // that is the only one we really have to answer to windows / linux to not appear broken.
+    //
+    // anyway, first in the memory we store the buffer description
+    BufferTableEntry_t buffer_table[2]; // 16 bytes
+    BufferState_t buffer_state[2]; // 8 bytes
+    // following are the buffers
+    // since the control endpoint doesn't have to receive and send at the same time,
+    // we will use the same buffer for sending and receiving.
+    uint32_t buffer_ctrl_ep[max_descriptor / 2]; // 68 bytes
+    uint32_t buffer_cdc_out_0[max_packet / 2]; // 64
+    uint32_t buffer_cdc_out_1[max_packet / 2]; // 64
+    uint32_t buffer_cdc_in_0[max_packet / 2]; // 64
+    uint32_t buffer_cdc_in_1[max_packet / 2]; // 64
+    // cdc interrupts from microcontroller to host, but we don't really need it.
+    //uint32_t buffer_cdc_com_in[max_cdc_command];
+    volatile uint16_t temp_address; // store the device address when it gets set by host
+    uint16_t padding_1;
+    volatile uint16_t usb_config; // store the current selected config
+    uint16_t padding_2;
+    volatile uint16_t usb_status; // store the device status (usb standard)
+    uint16_t padding_3;
+    volatile uint16_t ctrl_stage;  // store the current stage of ctrl endpoint
+    uint16_t padding_4;
+    volatile uint16_t data_rx_off; // store the state of the data rx (on /off) for flow control (host to fast)
+    uint16_t padding_5;
+    volatile uint16_t ctrl_opcode; // store opcode from setup request when we are receiving ctrl data during in stage
+    uint16_t padding_6;            // final padding to make sure we would can test over size off the buffer
 
-    uint16_t readEndpoint(uint16_t endpoint)
+    uint16_t readEndpoint(uint16_t endpoint, uint32_t *rx_buffer)
     {
-      uint16_t count = bufdesc[endpoint].getRxCount();
+      uint16_t count = buffer_table[endpoint].getRxCount();
       uint16_t *writeptr = (uint16_t *)rx_buffer;
-      uint32_t *readptr = bufdesc[endpoint].getBufferRx();
+      uint32_t *readptr = buffer_table[endpoint].getBufferRx();
       uint32_t *end = readptr + ((count + 1) >> 1);
       while (readptr < end)
         *writeptr++ = *readptr++;
@@ -148,15 +168,11 @@ namespace usb
     void writeEndpoint(uint16_t endpoint, const uint8_t *buffer, uint16_t size)
     {
       uint16_t *readptr = (uint16_t *)buffer;
-      uint32_t *writeptr = bufdesc[endpoint].getBufferTx();
-      if (max_packet < size)
-        size = max_packet;
-      //else if (size == max_packet)
-      //  size = 63;
+      uint32_t *writeptr = buffer_table[endpoint].getBufferTx();
       uint16_t *end = readptr + ((size + 1) >> 1);
       while (readptr < end)
         *writeptr++ = *readptr++;
-      bufdesc[endpoint].tx_count = size;
+      buffer_table[endpoint].setTxCount(size);
     }
   } Memory_t;
 
@@ -164,11 +180,14 @@ namespace usb
 
   namespace lowlevel
   {
-    volatile uint16_t *getEpReg(uint16_t endpoint)
+    typedef volatile uint16_t *ep_reg_t;
+    // return the specific endpoint register for r/w
+    ep_reg_t getEpReg(uint16_t endpoint)
     {
       return (uint16_t *)((uint32_t *)USB_EP0R + endpoint);
     }
 
+    // returns a sensible default value to write to the endpoint register.
     uint16_t getDefault(uint16_t epval, uint16_t additional_mask = 0)
     {
       return epval & (USB_EP0R_EP_TYPE_Msk | USB_EP0R_EP_KIND_Msk | USB_EP0R_EA_Msk | additional_mask);
@@ -182,26 +201,25 @@ namespace usb
       eInterrupt = 3
     };
 
-    void initial(uint16_t endpoint, uint16_t address, eEndpointType type)
+    ep_reg_t initial(uint16_t endpoint, eEndpointType type)
     {
-      volatile uint16_t *ep = getEpReg(endpoint);
-      *ep = (uint16_t(type) << USB_EP0R_EP_TYPE_Pos) | address;
+      ep_reg_t ep = getEpReg(endpoint);
+      *ep = (uint16_t(type) << USB_EP0R_EP_TYPE_Pos) | endpoint;
+      return ep;
     }
 
-    void clear_ctr_rx(uint16_t endpoint)
+    void clear_ctr_rx(ep_reg_t ep_register)
     {
-      volatile uint16_t *ep = getEpReg(endpoint);
-      uint16_t val = getDefault(*ep);
+      uint16_t val = getDefault(*ep_register);
       val |= USB_EP0R_CTR_TX; // set tx, we only want to clear rx
-      *ep = val;
+      *ep_register = val;
     }
 
-    void clear_ctr_tx(uint16_t endpoint)
+    void clear_ctr_tx(ep_reg_t ep_register)
     {
-      volatile uint16_t *ep = getEpReg(endpoint);
-      uint16_t val = getDefault(*ep);
+      uint16_t val = getDefault(*ep_register);
       val |= USB_EP0R_CTR_RX; // set rx, we only want to clear tx
-      *ep = val;
+      *ep_register = val;
     }
 
     enum eEndpointStatus
@@ -212,15 +230,14 @@ namespace usb
       eValid = 3
     };
 
-    void set_rx_stat(uint16_t endpoint, eEndpointStatus status, bool clear_dtog = false)
+    void set_rx_stat(ep_reg_t ep_register, eEndpointStatus status, bool clear_dtog = false)
     {
       uint16_t extramask;
       if (clear_dtog)
         extramask = USB_EPRX_STAT | USB_EP0R_DTOG_RX;
       else
         extramask = USB_EPRX_STAT;
-      volatile uint16_t *ep = getEpReg(endpoint);
-      uint16_t val = getDefault(*ep, extramask);
+      uint16_t val = getDefault(*ep_register, extramask);
       if (status & 0x1)
       {
         val ^= USB_EP0R_STAT_RX_0;
@@ -229,18 +246,17 @@ namespace usb
       {
         val ^= USB_EP0R_STAT_RX_1;
       }
-      *ep = val | USB_EP0R_CTR_RX | USB_EP0R_CTR_TX;
+      *ep_register = val | USB_EP0R_CTR_RX | USB_EP0R_CTR_TX;
     }
 
-    void set_tx_stat(uint16_t endpoint, eEndpointStatus status, bool clear_dtog = false)
+    void set_tx_stat(ep_reg_t ep_register, eEndpointStatus status, bool clear_dtog = false)
     {
       uint16_t extramask;
       if (clear_dtog)
         extramask = USB_EPTX_STAT | USB_EP0R_DTOG_TX;
       else
         extramask = USB_EPTX_STAT;
-      volatile uint16_t *ep = getEpReg(endpoint);
-      uint16_t val = getDefault(*ep, extramask);
+      uint16_t val = getDefault(*ep_register, extramask);
       if (status & 0x1)
       {
         val ^= USB_EP0R_STAT_TX_0;
@@ -249,7 +265,7 @@ namespace usb
       {
         val ^= USB_EP0R_STAT_TX_1;
       }
-      *ep = val | USB_EP0R_CTR_RX | USB_EP0R_CTR_TX;
+      *ep_register = val | USB_EP0R_CTR_RX | USB_EP0R_CTR_TX;
     }
 
     void ctrlError()
@@ -259,8 +275,8 @@ namespace usb
       // only stall opposite direction
       // this is fucking weird man
       // it works right now so whatever
-      set_rx_stat(0, usb::lowlevel::eStall);
-      set_tx_stat(0, usb::lowlevel::eStall);
+      set_rx_stat(&USB->EP0R, usb::lowlevel::eStall);
+      set_tx_stat(&USB->EP0R, usb::lowlevel::eStall);
     }
 
     static const uint16_t ctrl_stage_rdy = 0;
@@ -271,83 +287,102 @@ namespace usb
 
     void ctrlSendStatus()
     {
-      mem->stage = ctrl_stage_state_in;
-      mem->bufdesc[0].tx_count = 0;
-      set_tx_stat(0, usb::lowlevel::eValid);
+      mem->ctrl_stage = ctrl_stage_state_in;
+      mem->buffer_table[0].setTxCount(0);
+      set_tx_stat(&USB->EP0R, usb::lowlevel::eValid);
     }
 
     void ctrlReceiveStatus()
     {
-      mem->stage = ctrl_stage_state_out;
-      volatile uint16_t *ep = getEpReg(0);
-      *ep = USB_EP0R_CTR_RX | USB_EP0R_CTR_TX | USB_EP0R_EP_TYPE_0 | USB_EP0R_EP_KIND;
-      set_rx_stat(0, usb::lowlevel::eValid);
+      mem->ctrl_stage = ctrl_stage_state_out;
+      USB->EP0R = USB_EP0R_CTR_RX | USB_EP0R_CTR_TX | USB_EP0R_EP_TYPE_0 | USB_EP0R_EP_KIND;
+      set_rx_stat(&USB->EP0R, usb::lowlevel::eValid);
     }
 
     void ctrlReceiveReady()
     {
-      mem->stage = ctrl_stage_rdy;
-      volatile uint16_t *ep = getEpReg(0);
-      *ep = USB_EP0R_CTR_RX | USB_EP0R_CTR_TX | USB_EP0R_EP_TYPE_0;
-      mem->bufstate[0].tx_remaining = 0;
-      set_tx_stat(0, usb::lowlevel::eNak);
-      set_rx_stat(0, usb::lowlevel::eValid);
+      mem->ctrl_stage = ctrl_stage_rdy;
+      USB->EP0R = USB_EP0R_CTR_RX | USB_EP0R_CTR_TX | USB_EP0R_EP_TYPE_0;
+      mem->buffer_state[0].tx_remaining = 0;
+      set_tx_stat(&USB->EP0R, usb::lowlevel::eNak);
+      set_rx_stat(&USB->EP0R, usb::lowlevel::eValid);
     }
 
     void ctrlReceiveData(uint16_t length)
     {
-      mem->stage = ctrl_stage_data_out;
-      mem->bufstate[0].rx_remaining = length;
-      set_rx_stat(0, usb::lowlevel::eValid);
+      mem->ctrl_stage = ctrl_stage_data_out;
+      mem->buffer_state[0].rx_remaining = length;
+      set_rx_stat(&USB->EP0R, usb::lowlevel::eValid);
+    }
+
+    void ctrlStallEndpoint(bool stall_rx)
+    {
+      if(stall_rx)
+      {
+        lowlevel::set_rx_stat(&USB->EP0R, lowlevel::eStall);
+      }
+      lowlevel::set_tx_stat(&USB->EP0R, lowlevel::eStall);
     }
 
     void dataSendZlength()
     {
-      mem->bufdesc[1].tx_count = 0;
-      set_tx_stat(1, usb::lowlevel::eValid);
+      mem->buffer_table[1].tx_count = 0;
+      set_tx_stat(&USB->EP1R, usb::lowlevel::eValid);
     }
 
     void receiveComplete(uint16_t endpoint)
     {
-      mem->ctrl_epval = USB->EP0R; // do this to save the setup bit for ctrl endpoint
-      clear_ctr_rx(endpoint);      // because it gets cleared here, but there were problems not clearing ctr_rx right away
-      uint16_t count = mem->readEndpoint(endpoint);
-      if (rx_handlers[endpoint](rx_buffer, count)) // does the handler want us to enable receiving again?
-        set_rx_stat(endpoint, usb::lowlevel::eValid);
+      if (endpoint == 0)
+      {
+        rxCtrlEndpoint();
+      }
+      else
+      {
+        rxCdcEndpoint();
+      }
     }
 
-    void transmit(uint16_t endpoint, const uint8_t *buffer)
+    void ctrlTransmit(const uint8_t *buffer, uint16_t size)
     {
-      BufferState_t *pbs = &mem->bufstate[endpoint];
-      pbs->setTxAddress(buffer);
-      mem->writeEndpoint(endpoint, buffer, pbs->tx_remaining);
-      set_tx_stat(endpoint, usb::lowlevel::eValid);
-      // now the host should be able to retrieve the buffer we just wrote.
-      // when he did it will trigger a CTR_TX interrupt
-      // we can call this function again if the buffer was bigger than max_paket
+      OS_ASSERT(size <= max_descriptor, ERR_BUFFER_OVERFLOW);
+      mem->buffer_state[0].tx_remaining = size;
+      mem->buffer_table[0].setTX(mem->buffer_ctrl_ep);
+      mem->writeEndpoint(0, buffer, size);
+      mem->ctrl_stage = ctrl_stage_data_in;
+      set_tx_stat(&USB->EP0R, usb::lowlevel::eValid);
+    }
+
+    void cdcTransmit(const uint8_t *buffer, uint16_t size)
+    {
+      OS_ASSERT(size <= max_packet*2, ERR_BUFFER_OVERFLOW);
+      mem->buffer_state[1].tx_remaining = size;
+      mem->buffer_table[1].setTX(mem->buffer_cdc_in_0);
+      mem->writeEndpoint(1, buffer, size);
+      set_tx_stat(&USB->EP1R, usb::lowlevel::eValid);
     }
 
     void transmitComplete(uint16_t endpoint)
     {
-      clear_ctr_tx(endpoint);
-      BufferState_t *pbs = &mem->bufstate[endpoint];
-      uint16_t count = mem->bufdesc[endpoint].tx_count;
-      uint16_t remain = pbs->tx_remaining;
+      ep_reg_t ep = getEpReg(endpoint);
+      clear_ctr_tx(ep);
+      BufferState_t* pbs = &mem->buffer_state[endpoint];
+      uint16_t remaining = pbs->tx_remaining;
       if (endpoint == 0)
       {
-        uint16_t stage = mem->stage;
+        // special handling for ctrl endpoint transmission
+        uint16_t stage = mem->ctrl_stage;
         OS_ASSERT((stage & 0x80) == 0, ERR_DEVICE_NOT_ENABLED); // transmitted something while we are in an OUT stage, huh?
         if (stage == ctrl_stage_state_in)
         { // we have completed sending a positive state to the host
-          if (mem->address != 0)
-          { // address has to be set after confimring its reception
-            USB->DADDR = USB_DADDR_EF | mem->address;
-            mem->address = 0;
+          if (mem->temp_address != 0)
+          { // address has to be set after confirming its reception
+            USB->DADDR = USB_DADDR_EF | mem->temp_address;
+            mem->temp_address = 0;
           }
           ctrlReceiveReady(); // ready for next setup
           return;
         }
-        if (stage == ctrl_stage_data_in && remain <= max_packet)
+        if (stage == ctrl_stage_data_in && remaining <= max_packet)
         { // we have send data and are done with the IN stage
           pbs->tx_remaining = 0;
           // ready the receiver to receive status stage ACK
@@ -356,16 +391,17 @@ namespace usb
         }
         // just continue sending the data which didn't fit into single packet
       }
-      remain = remain - count;
-      pbs->tx_remaining = remain;
-      if (remain)
+      uint16_t bytes_transmitted =  mem->buffer_table[endpoint].getTxCount();
+      remaining = remaining - bytes_transmitted;
+      pbs->tx_remaining = remaining;
+      if (remaining)
       { // still data left to send, advance read pointer and go on sending
-        const uint8_t *buffer = mem->bufstate[endpoint].getTxAddress() + count;
-        transmit(endpoint, buffer);
+        mem->buffer_table[endpoint].advanceTx(remaining);
+        set_tx_stat(ep, usb::lowlevel::eValid);
       }
       else if (endpoint == 1)
       {
-        if (count == max_packet)
+        if (bytes_transmitted == max_packet)
         { // last packet was exactly 64 bytes, send zero-length to confirm to host transaction is done
           dataSendZlength();
         }
@@ -376,26 +412,18 @@ namespace usb
       }
     }
   } // namespace lowlevel
-  
-  void transmit(uint16_t endpoint, const uint8_t *buffer, uint16_t size)
-  {
-    BufferState_t *pbs = &mem->bufstate[endpoint];
-    if (endpoint == 0)
-    {
-      OS_ASSERT(mem->stage == lowlevel::ctrl_stage_rdy, ERR_IMPOSSIBRU);
-      mem->stage = lowlevel::ctrl_stage_data_in;
-    }
-    pbs->tx_remaining = size;
-    lowlevel::transmit(endpoint, buffer);
-  }
 
   typedef struct
   {
     uint8_t bmRequest;
     uint8_t bRequest;
+    uint16_t padding_0;
     uint16_t wValue;
+    uint16_t padding_1;
     uint16_t wIndex;
+    uint16_t padding_2;
     uint16_t wLength;
+    uint16_t padding_3;
   } SetupRequest_t;
 
   typedef bool (*RequestHandler_t)(SetupRequest_t &req);
@@ -414,6 +442,15 @@ namespace usb
     namespace Descriptor
     {
       typedef const uint8_t *(*DescriptorHandler_t)(SetupRequest_t &req, uint16_t &len);
+
+      static const uint8_t USBD_LangIDDesc[] = {0x04, 0x03, 0x09, 0x04};
+      static const uint8_t USBD_Manu[] = {6, 0x03, 'S', 0, 'T', 0};
+      static const uint8_t USBD_PRODUCT_STRING[] = {42, 0x03, 'S', 0, 'T', 0, 'M', 0, '3', 0, '2', 0, ' ', 0, 'V', 0, '-', 0, 'C', 0, 'O', 0, 'M', 0, ' ', 0, 'b',
+                                                    0, 'y', 0, ' ', 0, 's', 0, 'y', 0, 'n', 0, 's', 0, 'i', 0};
+      static uint8_t USBD_SERIAL[50] = {
+          50,
+          0x03,
+      };
 
       const uint8_t *device(SetupRequest_t &req, uint16_t &len)
       {
@@ -443,7 +480,7 @@ namespace usb
       const uint8_t *configuration(SetupRequest_t &req, uint16_t &len)
       {
         req = req;
-        static const uint8_t USBD_CDC_CfgFSDesc[0x43] = {
+        static const uint8_t USBD_CDC_CfgFSDesc[67] = {
             /*Configuration Descriptor*/
             0x09,       /* bLength: Configuration Descriptor size */
             0x02,       /* bDescriptorType: Configuration */
@@ -526,7 +563,7 @@ namespace usb
             0x81,       /* bEndpointAddress */
             0x02,       /* bmAttributes: Bulk */
             max_packet, /* wMaxPacketSize: */
-            0, 0x00     /* bInterval: ignore for Bulk transfer */
+            0x00, 0x00  /* bInterval: ignore for Bulk transfer */
         };
 
         len = sizeof(USBD_CDC_CfgFSDesc);
@@ -535,30 +572,24 @@ namespace usb
 
       const uint8_t *string(SetupRequest_t &req, uint16_t &len)
       {
-        // static const uint8_t dummy[] = { 0x02, 0x03 }; // not sure why this is here
-        static const uint8_t USBD_LangIDDesc[] = {0x04, 0x03, 0x09, 0x04};
-        static const uint8_t USBD_Manu[] = {6, 0x03, 'S', 0, 'T', 0};
-        static const uint8_t USBD_PRODUCT_STRING[] = {46, 0x03, 'S', 0, 'T', 0, 'M', 0, '3', 0, '2', 0, ' ', 0, 'V', 0, '-', 0, 'C', 0, 'O', 0, 'M', 0, ' ', 0, 'b',
-                                                      0, 'y', 0, ' ', 0, 's', 0, 'y', 0, 'n', 0, 's', 0, 'i', 0};
-        static uint8_t USBD_SERIAL[18] = {
-            18,
-            0x03,
-        };
         static const uint8_t *strings[] = {USBD_LangIDDesc, USBD_Manu, USBD_PRODUCT_STRING, USBD_SERIAL};
         uint16_t strnum = req.wValue & 0xFF;
         if (strnum < (sizeof(strings) / sizeof(void *)))
         {
           const uint8_t *str = strings[strnum];
-          if (strnum == 3)
-          {
-            uint32_t devid = (*(uint32_t *)0x1FFFF7E8) + (*(uint32_t *)0x1FFFF7EC) + (*(uint32_t *)0x1FFFF7F0);
-            mtl::IntToUnicode(devid, (uint8_t *)(str + 2), 8);
-          }
           len = str[0];
           return str;
         }
         len = 0;
         return 0;
+      }
+
+      void init()
+      {
+        // read out this chips unique serial number and create device id using it
+        mtl::IntToUnicode((*(uint32_t *)0x1FFFF7E8), (USBD_SERIAL + 2), 8);
+        mtl::IntToUnicode((*(uint32_t *)0x1FFFF7EC), (USBD_SERIAL + 18), 8);
+        mtl::IntToUnicode((*(uint32_t *)0x1FFFF7F0), (USBD_SERIAL + 34), 8);
       }
 
       const DescriptorHandler_t descriptor_requesthandler[] = {&device, &configuration, &string};
@@ -570,8 +601,7 @@ namespace usb
     bool getStatus(SetupRequest_t &req)
     {
       req = req;
-      uint16_t status = mem->status;
-      transmit(0, (const uint8_t *)&status, 2);
+      lowlevel::ctrlTransmit((const uint8_t *)&mem->usb_status, 2);
       return true;
     }
 
@@ -600,7 +630,7 @@ namespace usb
       {
         // temporarily save the new address and ACK
         // set the deivce address only after the setup stage is completed
-        mem->address = req.wValue;
+        mem->temp_address = req.wValue;
         lowlevel::ctrlSendStatus();
         return true;
       }
@@ -622,7 +652,7 @@ namespace usb
       {
         if (req.wLength < len)
           len = req.wLength;
-        transmit(0, pbuf, len);
+        lowlevel::ctrlTransmit(pbuf, len);
         return true;
       }
       return false;
@@ -644,31 +674,31 @@ namespace usb
       if (USB->DADDR != USB_DADDR_EF)
       {
         uint16_t cfg = req.wValue;
-        if (cfg == mem->config)
+        if (cfg == mem->usb_config)
         { // allready in correct configuration
           success = true;
         }
         else if (cfg == 1)
         { // currently uncofigured, we want configured
-          mem->bufstate[1].tx_remaining = 0;
-          lowlevel::initial(1, 1, usb::lowlevel::eBulk);
-          lowlevel::set_rx_stat(1, usb::lowlevel::eValid, true);
-          lowlevel::set_tx_stat(1, usb::lowlevel::eNak, true);
-          mem->bufstate[2].tx_remaining = 0;
-          lowlevel::initial(2, 2, usb::lowlevel::eInterrupt);
-          lowlevel::set_tx_stat(2, usb::lowlevel::eNak, true);
+          mem->buffer_state[1].tx_remaining = 0;
+          lowlevel::initial(1, usb::lowlevel::eBulk);
+          lowlevel::set_rx_stat(&USB->EP1R, usb::lowlevel::eValid, true);
+          lowlevel::set_tx_stat(&USB->EP1R, usb::lowlevel::eNak, true);
+          //mem->buffer_state[2].tx_remaining = 0;
+          lowlevel::initial(2, usb::lowlevel::eInterrupt);
+          lowlevel::set_tx_stat(&USB->EP2R, usb::lowlevel::eNak, true);
           success = true;
         }
         else if (cfg == 0)
         { // currently configured, we want to uncofigure
-          lowlevel::set_rx_stat(1, usb::lowlevel::eDisabled, true);
-          lowlevel::set_tx_stat(1, usb::lowlevel::eDisabled, true);
-          lowlevel::set_tx_stat(2, usb::lowlevel::eDisabled, true);
+          lowlevel::set_rx_stat(&USB->EP1R, usb::lowlevel::eDisabled, true);
+          lowlevel::set_tx_stat(&USB->EP1R, usb::lowlevel::eDisabled, true);
+          lowlevel::set_tx_stat(&USB->EP2R, usb::lowlevel::eDisabled, true);
           success = true;
         }
         if (success)
         {
-          mem->config = cfg;
+          mem->usb_config = cfg;
           lowlevel::ctrlSendStatus();
         }
       }
@@ -689,7 +719,24 @@ namespace usb
       uint8_t bitsperbyte;
     } LineEncoding_t;
 
+    // we have to remember the line encoding set by the host
+    // start out with some default value.
     static LineEncoding_t linenecoding = {9600, 0, 0, 8};
+
+    // when receiving a new lineencoding, we have to read it from
+    // the special usb memory and have to watch the padding bytes
+    typedef struct
+    {
+      uint16_t baudrate_lo;
+      uint16_t padding_0;
+      uint16_t baudrate_hi;
+      uint16_t padding_1;
+      uint8_t stopbits;
+      uint8_t parity;
+      uint16_t padding_2;
+      uint8_t bitsperbyte;
+      uint16_t padding_3;
+    } LineEncodingRequest_t;
 
     bool handle(SetupRequest_t &req);
   } /* namespace Interface */
@@ -700,14 +747,6 @@ namespace usb
   } /* namespace Endpoint */
 
   const RequestHandler_t class_requesthandler[] = {&Device::handle, &Interface::handle, &Endpoint::handle};
-
-  void requestStallEndpoint(uint16_t endpoint)
-  {
-    // no idea whats the point of this
-    if (endpoint == 0)
-      lowlevel::set_rx_stat(endpoint, lowlevel::eStall);
-    lowlevel::set_tx_stat(endpoint, lowlevel::eStall);
-  }
 
   void isr_lp();
 } // namespace usb
@@ -735,7 +774,7 @@ bool usb::Interface::handle(usb::SetupRequest_t &req)
       switch (req.bRequest)
       {
       case 0x21: // get lineencoding
-        transmit(0, (uint8_t *)&linenecoding, req.wLength);
+        lowlevel::ctrlTransmit((uint8_t *)&linenecoding, req.wLength);
         break;
       default:
         return false;
@@ -763,33 +802,40 @@ bool usb::Endpoint::handle(usb::SetupRequest_t &req)
   return false;
 }
 
-bool usb::rxCtrlEndpoint(const uint8_t *buffer, uint16_t size)
+void usb::rxCtrlEndpoint()
 {
-  // received on the endpoint, check if it is a setup paket
-  if (mem->ctrl_epval & USB_EP0R_SETUP)
+  bool is_setup = USB->EP0R & USB_EP0R_SETUP; // do this to save the setup bit for ctrl endpoint
+  lowlevel::clear_ctr_rx(&USB->EP0R);         // because it gets cleared here, but there were problems not clearing ctr_rx right away
+  if (is_setup)
   {
-    mem->stage = lowlevel::ctrl_stage_rdy;
-    SetupRequest_t *req = (SetupRequest_t *)buffer;
-    if ((req->bmRequest & 0x1F) < (sizeof(class_requesthandler) / sizeof(void *)))
+    mem->ctrl_stage = lowlevel::ctrl_stage_rdy;
+    SetupRequest_t *req = (SetupRequest_t *)mem->buffer_ctrl_ep;
+    uint16_t req_id = req->bmRequest & 0x1F;
+    if (req_id < (sizeof(class_requesthandler) / sizeof(void *)))
     {
-      if (!class_requesthandler[req->bmRequest & 0x1F](*req))
+      if (!class_requesthandler[req_id](*req))
         lowlevel::ctrlError();
     }
     else
     {
-      requestStallEndpoint(req->bmRequest & 0x80);
+      lowlevel::ctrlStallEndpoint(req->bmRequest & 0x80);
     }
   }
-  else if (mem->stage == usb::lowlevel::ctrl_stage_data_out)
-  { // received some none setup data
-    uint16_t remain = mem->bufstate[0].rx_remaining - size;
+  else if (mem->ctrl_stage == usb::lowlevel::ctrl_stage_data_out)
+  { // received some data packet of setup stage
+    uint16_t remain = mem->buffer_state[0].rx_remaining - mem->buffer_table[0].getRxCount();
     if (remain == 0)
     { // done now, send an ACK to the host if the operaation was alright
       bool success = false;
       switch (mem->ctrl_opcode)
       {
       case 0x20: // set line encoding
-        std::memcpy(&Interface::linenecoding, buffer, sizeof(Interface::LineEncoding_t));
+        Interface::LineEncodingRequest_t *plenc = (Interface::LineEncodingRequest_t *)mem->buffer_ctrl_ep;
+        Interface::linenecoding.baudrate = (uint32_t(plenc->baudrate_hi) << 16) | plenc->baudrate_lo;
+        Interface::linenecoding.stopbits = plenc->stopbits;
+        Interface::linenecoding.parity = plenc->parity;
+        Interface::linenecoding.bitsperbyte = plenc->bitsperbyte;
+        // reset ctrl opcode byte
         mem->ctrl_opcode = 0xFF;
         success = true;
         break;
@@ -805,7 +851,7 @@ bool usb::rxCtrlEndpoint(const uint8_t *buffer, uint16_t size)
       lowlevel::ctrlReceiveData(remain);
     }
   }
-  else if (mem->stage == usb::lowlevel::ctrl_stage_state_out)
+  else if (mem->ctrl_stage == usb::lowlevel::ctrl_stage_state_out)
   {                               // no setup and size == 0, check if it is an ACK from host
     lowlevel::ctrlReceiveReady(); // all good, ready for next transaction
   }
@@ -814,12 +860,17 @@ bool usb::rxCtrlEndpoint(const uint8_t *buffer, uint16_t size)
     // maybe assert error herre?
     OS_ASSERT(0, ERR_IMPOSSIBRU);
   }
-  return false; // never use default receiver enable
 }
 
-bool usb::rxCdcEndpoint(const uint8_t *buffer, uint16_t size)
+void usb::rxCdcEndpoint()
 {
-  if (rxringbuffer.batchPush_isr(buffer, size, false) == false)
+  lowlevel::clear_ctr_rx(&USB->EP1R);
+  uint16_t size = mem->readEndpoint(1, rx_buffer);
+  // TODO use DMA for copying the values
+  // either specialize a ringbuffer class
+  // or switch to using a mailbox kinda scheme
+  // as well as use multiple concurrent 64byte buffers instead
+  if (rxringbuffer.batchPush_isr((uint8_t *)rx_buffer, size, false) == false)
   {
     OS_ASSERT(true == false, ERR_BUFFER_OVERFLOW); // should never happen
   }
@@ -828,70 +879,79 @@ bool usb::rxCdcEndpoint(const uint8_t *buffer, uint16_t size)
   // check if we have enough space left to write another full packet
   if (rxringbuffer.remainingSpace() < max_packet)
   {
+    // not enough space, dont enable receive on endpoint again
     mem->data_rx_off = 1;
-    return false; // not enough space, dont enable receive on endpoint again
   }
-  return true;
+  else
+  {
+    // re-enable the receiver because space in the buffer
+    set_rx_stat(&USB->EP1R, usb::lowlevel::eValid);
+  }
 }
 
-bool usb::rxCmdEndpoint(const uint8_t *buffer, uint16_t size)
-{
-  OS_ASSERT(true == false, ERR_IMPOSSIBRU);
-  buffer = buffer;
-  size = size;
-  // the cmd endpoint is only in, this should never ever occur!
-  return false; // just dont activate the receiver, ever
-}
+// bool usb::rxCmdEndpoint()
+// {
+//   OS_ASSERT(true == false, ERR_IMPOSSIBRU);
+//   // the cmd endpoint is only in, this should never ever occur!
+//   return false; // just dont activate the receiver, ever
+// }
 
 void usb::isr_lp()
 {
   // serve data transfer interrupts
-  while (USB->ISTR & USB_ISTR_CTR)
+  if (USB->ISTR & USB_ISTR_CTR)
   {
-    uint16_t ep_num = USB->ISTR & 0x1F;
-    uint16_t host2device = ep_num >> 4;
-    ep_num &= 0xF;
-    if (host2device)
-      usb::lowlevel::receiveComplete(ep_num);
-    else
-      usb::lowlevel::transmitComplete(ep_num);
+    do
+    {
+      uint16_t ep_num = USB->ISTR & USB_ISTR_EP_ID;
+      if (USB->ISTR & USB_ISTR_DIR)
+        usb::lowlevel::receiveComplete(ep_num);
+      else
+        usb::lowlevel::transmitComplete(ep_num);
+    } while (USB->ISTR & USB_ISTR_CTR);
   }
-  // reset the usb device
-  if (USB->ISTR & USB_ISTR_RESET)
+  else
   {
-    USB->ISTR = ~uint16_t(USB_ISTR_RESET);
-    usb::mem->config = 0;         // reset active config
-    lowlevel::ctrlReceiveReady(); // enable IN and OUT of CTRL Endpoint0
-    USB->DADDR = USB_DADDR_EF;    // set address to 0 and enable the usb device
-  }
-  // wake up from suspend
-  if (USB->ISTR & USB_ISTR_WKUP)
-  {
-    // enable IRQs
-    USB->CNTR = USB_CNTR_CTRM | USB_CNTR_RESETM | USB_CNTR_WKUPM | USB_CNTR_SUSPM;
-    USB->ISTR = ~uint16_t(USB_ISTR_WKUP);
-  }
-  // suspend on bus detected, force suspend the device
-  if (USB->ISTR & USB_ISTR_SUSP)
-  {
-    USB->ISTR = ~uint16_t(USB_ISTR_SUSP);
-    USB->CNTR |= USB_CNTR_FSUSP;
+    // reset the usb device
+    if (USB->ISTR & USB_ISTR_RESET)
+    {
+      USB->ISTR = ~uint16_t(USB_ISTR_RESET);
+      usb::mem->usb_config = 0;     // reset active config
+      lowlevel::ctrlReceiveReady(); // enable IN and OUT of CTRL Endpoint0
+      USB->DADDR = USB_DADDR_EF;    // set address to 0 and enable the usb device
+    }
+    // wake up from suspend
+    if (USB->ISTR & USB_ISTR_WKUP)
+    {
+      // enable IRQs
+      USB->CNTR = USB_CNTR_CTRM | USB_CNTR_RESETM | USB_CNTR_WKUPM | USB_CNTR_SUSPM;
+      USB->ISTR = ~uint16_t(USB_ISTR_WKUP);
+    }
+    // suspend on bus detected, force suspend the device
+    if (USB->ISTR & USB_ISTR_SUSP)
+    {
+      USB->ISTR = ~uint16_t(USB_ISTR_SUSP);
+      USB->CNTR |= USB_CNTR_FSUSP;
+    }
   }
 }
 
 void UsbCdc::init()
 {
+  uint32_t s = sizeof(usb::Memory_t);
+  OS_ASSERT(sizeof(usb::Memory_t) < 1024, ERR_BUFFER_OVERFLOW);
   RCC->APB1ENR |= RCC_APB1ENR_USBEN; // enable APB clock
-  usb::mem->bufdesc[0].setTX(usb::mem->buffer_ctrl_ep_in);
-  usb::mem->bufdesc[0].setRx(usb::mem->buffer_ctrl_ep_out, usb::max_packet);
-  usb::mem->bufdesc[1].setTX(usb::mem->buffer_cdc_in);
-  usb::mem->bufdesc[1].setRx(usb::mem->buffer_cdc_out, usb::max_packet);
-  usb::mem->bufdesc[2].setTX(usb::mem->buffer_cdc_com_in);
-  usb::mem->address = 0;     // no address
-  usb::mem->status = 0x01;   // self powered
-  usb::mem->config = 0;      // no config
-  usb::mem->data_rx_off = 0; // its on
+  usb::mem->buffer_table[0].setTX(usb::mem->buffer_ctrl_ep);
+  usb::mem->buffer_table[0].setRx(usb::mem->buffer_ctrl_ep, usb::max_packet);
+  usb::mem->buffer_table[1].setTX(usb::mem->buffer_cdc_in_0);
+  usb::mem->buffer_table[1].setRx(usb::mem->buffer_cdc_out_0, usb::max_packet);
+  //usb::mem->buffer_table[2].setTX(usb::mem->buffer_cdc_com_in);
+  usb::mem->temp_address = 0;  // no address
+  usb::mem->usb_status = 0x01; // self powered
+  usb::mem->usb_config = 0;    // not configured
+  usb::mem->data_rx_off = 0;   // rx is ready after startup, mailbox empty
   usb::mem->ctrl_opcode = 0xFF;
+  usb::Device::Descriptor::init();
   // setup the eventset
   usb::sig_rx_buff.init();
   usb::sig_tx_done.init();
@@ -910,7 +970,7 @@ void UsbCdc::init()
   // enable IRQs
   USB->CNTR = USB_CNTR_CTRM | USB_CNTR_RESETM | USB_CNTR_WKUPM | USB_CNTR_SUSPM;
   // set irq priority highest possible with beeing able to call free rtos functions
-  Core::enable_isr(USB_LP_CAN1_RX0_IRQn, 128);
+  Core::enable_isr(USB_LP_CAN1_RX0_IRQn, 8);
 }
 
 // returns the number of bytes in the inbuffer
@@ -932,7 +992,7 @@ void UsbCdc::flush(uint32_t count)
   if (usb::mem->data_rx_off && (usb::rxringbuffer.remainingSpace() >= usb::max_packet))
   {
     usb::mem->data_rx_off = 0; // we freed enough space in the buffer for a full packet, enable the rx if it was off
-    usb::lowlevel::set_rx_stat(1, usb::lowlevel::eValid);
+    usb::lowlevel::set_rx_stat(&USB->EP1R, usb::lowlevel::eValid);
   }
 }
 
@@ -959,7 +1019,7 @@ uint16_t UsbCdc::read(uint8_t *data, uint16_t size)
     if (usb::mem->data_rx_off && (usb::rxringbuffer.remainingSpace() >= usb::max_packet))
     {
       usb::mem->data_rx_off = 0; // we freed enough space in the buffer for a full packet, enable the rx if it was off
-      usb::lowlevel::set_rx_stat(1, usb::lowlevel::eValid);
+      usb::lowlevel::set_rx_stat(&USB->EP1R, usb::lowlevel::eValid);
     }
   }
   return size;
@@ -996,7 +1056,7 @@ int32_t UsbCdc::readline(uint8_t *data, uint16_t size, OS_TIME timeout)
             if (usb::mem->data_rx_off && (usb::rxringbuffer.remainingSpace() >= usb::max_packet))
             {
               usb::mem->data_rx_off = 0; // we freed enough space in the buffer for a full packet, enable the rx if it was off
-              usb::lowlevel::set_rx_stat(1, usb::lowlevel::eValid);
+              usb::lowlevel::set_rx_stat(&USB->EP1R, usb::lowlevel::eValid);
             }
             return size;
           }
@@ -1023,17 +1083,17 @@ int32_t UsbCdc::readline(uint8_t *data, uint16_t size, OS_TIME timeout)
 void UsbCdc::write(const uint8_t *data, uint16_t size)
 {
   usb::tx_mutex.lock();
-  while (usb::mem->config != 1)
+  while (usb::mem->usb_config != 1)
   {
     // usb device not numerated by host
   }
-  usb::transmit(1, data, size);
+  usb::lowlevel::cdcTransmit(data, size);
   // managed to start the transmission, wait for donezo signal again
   while (false == !true)
   {
     if (usb::sig_tx_done.wait(100))
       break;
-    if (usb::mem->bufstate[1].tx_remaining == 0)
+    if (usb::mem->buffer_state[1].tx_remaining == 0)
       break;
   }
   usb::tx_mutex.unlock();
