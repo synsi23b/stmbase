@@ -2,7 +2,6 @@
 
 #ifdef STM32F103xB
 #include "../embos/stm32f103c8/stm32f10x.h"
-#define EMBOS_IRQN(x) x + 16
 #endif
 
 #include "../../src/synhal_cfg.h"
@@ -10,14 +9,12 @@
 
 #include "../embos/common/RTOS.h"
 
-
 namespace syn
 {
   class Atomic
   {
   public:
-    // disables all OS interrupts,
-    // highest priority, non OS interrupts can still take place
+    // disables all interrupts
     Atomic()
     {
       OS_INT_PreserveAndDisableAll(&_state);
@@ -133,18 +130,20 @@ namespace syn
   class Core
   {
   public:
-    // priority shall be between 0 and 255
+    // priority shall be between 0 and 15 (4 nvic prio bits)
     // lower value means higher priority
-    // interrupts with level between 0 and 127 are prohibited to call OS functions
+    // interrupts with level between 0 and 7 are prohibited to call OS functions
+    // the will also nest each other depending on hardware priority, if not disabling irqs
+    // OS-Aware interrupts will not nest after the call to Core::enter_isr()
     static void enable_isr(IRQn_Type irq, uint16_t priority)
     {
-      OS_ARM_ISRSetPrio(EMBOS_IRQN(irq), priority);
-      OS_ARM_EnableISR(EMBOS_IRQN(irq));
+      __NVIC_SetPriority(irq, priority);
+      __NVIC_EnableIRQ(irq);
     }
 
     static void disable_isr(IRQn_Type irq)
     {
-      OS_ARM_DisableISR(EMBOS_IRQN(irq));
+      __NVIC_DisableIRQ(irq);
     }
 
     static void enter_isr()
@@ -213,9 +212,9 @@ namespace syn
   class Semaphore
   {
   public:
-    void init()
+    void init(uint16_t initial = 0)
     {
-      OS_SEMAPHORE_Create(&_handle, 0);
+      OS_SEMAPHORE_Create(&_handle, initial);
     }
 
     void take()
@@ -250,7 +249,7 @@ namespace syn
     }
 
     // check the current value of the semaphore
-    int32_t check() const
+    int32_t count() const
     {
       return OS_SEMAPHORE_GetValue(&_handle);
     }
@@ -478,7 +477,7 @@ namespace syn
     Thread(const char *name, OS_PRIO priority = 100, uint32_t stacksize = 192,
            uint32_t *pstack = 0, uint8_t timeslice = 20)
     {
-      pStack = (OS_REGS OS_STACKPTR*)pstack;
+      pStack = (OS_REGS OS_STACKPTR *)pstack;
       BasePrio = stacksize;
       Priority = priority;
       TimeSliceReload = timeslice;
@@ -500,7 +499,7 @@ namespace syn
           pStack,
           BasePrio * sizeof(int32_t), // stacksize is in byte, not in registers
           TimeSliceReload,
-          (void*)this);
+          (void *)this);
     }
 
     ~Thread()
@@ -573,7 +572,7 @@ namespace syn
   };
 
   template <typename Message_t, uint32_t Size>
-  class MailBox
+  class MailBox_Embos
   {
   public:
     void init()
@@ -704,6 +703,7 @@ namespace syn
 
     // peek at the first message, if a message is in the buffer
     // this is allowed to be called by interrupts
+    // copies the message!
     bool peek(Message_t &msg)
     {
       return OS_MAILBOX_Peek(&_handle, (void *)&msg) == 0;
@@ -737,134 +737,156 @@ namespace syn
     Message_t _msgs[Size];
   };
 
-  template <typename Value_t, uint32_t Size, typename Synchro_Primitive_t>
-  class Ringbuffer
+  template <typename Mail_t, uint32_t Size>
+  class MailBox
   {
   public:
-    uint16_t in_avail() const
+    void init()
     {
-      return _buffer.in_avail();
+      _sig_write.init(Size);
+      _sig_read.init(0);
+      _pread = _pwrite = _mails;
     }
 
-    uint16_t remainingSpace() const
+    bool is_full()
     {
-      return _buffer.remainingSpace();
+      return _sig_write.count() == 0;
     }
 
-    bool full() const
+    bool try_push(const Mail_t &mail)
     {
-      return _buffer.full();
-    }
-
-    // look at some fancy values in the future
-    bool peek(Value_t &val, uint32_t offset = 0)
-    {
-      return _buffer.peek(val, offset);
-    }
-
-    // remove up to count values from the buffer
-    void flush(uint32_t count = Size)
-    {
-      Synchro_Primitive_t a;
-      _buffer.flush(count);
-    }
-
-    // returns false if the buffer was empty when attempting to read
-    bool pop(Value_t &v)
-    {
-      Synchro_Primitive_t a;
-      bool ret = _buffer.pop(v);
+      Atomic a;
+      bool ret = false;
+      if (_sig_write.try_take())
+      {
+        _write(mail);
+        _sig_read.give();
+        ret = true;
+      }
       return ret;
     }
 
-    // returns number of popped elements up to size
-    uint16_t batchPop(Value_t *vs, uint16_t size)
+    void push(const Mail_t &mail)
     {
-      Synchro_Primitive_t a;
-      uint16_t ret = _buffer.batchPop(vs, size);
+      _sig_write.take();
+      {
+        Atomic a;
+        _write(mail);
+        _sig_read.give();
+      }
+    }
+
+    bool try_pop(Mail_t &mail)
+    {
+      Atomic a;
+      bool ret = false;
+      if (_sig_read.try_take())
+      {
+        _read(mail);
+        _sig_write.give();
+        ret = true;
+      }
       return ret;
     }
 
-    // with overwrite set returns false if another value was overwritten
-    // with overwrite not set returns false if the value was not written
-    bool push(const Value_t &v, bool overwrite = true)
+    void pop(Mail_t &mail)
     {
-      Synchro_Primitive_t a;
-      bool ret = _buffer.push(v, overwrite);
+      _sig_read.take();
+      {
+        Atomic a;
+        _read(mail);
+        _sig_write.give();
+      }
+    }
+
+    // alternative API for zero-copy operation
+    // however, only safe for single producer & single consumer!
+
+    bool try_reserve(Mail_t **mail)
+    {
+      OS_ASSERT(write_dirty == false, ERR_FORBIDDEN);
+      bool ret = false;
+      if (_sig_write.try_take())
+      {
+        OS_ASSERT(write_dirty = true, ERR_FORBIDDEN);
+        *mail = _pwrite;
+        ret = true;
+      }
       return ret;
     }
 
-    // with overwrite set returns false if another value was overwritten
-    // with overwrite not set returns false if the value was not written
-    bool batchPush(const Value_t *vs, uint16_t size, bool overwrite = true)
+    void reserve(Mail_t **mail)
     {
-      Synchro_Primitive_t a;
-      bool ret = _buffer.batchPush(vs, size, overwrite);
+      OS_ASSERT(write_dirty == false, ERR_FORBIDDEN);
+      _sig_write.take();
+      OS_ASSERT(write_dirty = true, ERR_FORBIDDEN);
+      *mail = _pwrite;
+    }
+
+    void release()
+    {
+      OS_ASSERT(write_dirty == true, ERR_FORBIDDEN);
+      Atomic a;
+      if (++_pwrite == &_mails[Size])
+        _pwrite = _mails;
+      OS_ASSERT((write_dirty = false) == false, ERR_FORBIDDEN);
+      _sig_read.give();
+    }
+
+    bool try_peek(Mail_t **mail)
+    {
+      OS_ASSERT(read_dirty == false, ERR_FORBIDDEN);
+      bool ret = false;
+      if (_sig_read.try_take())
+      {
+        OS_ASSERT(read_dirty = true, ERR_FORBIDDEN);
+        *mail = _pread;
+        ret = true;
+      }
       return ret;
     }
 
-    // with overwrite set returns false if another value was overwritten
-    // with overwrite not set returns false if the value was not written
-    bool push_isr(const Value_t &v, bool overwrite = true)
+    void peek(Mail_t **mail)
     {
-      return _buffer.push(v, overwrite);
+      OS_ASSERT(read_dirty == false, ERR_FORBIDDEN);
+      _sig_read.take();
+      OS_ASSERT(read_dirty = true, ERR_FORBIDDEN);
+      *mail = _pread;
     }
 
-    // with overwrite set returns false if another value was overwritten
-    // with overwrite not set returns false if the value was not written
-    bool batchPush_isr(const Value_t *vs, uint16_t size, bool overwrite = true)
+    void purge()
     {
-      return _buffer.batchPush(vs, size, overwrite);
+      OS_ASSERT(read_dirty == true, ERR_FORBIDDEN);
+      Atomic a;
+      if (++_pread == &_mails[Size])
+        _pread = _mails;
+      OS_ASSERT((read_dirty = false) == false, ERR_FORBIDDEN);
+      _sig_write.give();
     }
 
   private:
-    mtl::Ringbuffer<Value_t, Size> _buffer;
-  };
-
-  template <typename Value_t, typename Synchro_Primitive_t>
-  class DynRingbuffer
-  {
-  public:
-    DynRingbuffer(uint16_t size) : _buffer(size)
+    void _write(const Mail_t &mail)
     {
+      *_pwrite++ = mail;
+      if (_pwrite == &_mails[Size])
+        _pwrite = _mails;
     }
 
-    uint16_t in_avail() const
+    void _read(Mail_t &mail)
     {
-      return _buffer.in_avail();
+      mail = *_pread++;
+      if (_pread == &_mails[Size])
+        _pread = _mails;
     }
 
-    bool full() const
-    {
-      return _buffer.full();
-    }
-
-    // returns false if the buffer was empty when attempting to read
-    bool pop(Value_t &v)
-    {
-      Synchro_Primitive_t a;
-      bool ret = _buffer.pop(v);
-      return ret;
-    }
-
-    // with overwrite set returns false if another value was overwritten
-    // with overwrite not set returns false if the value was not written
-    bool push(Value_t &v, bool overwrite = true)
-    {
-      Synchro_Primitive_t a;
-      bool ret = _buffer.push(v, overwrite);
-      return ret;
-    }
-
-    // with overwrite set returns false if another value was overwritten
-    // with overwrite not set returns false if the value was not written
-    bool push_isr(Value_t &v, bool overwrite = true)
-    {
-      return _buffer.push(v, overwrite);
-    }
-
-  private:
-    mtl::DynRingbuffer<Value_t> _buffer;
+    Mail_t *_pread;
+    Mail_t *_pwrite;
+    Semaphore _sig_read;
+    Semaphore _sig_write;
+    Mail_t _mails[Size];
+#ifdef DEBUG
+    bool read_dirty, write_dirty;
+#endif
   };
 
   class System
@@ -1093,7 +1115,7 @@ namespace syn
     // select the correct exti type in the synhal_cfg
     static void enable(uint16_t line, char port, bool rising, bool falling, uint32_t priority = 200)
     {
-      OS_ASSERT('A' <= port && port >= 'C', ERR_BAD_PORT_NAME);
+      OS_ASSERT('A' <= port && port <= 'C', ERR_BAD_PORT_NAME);
       uint8_t extiselector = port - 'A';
       uint16_t extiafionum = (line % 4) * 4;
       uint16_t extiafioreg = line / 4;
@@ -1270,7 +1292,7 @@ namespace syn
       // 0 = 0 us; 1000 = 1000 usec; -> max pulselength 20ms = 20000
       // the prescaler needs to bring the 72MHz down to 50Hz together with the reload register
       // we divide the counter by 72. So it runs at 1MHz
-      // set the startvalue to 155 for center pwm
+      // set the startvalue to 1500 for center pwm
       configPwm(71, 20000, 1500);
     }
 
@@ -1282,7 +1304,7 @@ namespace syn
     void setPwm(uint16_t channel, uint16_t value)
     {
       --channel;
-      OS_ASSERT(channel < 3, ERR_BAD_INDEX);
+      OS_ASSERT(channel < 4, ERR_BAD_INDEX);
       uint16_t *reg = (uint16_t *)((&(_pTimer->CCR1)) + channel);
       *reg = value;
     }
@@ -1346,37 +1368,18 @@ namespace syn
     uint8_t _address;
   };
 
-  class UsbCdc
+  class UsbRpc
   {
   public:
-    static void init();
-    // returns the number of bytes in the inbuffer
-    static uint16_t in_avail();
-    // look at some fancy values in the future
-    static bool peek(uint8_t &val, uint32_t offset = 0);
-    // remove up to count values from the buffer
-    static void flush(uint32_t count = SYN_USBCDC_BUFFSIZE);
-    // wait for a change in received data, returns false if it timed out
-    static bool waitData(OS_TIME timeout = INT32_MAX);
-    // reads as much as possible
-    static uint16_t read(uint8_t *data, uint16_t size);
-    // read until "\n" is detected, including the "\n" blocks up to timeout.
-    // if timed out, nothing will be written to buffer and returns 0
-    // returns -1 if the buffer was to small to read the line
-    static int32_t readline(uint8_t *data, uint16_t size, OS_TIME timeout = INT32_MAX);
-    // blocks until the buffer was written
-    static void write(const uint8_t *data, uint16_t size);
-    template <typename T>
-    static void write(T *data, uint16_t size)
-    {
-      write((const uint8_t *)data, size);
-    }
+    class Packet;
+    class Handler;
 
-    template <typename T>
-    static void write(T &obj)
-    {
-      write((const uint8_t *)&obj, sizeof(T));
-    }
+    static void init();
+
+    static void write(const uint8_t *data, uint16_t size);
+
+  private:
+    static void _enable_rx();
   };
 
   class VirtualEeprom

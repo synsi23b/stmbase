@@ -1,24 +1,22 @@
 #include "synhal.h"
-#if (SYN_ENABLE_USBCDC != 0)
+#if (SYN_ENABLE_USBRPC != 0)
 using namespace syn;
+
+#include "../../src/synrpc_usbcon.h"
 
 namespace usb
 {
-  static Ringbuffer<uint8_t, SYN_USBCDC_BUFFSIZE, Atomic> rxringbuffer;
   // this signal is set when a transmission on endpoint 1 IN is finished
   static Signal sig_tx_done;
-  // this signal is set when new data was pushed into the reception ringbuffer
-  static Signal sig_rx_buff;
   // the mutex protexts the transmission at the clientside (endpoint 1 IN)
   static Mutex tx_mutex;
+  // writepointer to currently reserved mail
+  static uint32_t *packetbuffer;
 
   static const uint32_t max_packet = 64;
   static const uint32_t max_descriptor = 68; // actually 67, but we need to round up
   static const uint32_t max_buffer_cdc = 127;
   static const uint32_t max_cdc_command = 8;
-
-  // 32 bit to ensure allignment
-  static uint32_t rx_buffer[max_packet / 4];
 
   // start of the special usb memory region. 512 byte
   static uint32_t *const usb_memory_start = (uint32_t *)0x40006000;
@@ -51,7 +49,7 @@ namespace usb
 
     void setTxCount(uint16_t size)
     {
-      if(size > max_packet)
+      if (size > max_packet)
         size = max_packet;
       tx_count = size;
     }
@@ -89,7 +87,7 @@ namespace usb
 
     uint16_t getTxCount() const
     {
-      return tx_count;
+      return tx_count & 0x3FF;
     }
 
     void advanceTx(uint16_t remaining)
@@ -130,15 +128,15 @@ namespace usb
     //
     // anyway, first in the memory we store the buffer description
     BufferTableEntry_t buffer_table[2]; // 16 bytes
-    BufferState_t buffer_state[2]; // 8 bytes
+    BufferState_t buffer_state[2];      // 8 bytes
     // following are the buffers
     // since the control endpoint doesn't have to receive and send at the same time,
     // we will use the same buffer for sending and receiving.
     uint32_t buffer_ctrl_ep[max_descriptor / 2]; // 68 bytes
-    uint32_t buffer_cdc_out_0[max_packet / 2]; // 64
-    uint32_t buffer_cdc_out_1[max_packet / 2]; // 64
-    uint32_t buffer_cdc_in_0[max_packet / 2]; // 64
-    uint32_t buffer_cdc_in_1[max_packet / 2]; // 64
+    uint32_t buffer_cdc_out_0[max_packet / 2];   // 64
+    uint32_t buffer_cdc_out_1[max_packet / 2];   // 64
+    uint32_t buffer_cdc_in_0[max_packet / 2];    // 64
+    uint32_t buffer_cdc_in_1[max_packet / 2];    // 64
     // cdc interrupts from microcontroller to host, but we don't really need it.
     //uint32_t buffer_cdc_com_in[max_cdc_command];
     volatile uint16_t temp_address; // store the device address when it gets set by host
@@ -147,7 +145,7 @@ namespace usb
     uint16_t padding_2;
     volatile uint16_t usb_status; // store the device status (usb standard)
     uint16_t padding_3;
-    volatile uint16_t ctrl_stage;  // store the current stage of ctrl endpoint
+    volatile uint16_t ctrl_stage; // store the current stage of ctrl endpoint
     uint16_t padding_4;
     volatile uint16_t data_rx_off; // store the state of the data rx (on /off) for flow control (host to fast)
     uint16_t padding_5;
@@ -317,7 +315,7 @@ namespace usb
 
     void ctrlStallEndpoint(bool stall_rx)
     {
-      if(stall_rx)
+      if (stall_rx)
       {
         lowlevel::set_rx_stat(&USB->EP0R, lowlevel::eStall);
       }
@@ -354,7 +352,7 @@ namespace usb
 
     void cdcTransmit(const uint8_t *buffer, uint16_t size)
     {
-      OS_ASSERT(size <= max_packet*2, ERR_BUFFER_OVERFLOW);
+      OS_ASSERT(size <= max_packet * 2, ERR_BUFFER_OVERFLOW);
       mem->buffer_state[1].tx_remaining = size;
       mem->buffer_table[1].setTX(mem->buffer_cdc_in_0);
       mem->writeEndpoint(1, buffer, size);
@@ -365,7 +363,7 @@ namespace usb
     {
       ep_reg_t ep = getEpReg(endpoint);
       clear_ctr_tx(ep);
-      BufferState_t* pbs = &mem->buffer_state[endpoint];
+      BufferState_t *pbs = &mem->buffer_state[endpoint];
       uint16_t remaining = pbs->tx_remaining;
       if (endpoint == 0)
       {
@@ -391,7 +389,7 @@ namespace usb
         }
         // just continue sending the data which didn't fit into single packet
       }
-      uint16_t bytes_transmitted =  mem->buffer_table[endpoint].getTxCount();
+      uint16_t bytes_transmitted = mem->buffer_table[endpoint].getTxCount();
       remaining = remaining - bytes_transmitted;
       pbs->tx_remaining = remaining;
       if (remaining)
@@ -865,36 +863,74 @@ void usb::rxCtrlEndpoint()
 void usb::rxCdcEndpoint()
 {
   lowlevel::clear_ctr_rx(&USB->EP1R);
-  uint16_t size = mem->readEndpoint(1, rx_buffer);
+
+  OS_ASSERT(usb::packetbuffer != 0, ERR_NULL_POINTER);
+
+  BufferState_t* pbs = &mem->buffer_state[1];
+
   // TODO use DMA for copying the values
-  // either specialize a ringbuffer class
-  // or switch to using a mailbox kinda scheme
-  // as well as use multiple concurrent 64byte buffers instead
-  if (rxringbuffer.batchPush_isr((uint8_t *)rx_buffer, size, false) == false)
+  uint16_t size = mem->readEndpoint(1, usb::packetbuffer);
+
+  if(pbs->rx_remaining == 0)
   {
-    OS_ASSERT(true == false, ERR_BUFFER_OVERFLOW); // should never happen
-  }
-  // assert the signal since we changed something on the rx buffer
-  sig_rx_buff.set();
-  // check if we have enough space left to write another full packet
-  if (rxringbuffer.remainingSpace() < max_packet)
-  {
-    // not enough space, dont enable receive on endpoint again
-    mem->data_rx_off = 1;
+    // this is a fresh packet, check if the packet is plausible
+    UsbRpc::Packet* ppacket = (UsbRpc::Packet *)usb::packetbuffer;
+    uint16_t expected_size = UsbRpc::Handler::plausible(*ppacket);
+    if(expected_size == size)
+    {
+      // this is a nice package and we are done, release it to handler
+      UsbRpc::Handler::_mailbox.release();
+      usb::packetbuffer = 0;
+    }
+    else if(expected_size > size)
+    {
+      // this package didn't fit in a single transfer, advance read pointer
+      pbs->rx_remaining = expected_size - size;
+      OS_ASSERT((size & 0x3) == 0, ERR_BAD_INDEX);
+      usb::packetbuffer += (size / 4);
+    }
+    // else this package has a malformed header, don't do anything
   }
   else
   {
-    // re-enable the receiver because space in the buffer
+    // the package is already started and the readpointer was advanced.
+    // just check if there are still bytes remaining to be send
+    if(pbs->rx_remaining == size)
+    {
+      // this is a nice package and we are done, release it to handler
+      pbs->rx_remaining = 0;
+      UsbRpc::Handler::_mailbox.release();
+      usb::packetbuffer = 0;
+    }
+    else
+    {
+      // the package is still not done, advace the writepointer
+      pbs->rx_remaining -= size;
+      OS_ASSERT((size & 0x3) == 0, ERR_BAD_INDEX);
+      usb::packetbuffer += (size / 4);
+    }
+  }
+
+  if(usb::packetbuffer == 0)
+  {
+    // packet was released, try to allocate a new one
+    if(UsbRpc::Handler::_mailbox.try_reserve((UsbRpc::Packet**)&usb::packetbuffer))
+    {
+      *usb::packetbuffer = 0; // make sure to completely wipe packetheader
+    }
+    else
+    {
+      // mailbox is full, dont enable receive on endpoint again
+      mem->data_rx_off = 1;
+    }
+  }
+
+  if(usb::packetbuffer != 0)
+  {
+    // turn on the receiver again, we got space for messages
     set_rx_stat(&USB->EP1R, usb::lowlevel::eValid);
   }
 }
-
-// bool usb::rxCmdEndpoint()
-// {
-//   OS_ASSERT(true == false, ERR_IMPOSSIBRU);
-//   // the cmd endpoint is only in, this should never ever occur!
-//   return false; // just dont activate the receiver, ever
-// }
 
 void usb::isr_lp()
 {
@@ -936,16 +972,14 @@ void usb::isr_lp()
   }
 }
 
-void UsbCdc::init()
+void UsbRpc::init()
 {
-  uint32_t s = sizeof(usb::Memory_t);
   OS_ASSERT(sizeof(usb::Memory_t) < 1024, ERR_BUFFER_OVERFLOW);
   RCC->APB1ENR |= RCC_APB1ENR_USBEN; // enable APB clock
   usb::mem->buffer_table[0].setTX(usb::mem->buffer_ctrl_ep);
   usb::mem->buffer_table[0].setRx(usb::mem->buffer_ctrl_ep, usb::max_packet);
   usb::mem->buffer_table[1].setTX(usb::mem->buffer_cdc_in_0);
   usb::mem->buffer_table[1].setRx(usb::mem->buffer_cdc_out_0, usb::max_packet);
-  //usb::mem->buffer_table[2].setTX(usb::mem->buffer_cdc_com_in);
   usb::mem->temp_address = 0;  // no address
   usb::mem->usb_status = 0x01; // self powered
   usb::mem->usb_config = 0;    // not configured
@@ -953,9 +987,12 @@ void UsbCdc::init()
   usb::mem->ctrl_opcode = 0xFF;
   usb::Device::Descriptor::init();
   // setup the eventset
-  usb::sig_rx_buff.init();
   usb::sig_tx_done.init();
   usb::tx_mutex.init();
+  // setup incoming packet buffer
+  Handler::_mailbox.reserve((Packet**)&usb::packetbuffer);
+  *usb::packetbuffer = 0; // make sure to completely wipe packetheader
+  usb::mem->buffer_state[1].rx_remaining = 0; // fresh packet
   // enable gpio
   Gpio pin_dm('A', 11);
   pin_dm.mode(Gpio::in_pullup_pulldown, Gpio::Input);
@@ -973,130 +1010,35 @@ void UsbCdc::init()
   Core::enable_isr(USB_LP_CAN1_RX0_IRQn, 8);
 }
 
-// returns the number of bytes in the inbuffer
-uint16_t UsbCdc::in_avail()
-{
-  return usb::rxringbuffer.in_avail();
-}
-
-// look at some fancy values in the future
-bool UsbCdc::peek(uint8_t &val, uint32_t offset)
-{
-  return usb::rxringbuffer.peek(val, offset);
-}
-
-// remove up to count values from the buffer
-void UsbCdc::flush(uint32_t count)
-{
-  usb::rxringbuffer.flush(count);
-  if (usb::mem->data_rx_off && (usb::rxringbuffer.remainingSpace() >= usb::max_packet))
-  {
-    usb::mem->data_rx_off = 0; // we freed enough space in the buffer for a full packet, enable the rx if it was off
-    usb::lowlevel::set_rx_stat(&USB->EP1R, usb::lowlevel::eValid);
-  }
-}
-
-// wait for a change in received data, returns false if it timed out
-bool UsbCdc::waitData(OS_TIME timeout)
-{
-  return usb::sig_rx_buff.wait(timeout);
-}
-
-// reads as much as possible
-uint16_t UsbCdc::read(uint8_t *data, uint16_t size)
-{
-  if (size)
-  {
-    if (size == 1)
-    {
-      if (!usb::rxringbuffer.pop(*data))
-        size = 0;
-    }
-    else
-    {
-      size = usb::rxringbuffer.batchPop(data, size);
-    }
-    if (usb::mem->data_rx_off && (usb::rxringbuffer.remainingSpace() >= usb::max_packet))
-    {
-      usb::mem->data_rx_off = 0; // we freed enough space in the buffer for a full packet, enable the rx if it was off
-      usb::lowlevel::set_rx_stat(&USB->EP1R, usb::lowlevel::eValid);
-    }
-  }
-  return size;
-}
-
-// read until "\n" is detected, including the "\n" blocks up to timeout.
-// if timed out, nothing will be written to buffer and returns 0
-// returns -1 if the buffer was to small
-int32_t UsbCdc::readline(uint8_t *data, uint16_t size, OS_TIME timeout)
-{
-  if (timeout != INT32_MAX)
-  {
-    timeout = System::milliseconds() + timeout;
-  }
-
-  uint16_t checked = 0;
-  while (true)
-  {
-    uint16_t bc = in_avail();
-    if (bc != 0 && bc != checked)
-    {
-      while (checked < bc)
-      {
-        uint8_t crctr;
-        peek(crctr, checked);
-        // we peeked at a valid position in the inputbuffer. if this is a "\n" we are done
-        // if we can't find it, we update our "checked" to examine the next byte
-        // if we reach the end of the current input, we go back to sleep and do this only again, if in_avail is != from checked
-        if (crctr == '\n')
-        {
-          if (checked < size)
-          {
-            size = usb::rxringbuffer.batchPop(data, checked + 1);
-            if (usb::mem->data_rx_off && (usb::rxringbuffer.remainingSpace() >= usb::max_packet))
-            {
-              usb::mem->data_rx_off = 0; // we freed enough space in the buffer for a full packet, enable the rx if it was off
-              usb::lowlevel::set_rx_stat(&USB->EP1R, usb::lowlevel::eValid);
-            }
-            return size;
-          }
-          else
-          {
-            return -1; // line to big for buffer
-          }
-        }
-        ++checked;
-      }
-    }
-    else
-    {
-      if (!waitData(10) && timeout < System::milliseconds())
-      {
-        // timed out and ran out of time
-        return 0;
-      }
-    }
-  }
-}
 
 // blocks until the buffer was written
-void UsbCdc::write(const uint8_t *data, uint16_t size)
+void UsbRpc::write(const uint8_t *data, uint16_t size)
 {
   usb::tx_mutex.lock();
   while (usb::mem->usb_config != 1)
   {
-    // usb device not numerated by host
+    // sleep this thread until the device is configured
+    usb::sig_tx_done.wait(25);
   }
   usb::lowlevel::cdcTransmit(data, size);
   // managed to start the transmission, wait for donezo signal again
   while (false == !true)
   {
-    if (usb::sig_tx_done.wait(100))
+    if (usb::sig_tx_done.wait(1000))
       break;
     if (usb::mem->buffer_state[1].tx_remaining == 0)
       break;
   }
   usb::tx_mutex.unlock();
+}
+
+void UsbRpc::_enable_rx()
+{
+  if(usb::mem->data_rx_off != 0)
+  {
+    usb::mem->data_rx_off = 0;
+
+  }
 }
 
 extern "C"

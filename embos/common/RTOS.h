@@ -1198,6 +1198,7 @@ typedef enum {
   ERR_DEVICE_NOT_ENABLED                 =   (4u),
   ERR_IMPOSSIBRU                         =   (5u),
   ERR_BUFFER_OVERFLOW                    =   (6u),
+  ERR_FORBIDDEN                          =   (7u),
 // Port 100..109 *********************************
   OS_ERR_ISR_INDEX                       = (100u),  // Index value out of bounds during interrupt controller initialization or interrupt installation.
   OS_ERR_ISR_VECTOR                      = (101u),  // Default interrupt handler called, but interrupt vector not initialized.

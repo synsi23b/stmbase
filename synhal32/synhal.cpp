@@ -59,7 +59,7 @@ void System::init()
   OS_Init();
   OS_InitHW(); // sets up clock 72Mhz and systick 1kHz
   // set adc 12MHz and USB 48Mhz
-  RCC->CFGR |= RCC_CFGR_ADCPRE_DIV6 | RCC_CFGR_PPRE1_DIV2;
+  RCC->CFGR |= RCC_CFGR_ADCPRE_DIV6;
   // enable peripheral clocks for GPIOs and AFIO
   RCC->AHBENR = RCC_AHBENR_FLITFEN | RCC_AHBENR_SRAMEN | RCC_AHBENR_DMA1EN;
   RCC->APB2ENR |= RCC_APB2ENR_IOPCEN | RCC_APB2ENR_IOPBEN | RCC_APB2ENR_IOPAEN | RCC_APB2ENR_AFIOEN;

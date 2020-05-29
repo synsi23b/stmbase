@@ -117,11 +117,11 @@ Dummy_Handler:
   .weak ADC_IRQHandler
   .thumb_set ADC_IRQHandler,Dummy_Handler
 
-  .weak CAN1_TX_IRQHandler
-  .thumb_set CAN1_TX_IRQHandler,Dummy_Handler
+  .weak USB_HP_CAN1_TX_IRQHandler
+  .thumb_set USB_HP_CAN1_TX_IRQHandler,Dummy_Handler
 
-  .weak CAN1_RX0_IRQHandler
-  .thumb_set CAN1_RX0_IRQHandler,Dummy_Handler
+  .weak USB_LP_CAN1_RX0_IRQHandler
+  .thumb_set USB_LP_CAN1_RX0_IRQHandler,Dummy_Handler
 
   .weak CAN1_RX1_IRQHandler
   .thumb_set CAN1_RX1_IRQHandler,Dummy_Handler
@@ -338,13 +338,13 @@ ADC_IRQHandler:
   b .
 
   .thumb_func
-  .weak CAN1_TX_IRQHandler
-CAN1_TX_IRQHandler:
+  .weak USB_HP_CAN1_TX_IRQHandler
+USB_HP_CAN1_TX_IRQHandler:
   b .
 
   .thumb_func
-  .weak CAN1_RX0_IRQHandler
-CAN1_RX0_IRQHandler:
+  .weak USB_LP_CAN1_RX0_IRQHandler
+USB_LP_CAN1_RX0_IRQHandler:
   b .
 
   .thumb_func
@@ -590,8 +590,8 @@ _vectors:
   .word DMA1_Channel6_IRQHandler
   .word DMA1_Channel7_IRQHandler
   .word ADC_IRQHandler
-  .word CAN1_TX_IRQHandler
-  .word CAN1_RX0_IRQHandler
+  .word USB_HP_CAN1_TX_IRQHandler
+  .word USB_LP_CAN1_RX0_IRQHandler
   .word CAN1_RX1_IRQHandler
   .word CAN1_SCE_IRQHandler
   .word EXTI9_5_IRQHandler

@@ -2,7 +2,16 @@ import re, os, hashlib, shutil
 import argparse
 from collections import OrderedDict
 
-SYNRPC_MAX_MSGSIZE = 255
+# transmitting over usb happens in packets of up to 64 byte
+# if we send exactly 64 bytes, the host is not
+# sure wether or not the transmission is finished.
+# it will than ask the again and we need to transmit a zero length packet
+# so by defining the max size at 122 and adding the packet descriptor of 5 bytes
+# we can finish any transmission in 2 steps and can optimize the device buffer easily
+SYNRPC_MAX_MSGSIZE = 122
+
+# check the maximum message size actually needed, minimum is error message
+SYNRPC_GEN_MAX = 27
 
 def main():
     parser = argparse.ArgumentParser(description='Generate synrpc messages')
@@ -102,7 +111,7 @@ def getUserCode(lines, messages):
 
 def writeHeaderCpp(headerpath, messages):
     with open("synrpc_generator/synrpc_usbcon_template.h", 'r') as f:
-        header = f.read()
+        header = f.read().format(SYNRPC_USBCON_MAX_GEN=SYNRPC_GEN_MAX)
     header += "\nconst uint16_t MAX_HANDLER_TYPE = {};\n".format(len(messages))
     for k, m in messages.items():
         header += m.genCppHeader()
@@ -115,12 +124,17 @@ def writeEvokerCpp(evokerpath, messages):
         code = f.read()
     for k, m in messages.items():
         code += m.genCppConverter()
+        code += m.genCppChecker()
     code += "\nconverter_t packetconverters[MAX_HANDLER_TYPE] = {\n"
     for k, m in messages.items():
         code += m.genCppConverterEntry()
-    code += """};
-
-const char* handlePacket(const Packet& p){
+    code += "};\n"
+    code += "\nchecker_t packetcheckers[MAX_HANDLER_TYPE] = {\n"
+    for k, m in messages.items():
+        code += m.genCppCheckerEntry()
+    code += "};\n"
+    code +="""
+const char* handlePacket(const UsbRpc::Packet& p){
   uint8_t type = p.type();
   if(type > MAX_HANDLER_TYPE){
     return "Message type unknown, handler type to big";
@@ -130,6 +144,21 @@ const char* handlePacket(const Packet& p){
   }
   type -= 1;
   return packetconverters[type](p);
+}
+
+uint16_t UsbRpc::Handler::plausible(const UsbRpc::Packet &p)
+{
+  uint8_t type = p.type();
+  if (type > MAX_HANDLER_TYPE)
+  {
+    return 0;
+  }
+  else if (type == 0)
+  {
+    return 0;
+  }
+  type -= 1;
+  return packetcheckers[type](p);
 }
 """
     with open(evokerpath, "w") as f:
@@ -260,10 +289,12 @@ class Message:
     typecounter = 1 # type 0 reserved for error messages
 
     def __init__(self, path, filename):
+        global SYNRPC_GEN_MAX
         self.name = filename.split('.')[0]
         self.msgname = self.name + "Msg"
         self.handlername = self.name + "Handler"
         self.convertername = self.name + "Converter"
+        self.checkername = self.name + "Checker"
         self.mesagedefinition = ""
         self.usercode = ""
         self.vars = []
@@ -288,7 +319,8 @@ class Message:
             self.size += v.size()
             self.pysize += v.pysize()
         if self.size > SYNRPC_MAX_MSGSIZE:
-            raise RuntimeError(f"Msg: {filename} -> is bigger than 255 bytes.")
+            raise RuntimeError(f"Msg: {filename} -> is bigger than {SYNRPC_MAX_MSGSIZE} bytes.")
+        SYNRPC_GEN_MAX = max(self.size, SYNRPC_GEN_MAX)
         self.type = Message.typecounter
         Message.typecounter += 1
 
@@ -316,7 +348,7 @@ const char* {}(const {}& msg);
 
     def genCppConverter(self):
         conv = """
-const char* {}(const Packet& p){{
+const char* {}(const UsbRpc::Packet& p){{
   return Converter<{}>(&{}, p);
 }}
 """
@@ -324,6 +356,17 @@ const char* {}(const Packet& p){{
 
     def genCppConverterEntry(self):
         return "&{},\n".format(self.convertername)
+
+    def genCppChecker(self):
+        check = """
+uint16_t {}(const UsbRpc::Packet& p){{
+  return Checker<{}>(p);
+}}
+"""
+        return check.format(self.checkername, self.msgname)
+
+    def genCppCheckerEntry(self):
+        return "&{},\n".format(self.checkername)
 
     def genCppHandlerStub(self):
         stubhead = """
@@ -359,7 +402,7 @@ Message fields:
     _type = {msgtype}
     _sha1 = int('{sha1}', 16)
     _header = int('{sha1}', 16) << 16 | {msgtype} << 8 | {msgsize}
-    _footer = 255 - {msgsize}
+    _footer = SYNRPC_MAX_MSGSIZE - {msgsize}
     _packer = struct.Struct("<L{packstr}B")
 
     def __init__(self, buffer=None):
