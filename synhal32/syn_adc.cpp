@@ -2,6 +2,10 @@
 #include "synhal.h"
 using namespace syn;
 
+#if (SYN_USBCDC_DMA_CHANNEL == 1)
+#error "DMA Channel 1 is required by ADC"
+#endif
+
 uint16_t Adc::_channels[ADC_CHANNEL_COUNT];
 
 void Adc::init()

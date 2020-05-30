@@ -1376,7 +1376,7 @@ namespace syn
 
     static void init();
 
-    static void write(const uint8_t *data, uint16_t size);
+    static bool write(const uint8_t *data, uint16_t size, uint32_t timeout = 0);
 
   private:
     static void _enable_rx();

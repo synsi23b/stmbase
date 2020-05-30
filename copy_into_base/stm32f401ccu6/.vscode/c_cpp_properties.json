@@ -1,0 +1,25 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceFolder}/stmbase/synhal32/**",
+                "/stmbase/embos/common/**",
+                "/stmbase/embos/stm32f103c8/**",
+                "/usr/share/segger_embedded_studio_for_arm_4.52b/include/**"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE",
+                "GCC_ARMCM3",
+                "STM32F103xB",
+                "OS_INT_Disable=int",
+                "OS_INT_Enable=int",
+                "STM32F10X_MD"
+            ],
+            "intelliSenseMode": "gcc-x64"
+        }
+    ],
+    "version": 4
+}
