@@ -1,6 +1,5 @@
-#if (SYN_ENABLE_EEPROM == 1)
 #include "synhal.h"
-
+#if (SYN_ENABLE_EEPROM == 1)
 using namespace syn;
 
 VirtualEeprom::Flash VirtualEeprom::Flash::_instance;

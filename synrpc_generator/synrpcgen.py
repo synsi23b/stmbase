@@ -58,11 +58,11 @@ def writeHandlerCpp(handlerpath, messages):
  * The packet reception continues in the background to another buffer. If you stall too long, it
  * will start to stall the Host.
  * Since the programmer is responsible for keeping align requirements, please be careful!
- * Also, there will be check of the packets checksum before it gets here, An error will be send automatically
+ * Also, there will be a check of the packets checksum before it gets here, An error will be send automatically
  * in case of mismatched messages.
  * Furthermore, returning anything else other than 0 will be regarded as an error and interpreted as
  * a pointer to a zero terminated C-String. This string will be copied into the internal Error-Message buffer.
- * It allows only a maximum size of 57 characters. Anything more will be discarded. You have been warned.
+ * It allows only a maximum size of 26 characters. Anything more will be discarded. You have been warned.
  */
 """)
         f.write(userincludes)
@@ -374,6 +374,7 @@ uint16_t {}(const UsbRpc::Packet& p){{
 {msgdefin}
 */
 const char* syn::{handlername}(const syn::{msgname}& msg){{
+  (void)msg; // avoid "unused variable" compiler warning
 /// USER CODE {msgname} ///
 """
         stubhead = stubhead.format(msgname=self.msgname, handlername=self.handlername, msgdefin=self.mesagedefinition)

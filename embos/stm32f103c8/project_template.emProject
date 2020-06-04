@@ -94,12 +94,13 @@
       <file file_name="src/synhal_isr.h" />
     </folder>
     <folder Name="synhal">
+      <file file_name="stmbase/synhal32/synhal.h" />
+      <file file_name="stmbase/synhal32/synhal.cpp" />
       <file file_name="stmbase/synhal32/mtl.h" />
       <file file_name="stmbase/synhal32/syn_adc.cpp" />
+      <file file_name="stmbase/synhal32/syn_dma.cpp" />
       <file file_name="stmbase/synhal32/syn_eeprom.cpp" />
       <file file_name="stmbase/synhal32/syn_exti.cpp" />
-      <file file_name="stmbase/synhal32/synhal.cpp" />
-      <file file_name="stmbase/synhal32/synhal.h" />
       <file file_name="stmbase/synhal32/syn_i2c.cpp" />
       <file file_name="stmbase/synhal32/syn_timer.cpp" />
       <file file_name="stmbase/synhal32/syn_usb.cpp" />
