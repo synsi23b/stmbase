@@ -16,7 +16,7 @@
             "name": "Run synrpc tests",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/synrpc_generator/test_usbcon.py",
+            "program": "${workspaceFolder}/test_usbcon.py",
             "console": "integratedTerminal"
         },
         {
