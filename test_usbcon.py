@@ -9,34 +9,23 @@ import sys
 
 ph = usb.PacketHandler("/dev/ttyACM0")
 
-recv_datalist = []
-start = end = current_micro_time()
-bench_started = 0
+start = current_milli_time()
 
 def myhndl(msg):
     global start
-    global bench_started
-    # global end
-    #end = current_micro_time()
-    # #print(f"### {end - start} millisec ###")
-    
-    # recv_datalist.append((0, list(msg.values)))
-    if bench_started:
-        bench_started += 1
-        if bench_started % 100 == 0:
-            sys.stdout.write('.')
-            sys.stdout.flush()
-        if bench_started == 4096:
-            bench_started = 0
-    #start = end
+    end = current_milli_time()
+    print(f"### {end - start} millisec ###")
+    newlist = []
+    for duty, on in zip(msg.width, msg.t_on):
+        if duty > 0:
+            newlist.append(int(on / duty * 100))
+        
+    print(newlist)
+    start = end
 
-
-ph.addMessageHandler(usb.SetPotentiometerMsg, myhndl)
+ph.addMessageHandler(usb.PulseReportMsg, myhndl)
 
 ph.start()
-#msg = usb.PerfTestMsg()
-#maxval = 4 * 1000 * 1000 * 1000
-msg = usb.SetPotentiometerMsg()
 
 while True:
     #msg = raw_input("Write Message: ")

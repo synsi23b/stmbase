@@ -29,9 +29,7 @@ void System::init()
   RCC->AHBENR = RCC_AHBENR_FLITFEN | RCC_AHBENR_SRAMEN | RCC_AHBENR_DMA1EN;
   RCC->APB2ENR |= RCC_APB2ENR_IOPCEN | RCC_APB2ENR_IOPBEN | RCC_APB2ENR_IOPAEN | RCC_APB2ENR_AFIOEN;
   // set the default remappings
-  AFIO->MAPR = AFIO_MAPR_SWJ_CFG_NOJNTRST; // | AFIO_MAPR_TIM3_REMAP_PARTIALREMAP; // | AFIO_MAPR_USART1_REMAP
-  //Gpio::remap(Gpio::tim3_remap_part);
-  //Gpio::remap(Gpio::swj_no_nrst); // pb3 should be free.. should...
+  AFIO->MAPR = AFIO_MAPR_SWJ_CFG_NOJNTRST | AFIO_MAPR_TIM3_REMAP_PARTIALREMAP | AFIO_MAPR_USART1_REMAP | AFIO_MAPR_I2C1_REMAP;
 #if (SYN_CAN_1_REMAP != 0)
   Gpio::remap(Gpio::can_rx_pb8_tx_pb9)
 #endif

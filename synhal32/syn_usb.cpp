@@ -1031,6 +1031,7 @@ void UsbRpc::init()
   // setup the eventset
   usb::sig_tx_ready.init();
   // setup incoming packet buffer
+  Handler::_mailbox.init();
   Handler::_mailbox.reserve((Packet **)&usb::packetbuffer);
   *usb::packetbuffer = 0;                     // make sure to completely wipe packetheader
   usb::mem->buffer_state[1].rx_remaining = 0; // fresh packet

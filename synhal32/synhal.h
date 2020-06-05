@@ -3,6 +3,9 @@
 #ifdef STM32F103xB
 #include "../embos/stm32f103c8/stm32f10x.h"
 #endif
+#ifdef STM32F401xC
+#include "../embos/stm32f401ccu6/stm32f401xc.h"
+#endif
 
 #include "../../src/synhal_cfg.h"
 #include "mtl.h"
@@ -137,6 +140,7 @@ namespace syn
     // OS-Aware interrupts will not nest after the call to Core::enter_isr()
     static void enable_isr(IRQn_Type irq, uint16_t priority)
     {
+      OS_ASSERT(priority < 16, ERR_IMPOSSIBRU);
       __NVIC_SetPriority(irq, priority);
       __NVIC_EnableIRQ(irq);
     }
@@ -958,6 +962,8 @@ namespace syn
   class Gpio
   {
   public:
+    // port shall be 'A' 'B' or 'C'
+    // pin is a number beteween and including 0 and 15
     Gpio(int8_t port, uint8_t pin)
     {
       OS_ASSERT(pin < 16, ERR_BAD_INDEX);
@@ -982,13 +988,14 @@ namespace syn
 
     enum Mode
     {
-      out_push_pull = 0x0,
-      out_open_drain = 0x1,
-      out_alt_push_pull = 0x2,
-      out_alt_open_drain = 0x3,
       in_analog = 0x0,
-      in_floating = 0x1,
-      in_pullup_pulldown = 0x2
+      in_floating = 0x4,
+      in_pullup = 0x7,
+      in_pulldown = 0x8,
+      out_push_pull = 0x1,
+      out_open_drain = 0x5,
+      out_alt_push_pull = 0x9,
+      out_alt_open_drain = 0xD,
     };
 
     enum Speed
@@ -999,9 +1006,45 @@ namespace syn
       MHz_50 = 0x3
     };
 
-    void mode(Mode m, Speed s)
+    enum Alternate
     {
-      uint16_t cfg = (uint16_t)m << 2 | (uint16_t)s;
+      System = 0x0,
+      Timer_1_2 = 0x1,
+      Timer_3_4_5 = 0x2,
+      Timer_9_10_11 = 0x3,
+      I2C = 0x4,
+      SPI = 0x5,
+      USART_1_2 = 0x7,
+      USART_6 = 0x8,
+      I2C_2_SDA = 0x9,
+      OTG_FS = 0xA,
+      SDIO_ = 0xC,
+      EVENTOUT = 0xF
+    };
+
+    // defaults to input modes, if set any output mode
+    // requires speed to be set anything other than Input
+    void mode(Mode m, Speed s = Input, Alternate a = System)
+    {
+      if (m == out_alt_open_drain || m == out_alt_push_pull)
+      {
+        OS_ASSERT(a != System, ERR_FORBIDDEN);
+      }
+      if (m & 0x3)
+      {
+        OS_ASSERT(s != Input, ERR_FORBIDDEN);
+      }
+#ifdef STM32F103xB
+      if(m == in_pullup)
+      {
+        set();
+        m += 1;
+      }
+      else if(m == in_pulldown)
+      {
+        clear();
+      }
+      uint16_t cfg = (uint16_t)m & 0xC | (uint16_t)s;
       if (_pin < 8)
       {
         uint16_t p = (_pin) << 2;
@@ -1014,6 +1057,64 @@ namespace syn
         _pPort->CRH &= ~(0xF << p);
         _pPort->CRH |= (cfg << p);
       }
+#elif defined(STM32F401xC)
+      _pPort->MODER &= ~(0x3 << (_pin * 2));
+      _pPort->OSPEEDR &= ~(0x3 << (_pin * 2));
+      _pPort->PUPDR &= ~(0x3 << (_pin * 2));
+      volatile uint32_t* pAfr;
+      if(_pin < 8)
+      {
+        pAfr = &_pPort->AFR[0];
+      }
+      else
+      {
+        pAfr = &_pPort->AFR[1];
+      }
+      *pAfr &= ~(0xF << (_pin *4));
+      switch (m)
+      {
+      case in_analog:
+        _pPort->MODER |= (0x3 << (_pin * 2));
+        break;
+      case out_push_pull:
+        _pPort->MODER |= (0x1 << (_pin * 2));
+        _pPort->OTYPER &= ~(0x1 << _pin);
+        break;
+      case in_floating:
+        break;
+      case out_open_drain:
+        _pPort->MODER |= (0x1 << (_pin * 2));
+        _pPort->OTYPER |= (0x1 << _pin);
+        break;
+      case in_pullup:
+        _pPort->PUPDR |= (0x1 << (_pin * 2));
+        break;
+      case in_pulldown:
+        _pPort->PUPDR |= (0x2 << (_pin * 2));
+        break;
+      case out_alt_push_pull:
+        _pPort->MODER |= (0x2 << (_pin * 2));
+        _pPort->OTYPER &= ~(0x1 << _pin);
+        *pAfr |= (a << (_pin *4));
+        break;
+      case out_alt_open_drain:
+        _pPort->MODER |= (0x2 << (_pin * 2));
+        _pPort->OTYPER |= (0x1 << _pin);
+        *pAfr |= (a << (_pin *4));
+        break;
+      }
+      switch (s)
+      {
+      case MHz_10:
+        _pPort->OSPEEDR |= (0x1 << (_pin * 2));
+        break;
+      case MHz_50:
+        _pPort->OSPEEDR |= (0x2 << (_pin * 2));
+        break;
+      }
+#else
+#error "Unknown chip!"
+#endif
     }
 
     bool read()
@@ -1028,7 +1129,13 @@ namespace syn
 
     void clear()
     {
+#ifdef STM32F103xB
       _pPort->BRR = _bitmask;
+#elif defined(STM32F401xC)
+      _pPort->BSRR = uint32_t(_bitmask) << 16;
+#else
+#error "Unknown chip!"
+#endif
     }
 
     void toggle()
@@ -1065,9 +1172,14 @@ namespace syn
       swj_all_disable = 0x4000000
     };
 
-    static void remap(Remap map)
+    void remap(Remap map)
     {
+#ifdef STM32F103xB
       AFIO->MAPR |= (uint32_t)map;
+#elif defined(STM32F401xC)
+#else
+#error "Unknown chip!"
+#endif
     }
 
   private:
@@ -1119,7 +1231,13 @@ namespace syn
       uint8_t extiselector = port - 'A';
       uint16_t extiafionum = (line % 4) * 4;
       uint16_t extiafioreg = line / 4;
+#ifdef STM32F103xB
       AFIO->EXTICR[extiafioreg] |= (extiselector << extiafionum);
+#elif defined(STM32F401xC)
+      SYSCFG->EXTICR[extiafioreg] |= (extiselector << extiafionum);
+#else
+#error "Unknown chip"
+#endif
       {
         Atomic a;
         EXTI->IMR |= (1 << line);
@@ -1227,11 +1345,93 @@ namespace syn
     static uint16_t _channels[ADC_CHANNEL_COUNT];
   };
 
+  class Dma
+  {
+  public:
+    void init(uint16_t channel)
+    {
+      --channel;
+#ifdef STM32F103xB
+      OS_ASSERT(channel < 7, ERR_BAD_INDEX);
+      _pChannel = DMA1_Channel1 + channel;
+#endif
+#ifdef STM32F401xC
+      
+#endif
+    }
+
+    // stop operation of the channel
+    void stop()
+    {
+#ifdef STM32F103xB
+      _pChannel->CCR &= 0xFFFE;
+#endif
+#ifdef STM32F401xC
+      
+#endif
+    }
+
+    void start()
+    {
+#ifdef STM32F103xB
+      _pChannel->CCR |= DMA_CCR1_EN;
+#endif
+#ifdef STM32F401xC
+      
+#endif
+    }
+
+    // cylcic reading from a peripheral to memory. periheral stays the same, memory gets incremented
+    // count is the number of transfers, not the number of bytes!
+    template <typename Peri_t, typename Mem_t>
+    void cyclicP2M(Peri_t *src, Mem_t *dst, uint16_t count)
+    {
+#ifdef STM32F103xB
+      _pChannel->CCR = 0; // stop the dma before setting anything
+      uint16_t psize = sizeof(Peri_t) >> 1;
+      uint16_t msize = sizeof(Mem_t) >> 1;
+      _pChannel->CCR = (msize << 10) | (psize << 8) | DMA_CCR1_MINC | DMA_CCR1_CIRC;
+      _pChannel->CNDTR = count;
+      _pChannel->CMAR = (uint32_t)dst;
+      _pChannel->CPAR = (uint32_t)src;
+#endif
+#ifdef STM32F401xC
+      
+#endif
+    }
+
+    static const uint16_t IRQ_STATUS_ERROR = 0x4;
+    static const uint16_t IRQ_STATUS_HALF = 0x2;
+    static const uint16_t IRQ_STATUS_FULL = 0x1;
+
+    void enableIrq(uint16_t irq_status_mask, uint16_t priority = 8)
+    {
+#ifdef STM32F103xB
+      _pChannel->CCR |= (irq_status_mask << 1);
+      uint32_t irqn = _pChannel - DMA1_Channel1;
+      irqn += DMA1_Channel1_IRQn - 1;
+      Core::enable_isr((IRQn_Type)irqn, priority);
+#endif
+#ifdef STM32F401xC
+      
+#endif
+    }
+
+  private:
+#ifdef STM32F103xB
+    DMA_Channel_TypeDef *_pChannel;
+#endif
+#ifdef STM32F401xC
+    DMA_Stream_TypeDef *_pChannel;
+#endif
+  };
+
   class Timer
   {
   public:
-    Timer(uint16_t number)
+    void init(uint16_t number)
     {
+      _number = number;
       switch (number)
       {
       case 1:
@@ -1250,6 +1450,11 @@ namespace syn
         _pTimer = TIM4;
         RCC->APB1ENR |= RCC_APB1ENR_TIM4EN;
         break;
+#ifdef STM32F401xC
+        _pTimer = TIM5;
+        RCC->AHB1ENR |= RCC_APB1ENR_TIM5EN;
+        break;
+#endif
       default:
         OS_ASSERT(true == false, ERR_BAD_PORT_NAME);
       }
@@ -1281,8 +1486,8 @@ namespace syn
     }
 
     // configure the timer for pwm out by setting the prescaler, reload and pwm compare startvalue
-    // Timers are running with 72MHz
-    // the prescalers minimum value is 1, which is added internally (e.g. setting a value of 1 will result in 36MHz timer ticks)
+    // Timers are running with 72MHz on stm32f103 and 84MHz on stm32f401
+    // the prescalers minimum value is 1, which is added internally (e.g. setting a value of 1 will result in 36MHz timer ticks (divison by 2))
     void configPwm(uint16_t prescaler, uint16_t reload, uint16_t startvalue);
 
     // configures the timer to enbale 50Hz rc pwm output on the channels
@@ -1338,20 +1543,35 @@ namespace syn
     // configure simple input capturing
     void configInputCapture(uint16_t prescaler, uint16_t reload, InputFilter filter);
 
-    // setup corresponding pin as input for the timer
-    void enableInput(uint16_t channel, bool rising_edge = true, bool pulldow = true);
+    // setup input capture for the channel
+    void enableInput(Gpio &gpio, uint16_t channel, bool rising_edge, bool falling_edge, bool pulldown);
+
+    // configure pwm input capturing
+    // defaults to ch1 & ch3 capture rising, ch2 & ch4 capture falling
+    // if mapping is true, instead of capturing on ch1 and ch3 input signals,
+    // the timer will use ch2 and ch4 as it's inputs
+    void configPwmCapture(uint16_t prescaler, uint16_t reload, InputFilter filter, bool mapping);
 
     // enable a callback for the timer
     // triggers at each update event
-    // the callback shall accept an uint32 as parameter, its the timer status register
     // and return void upon completition
-    // set priority to configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY - 1 for higher than average, but dont call FreeRtos Stuff
-    void enableCallback(uint32_t priority = 200);
+    void enableCallback(uint16_t priority = 8);
+
+    // enable DMA request at Update Event
+    // also set from which register to start (offset)
+    // and the burst count for how many registers to transfers
+    // returns the dma read register to set the dma
+    // calculate the base reg by offset / 4 (as in the register map)
+    // the first CCR register is number 13 (offset 0x34)
+    volatile uint16_t *enableDmaUpdate(uint16_t base_reg, uint16_t burst_count);
+
+    // stop timer when debugging, careful with RC pwm
+    void stopForDebug();
 
   private:
-    uint16_t getTimernum();
 
     TIM_TypeDef *_pTimer;
+    uint16_t _number;
   };
 
   class I2cMaster
@@ -1476,6 +1696,7 @@ namespace syn
 
 extern "C"
 {
+#ifdef STM32F103xB
   void EXTI0_IRQHandler();
   void EXTI1_IRQHandler();
   void EXTI2_IRQHandler();
@@ -1513,4 +1734,7 @@ extern "C"
   void EXTI15_10_IRQHandler();
   void RTCAlarm_IRQHandler();
   void USBWakeUp_IRQHandler();
+#endif
+#ifdef STM32F401xC
+#endif
 }
