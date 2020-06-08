@@ -201,6 +201,34 @@ void SystemInit(void)
 #else
   SCB->VTOR = FLASH_BASE | VECT_TAB_OFFSET; /* Vector Table Relocation in Internal FLASH */
 #endif
+  //
+  // Set SystemClock
+  //
+  FLASH->ACR   = 0
+              | (2uL << 0)   // Set 2 waitstates
+              | FLASH_ACR_PRFTEN
+              | FLASH_ACR_ICEN
+              | FLASH_ACR_DCEN
+              ;
+  while((FLASH->ACR & (15uL << 0)) != 2) {
+    ;
+  }
+  RCC->CR      = 0
+              | RCC_CR_HSEON  // Enable HSE
+              ;
+  RCC->PLLCFGR = 0
+              | ( 25uL <<  0)  // PLLM   = divide input by 25
+              | (336uL <<  6)  // PLLN   = multiply by 336 
+              | (  1uL << 16)  // PLLP   = divide by 4 = 84MHz Core
+              | (  1uL << 22)  // PLLSRC = 1 (HSE)
+              | (  7ul << 24)  // PLLQ   = 7 (336 / 7 = 48)
+              ;   // Configurate PLL
+  RCC->CR      |= (1uL << 24);  // Enable PLL
+  while ((RCC->CR & (1uL << 25)) == 0) {
+    ; 
+  }
+  RCC->CFGR = (25ul << 16) | RCC_CFGR_PPRE1_DIV2;
+  RCC->CFGR    |= (2uL << 0);   // Select PLL as system clock
 }
 
 /**

@@ -1111,6 +1111,9 @@ namespace syn
       case MHz_50:
         _pPort->OSPEEDR |= (0x2 << (_pin * 2));
         break;
+      case Input:
+      case MHz_2:
+        break;
       }
 #else
 #error "Unknown chip!"
@@ -1177,6 +1180,7 @@ namespace syn
 #ifdef STM32F103xB
       AFIO->MAPR |= (uint32_t)map;
 #elif defined(STM32F401xC)
+      map = map;
 #else
 #error "Unknown chip!"
 #endif
@@ -1350,13 +1354,23 @@ namespace syn
   public:
     void init(uint16_t channel)
     {
-      --channel;
 #ifdef STM32F103xB
+      --channel;
       OS_ASSERT(channel < 7, ERR_BAD_INDEX);
       _pChannel = DMA1_Channel1 + channel;
 #endif
 #ifdef STM32F401xC
-      
+      OS_ASSERT(channel < 16, ERR_BAD_INDEX);
+      _number = channel;
+      if(channel < 8)
+      {
+        _pStream = DMA1_Stream0 + channel;
+      }
+      else
+      {
+        channel -= 8;
+        _pStream = DMA2_Stream0 + channel;
+      }
 #endif
     }
 
@@ -1364,20 +1378,22 @@ namespace syn
     void stop()
     {
 #ifdef STM32F103xB
-      _pChannel->CCR &= 0xFFFE;
+      _pChannel->CCR &= ~DMA_CCR1_EN;
 #endif
 #ifdef STM32F401xC
-      
+      _pStream->CR &= ~DMA_SxCR_EN;
 #endif
     }
 
-    void start()
+    void start(uint32_t channel = 0)
     {
 #ifdef STM32F103xB
+      channel = channel;
       _pChannel->CCR |= DMA_CCR1_EN;
 #endif
 #ifdef STM32F401xC
-      
+      OS_ASSERT(channel < 8, ERR_BAD_INDEX);
+      _pStream->CR |= (channel << 25) | DMA_SxCR_EN;
 #endif
     }
 
@@ -1396,33 +1412,37 @@ namespace syn
       _pChannel->CPAR = (uint32_t)src;
 #endif
 #ifdef STM32F401xC
-      
+      _pStream->CR = 0;
+      _pStream->NDTR = count;
+      _pStream->PAR = (uint32_t)src;
+      _pStream->M0AR = (uint32_t)dst;
+      uint16_t psize = sizeof(Peri_t) >> 1;
+      uint16_t msize = sizeof(Mem_t) >> 1;
+      _pStream->CR = (msize << 13) | (psize << 11) | DMA_SxCR_MINC | DMA_SxCR_CIRC;
 #endif
     }
 
+#ifdef STM32F103xB
     static const uint16_t IRQ_STATUS_ERROR = 0x4;
     static const uint16_t IRQ_STATUS_HALF = 0x2;
     static const uint16_t IRQ_STATUS_FULL = 0x1;
-
-    void enableIrq(uint16_t irq_status_mask, uint16_t priority = 8)
-    {
-#ifdef STM32F103xB
-      _pChannel->CCR |= (irq_status_mask << 1);
-      uint32_t irqn = _pChannel - DMA1_Channel1;
-      irqn += DMA1_Channel1_IRQn - 1;
-      Core::enable_isr((IRQn_Type)irqn, priority);
 #endif
 #ifdef STM32F401xC
-      
+    static const uint16_t IRQ_STATUS_FULL = 0x20;
+    static const uint16_t IRQ_STATUS_HALF = 0x10;
+    static const uint16_t IRQ_STATUS_ERROR = 0x08;
+    static const uint16_t IRQ_STATUS_DIRECT_ERR = 0x04;
+    static const uint16_t IRQ_STATUS_FIFO_ERR = 0x01;
 #endif
-    }
+    void enableIrq(uint16_t irq_status_mask, uint16_t priority = 8);
 
   private:
 #ifdef STM32F103xB
     DMA_Channel_TypeDef *_pChannel;
 #endif
 #ifdef STM32F401xC
-    DMA_Stream_TypeDef *_pChannel;
+    DMA_Stream_TypeDef *_pStream;
+    uint16_t _number;
 #endif
   };
 
@@ -1498,12 +1518,12 @@ namespace syn
       // the prescaler needs to bring the 72MHz down to 50Hz together with the reload register
       // we divide the counter by 72. So it runs at 1MHz
       // set the startvalue to 1500 for center pwm
-      configPwm(71, 20000, 1500);
+      configPwm((SystemCoreClock / 1000000) - 1, 20000, 1500);
     }
 
     // enables the corresponding pin to perfom pwm output
     // lower speed at the gpio is desierable for some reason (less jittery / stronger signal)
-    void enablePwm(uint16_t channel, Gpio::Speed speed = Gpio::MHz_2);
+    void enablePwm(int8_t port, uint8_t pinnum, uint16_t channel, Gpio::Speed speed = Gpio::MHz_2);
 
     // set the corresponding output compare register
     void setPwm(uint16_t channel, uint16_t value)
@@ -1543,14 +1563,16 @@ namespace syn
     // configure simple input capturing
     void configInputCapture(uint16_t prescaler, uint16_t reload, InputFilter filter);
 
-    // setup input capture for the channel
-    void enableInput(Gpio &gpio, uint16_t channel, bool rising_edge, bool falling_edge, bool pulldown);
-
     // configure pwm input capturing
     // defaults to ch1 & ch3 capture rising, ch2 & ch4 capture falling
     // if mapping is true, instead of capturing on ch1 and ch3 input signals,
     // the timer will use ch2 and ch4 as it's inputs
     void configPwmCapture(uint16_t prescaler, uint16_t reload, InputFilter filter, bool mapping);
+
+    // setup pin for input capture
+    // port shall be 'A' 'B' or 'C'
+    // pin is a number beteween and including 0 and 15
+    void enableInput(int8_t port, uint8_t pinnum, bool pulldown, bool pullup);
 
     // enable a callback for the timer
     // triggers at each update event

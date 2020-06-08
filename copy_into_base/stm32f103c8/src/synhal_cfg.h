@@ -15,12 +15,11 @@
 #define SYN_ENABLE_SPI_1      0
 #define SYN_ENABLE_SPI_2      0
 #define SYN_ENABLE_TIMER_IRQ  0
-#define SYN_ENABLE_USBCDC     0
+#define SYN_ENABLE_USBRPC     0
 #define SYN_ENABLE_EEPROM     0
 
-#define SYN_USBCDC_DMA_CHANNEL 1
-#define SYN_USBCDC_BUFFSIZE   1024
-#define SYN_USBRPC_USELED     1
+#define SYN_USBRPC_BUFFSIZE   10 // ammount of packets
+#define SYN_USBRPC_USELED     0
 #define SYN_USBRPC_STACKSIZE  512
 #define SYN_USBRPC_PRIORITY   SYN_OS_PRIO_HIGH
 
@@ -36,6 +35,7 @@
 #define SYN_TIMER_2_IRQ_TYPE 0
 #define SYN_TIMER_3_IRQ_TYPE 0
 #define SYN_TIMER_4_IRQ_TYPE 0
+#define SYN_TIMER_5_IRQ_TYPE 0
 
 #define SYN_EXTI_TYPE_0   0
 #define SYN_EXTI_TYPE_1   0
@@ -53,3 +53,22 @@
 #define SYN_EXTI_TYPE_13  0
 #define SYN_EXTI_TYPE_14  0
 #define SYN_EXTI_TYPE_15  0
+
+#define SYN_DMA_IRQ_TYPE_0 0
+#define SYN_DMA_IRQ_TYPE_1 0
+#define SYN_DMA_IRQ_TYPE_2 0
+#define SYN_DMA_IRQ_TYPE_3 0
+#define SYN_DMA_IRQ_TYPE_4 0
+#define SYN_DMA_IRQ_TYPE_5 0
+#define SYN_DMA_IRQ_TYPE_6 0
+#define SYN_DMA_IRQ_TYPE_7 0
+
+// these are actually DMA_2 interrupts
+#define SYN_DMA_IRQ_TYPE_8  0
+#define SYN_DMA_IRQ_TYPE_9  0
+#define SYN_DMA_IRQ_TYPE_10 0
+#define SYN_DMA_IRQ_TYPE_11 0
+#define SYN_DMA_IRQ_TYPE_12 0
+#define SYN_DMA_IRQ_TYPE_13 0
+#define SYN_DMA_IRQ_TYPE_14 0
+#define SYN_DMA_IRQ_TYPE_15 0

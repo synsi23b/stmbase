@@ -6,6 +6,7 @@ uint16_t Adc::_channels[ADC_CHANNEL_COUNT];
 
 void Adc::init()
 {
+#ifdef STM32F103xB
   RCC->APB2ENR |= RCC_APB2ENR_ADC1EN;
   ADC1->CR2 = 0;
   ADC1->CR2 = 0;
@@ -36,5 +37,8 @@ void Adc::init()
   ADC1->CR2 |= ADC_CR2_ADON;
   while (!(ADC1->SR & ADC_SR_EOC))
     ;
+#endif
+#ifdef STM32F401xC
+#endif
 }
 #endif

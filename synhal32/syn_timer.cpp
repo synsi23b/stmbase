@@ -134,37 +134,10 @@ void Timer::configPwm(uint16_t prescaler, uint16_t reload, uint16_t startvalue)
   _pTimer->CR1 = TIM_CR1_CEN;
 }
 
-void Timer::enablePwm(uint16_t channel, Gpio::Speed speed)
+void Timer::enablePwm(int8_t port, uint8_t pinnum, uint16_t channel, Gpio::Speed speed)
 {
   --channel;
   OS_ASSERT(channel < 4, ERR_BAD_INDEX);
-
-  int8_t port = 'A';
-  uint8_t pinnum = 0;
-  switch (_number)
-  {
-  case 1:
-    port = 'A';
-    pinnum = channel + 8;
-    break;
-  case 2:
-    port = 'A';
-    pinnum = channel;
-    break;
-  case 3:
-    port = 'B';
-    if (channel < 2)
-      pinnum = channel + 4;
-    else
-      pinnum = channel - 2;
-    break;
-  case 4:
-    port = 'B';
-    pinnum = channel + 6;
-    break;
-  case 5:
-    OS_ASSERT(true == false, ERR_DEVICE_NOT_ENABLED);
-  }
 
   Gpio pin(port, pinnum);
   if(_number < 3)
@@ -214,65 +187,29 @@ void Timer::configPwmCapture(uint16_t prescaler, uint16_t reload, Timer::InputFi
   _pTimer->CR1 = TIM_CR1_CEN;
 }
 
-void Timer::enableInput(uint16_t channel, bool rising_edge, bool falling_edge)
-{
-  --channel;
-  OS_ASSERT(channel < 4, ERR_BAD_INDEX);
-  int8_t port = 'A';
-  uint8_t pinnum = 0;
-  switch (_number)
-  {
-  case 1:
-    port = 'A';
-    pinnum = channel + 8;
-    break;
-  case 2:
-    port = 'A';
-    pinnum = channel;
-    break;
-  case 3:
-    port = 'B';
-    if (channel < 2)
-      pinnum = channel + 4;
-    else
-      pinnum = channel - 2;
-    break;
-  case 4:
-    port = 'B';
-    pinnum = channel + 6;
-    break;
-  }
-
-  Gpio pin(port, pinnum);
-  pin.mode(Gpio::in_pullup_pulldown, Gpio::MHz_10);
-  if (pulldown)
-    pin.clear();
-  else
-    pin.set();
-
-  channel *= 4;
-  if (!rising_edge)
-    _pTimer->CCER |= (0x1 << channel);
-  else
-    _pTimer->CCER |= (0x3 << channel);
-}
-
 // setup pin for input capture
 // port shall be 'A' 'B' or 'C'
 // pin is a number beteween and including 0 and 15
-void Timer::enableInputRaw(int8_t port, uint8_t pinnum, bool pulldown)
+void Timer::enableInput(int8_t port, uint8_t pinnum, bool pulldown, bool pullup)
 {
   Gpio pin(port, pinnum);
-  uint16_t timnum = getTimernum();
+  Gpio::Alternate a;
+  if(_number < 3)
+    a = Gpio::Timer_1_2;
+  else
+    a = Gpio::Timer_3_4_5;
   if(pulldown)
   {
-    pin.mode(Gpio::in_pullup_pulldown, Gpio::Input, Gpio::Timer_1_2);
+    pin.mode(Gpio::in_pulldown, Gpio::Input, a);
   }
-  pin.mode(Gpio::in_pullup_pulldown, Gpio::MHz_10);
-  if (pulldown)
-    pin.clear();
+  else if(pullup)
+  {
+    pin.mode(Gpio::in_pullup, Gpio::Input, a);
+  }
   else
-    pin.set();
+  {
+    pin.mode(Gpio::in_floating, Gpio::Input, a);
+  }
 }
 
 volatile uint16_t *Timer::enableDmaUpdate(uint16_t base_reg, uint16_t burst_count)
@@ -283,29 +220,48 @@ volatile uint16_t *Timer::enableDmaUpdate(uint16_t base_reg, uint16_t burst_coun
   OS_ASSERT(base_reg + burst_count < 19, ERR_IMPOSSIBRU);
   _pTimer->DCR = (burst_count << 8) | base_reg;
   _pTimer->DIER |= TIM_DIER_UDE;
-  return &_pTimer->DMAR;
+  return (volatile uint16_t*)&_pTimer->DMAR;
 }
 
 void Timer::stopForDebug()
 {
 #ifdef DEBUG
-  switch (getTimernum())
+#ifdef STM32F103xB
+  switch (_number)
   {
-  case 0:
+  case 1:
     DBGMCU->CR |= DBGMCU_CR_DBG_TIM1_STOP;
     break;
-  case 1:
+  case 2:
     DBGMCU->CR |= DBGMCU_CR_DBG_TIM2_STOP;
     break;
-  case 2:
+  case 3:
     DBGMCU->CR |= DBGMCU_CR_DBG_TIM3_STOP;
     break;
-  case 3:
+  case 4:
     DBGMCU->CR |= DBGMCU_CR_DBG_TIM4_STOP;
     break;
+  }
+#endif
+#ifdef STM32F401xC
+  switch (_number)
+  {
+  case 1:
+    DBGMCU->APB2FZ |= DBGMCU_APB2_FZ_DBG_TIM1_STOP;
+    break;
+  case 2:
+    DBGMCU->APB1FZ |= DBGMCU_APB1_FZ_DBG_TIM2_STOP;
+    break;
+  case 3:
+    DBGMCU->APB1FZ |= DBGMCU_APB1_FZ_DBG_TIM3_STOP;
+    break;
   case 4:
-    DBGMCU->CR |= DBGMCU_CR_DBG_TIM5_STOP;
+    DBGMCU->APB1FZ |= DBGMCU_APB1_FZ_DBG_TIM4_STOP;
+    break;
+  case 5:
+    DBGMCU->APB1FZ |= DBGMCU_APB1_FZ_DBG_TIM5_STOP;
     break;
   }
+#endif
 #endif
 }

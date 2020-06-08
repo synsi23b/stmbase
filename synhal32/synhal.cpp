@@ -22,7 +22,8 @@ void Thread::runner(Thread *this_thread)
 void System::init()
 {
   OS_Init();
-  OS_InitHW(); // sets up clock 72Mhz and systick 1kHz
+  OS_InitHW();
+#ifdef STM32F103xB
   // set adc 12MHz and USB 48Mhz
   RCC->CFGR |= RCC_CFGR_ADCPRE_DIV6;
   // enable peripheral clocks for GPIOs and AFIO
@@ -32,6 +33,10 @@ void System::init()
   AFIO->MAPR = AFIO_MAPR_SWJ_CFG_NOJNTRST | AFIO_MAPR_TIM3_REMAP_PARTIALREMAP | AFIO_MAPR_USART1_REMAP | AFIO_MAPR_I2C1_REMAP;
 #if (SYN_CAN_1_REMAP != 0)
   Gpio::remap(Gpio::can_rx_pb8_tx_pb9)
+#endif
+#endif
+#ifdef STM32F401xC
+  RCC->AHB1ENR = RCC_AHB1ENR_DMA2EN | RCC_AHB1ENR_DMA1EN | RCC_AHB1ENR_GPIOCEN | RCC_AHB1ENR_GPIOBEN | RCC_AHB1ENR_GPIOAEN;
 #endif
 #if (SYN_ENABLE_USBRPC != 0)
   UsbRpc::init();
