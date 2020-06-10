@@ -1017,16 +1017,9 @@ static void SetSysClockTo72(void)
     FLASH->ACR &= (uint32_t)((uint32_t)~FLASH_ACR_LATENCY);
     FLASH->ACR |= (uint32_t)FLASH_ACR_LATENCY_2;    
 
- 
-    /* HCLK = SYSCLK */
-    RCC->CFGR |= (uint32_t)RCC_CFGR_HPRE_DIV1;
-      
-    /* PCLK2 = HCLK */
-    RCC->CFGR |= (uint32_t)RCC_CFGR_PPRE2_DIV1;
     
-    /* PCLK1 = HCLK */
-    RCC->CFGR |= (uint32_t)RCC_CFGR_PPRE1_DIV2;
-
+    // set up bus speeds and adc 12MHz, USB 48Mhz
+    RCC->CFGR |= RCC_CFGR_ADCPRE_DIV6 | RCC_CFGR_PPRE1_DIV2;
 
 #ifdef STM32F10X_CL
     /* Configure PLLs ------------------------------------------------------*/
@@ -1106,6 +1099,12 @@ static void SetSysClockTo72(void)
     {
     }
   }
+  
+  // enable peripheral clocks for GPIOs and AFIO
+  RCC->AHBENR = RCC_AHBENR_FLITFEN | RCC_AHBENR_SRAMEN | RCC_AHBENR_DMA1EN;
+  RCC->APB2ENR |= RCC_APB2ENR_IOPCEN | RCC_APB2ENR_IOPBEN | RCC_APB2ENR_IOPAEN | RCC_APB2ENR_AFIOEN;
+  // set the default remappings
+  AFIO->MAPR = AFIO_MAPR_SWJ_CFG_NOJNTRST | AFIO_MAPR_TIM3_REMAP_PARTIALREMAP | AFIO_MAPR_USART1_REMAP | AFIO_MAPR_I2C1_REMAP;
 }
 #endif
 

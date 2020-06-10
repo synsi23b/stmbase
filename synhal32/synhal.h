@@ -928,6 +928,16 @@ namespace syn
     {
       return OS_TIME_Getus64();
     }
+
+    static void delay(uint32_t millis)
+    {
+      uint32_t tickstart = milliseconds();
+      /* Add a freq to guarantee minimum wait */
+      ++millis;
+      while((milliseconds() - tickstart) < millis)
+        ;
+    }
+
     // start operating system core and dont return
     static void spin()
     {
@@ -1225,11 +1235,11 @@ namespace syn
   public:
     // line is equivalent to port pin number
     // port shall be 'A' 'B' or 'C'
-    // priority shall be between 0 and 255
+    // priority shall be between 0 and 15
     // lower value means higher priority
-    // interrupts with level between 0 and 127 are prohibited to call OS functions
+    // interrupts with level between 0 and 7 are prohibited to call OS functions
     // select the correct exti type in the synhal_cfg
-    static void enable(uint16_t line, char port, bool rising, bool falling, uint32_t priority = 200)
+    static void enable(uint16_t line, char port, bool rising, bool falling, uint32_t priority = 8)
     {
       OS_ASSERT('A' <= port && port <= 'C', ERR_BAD_PORT_NAME);
       uint8_t extiselector = port - 'A';
@@ -1472,7 +1482,7 @@ namespace syn
         break;
 #ifdef STM32F401xC
         _pTimer = TIM5;
-        RCC->AHB1ENR |= RCC_APB1ENR_TIM5EN;
+        RCC->APB1ENR |= RCC_APB1ENR_TIM5EN;
         break;
 #endif
       default:
@@ -1715,48 +1725,3 @@ namespace syn
     Bank *_pbank;
   };
 } // namespace syn
-
-extern "C"
-{
-#ifdef STM32F103xB
-  void EXTI0_IRQHandler();
-  void EXTI1_IRQHandler();
-  void EXTI2_IRQHandler();
-  void EXTI3_IRQHandler();
-  void EXTI4_IRQHandler();
-  void DMA1_Channel1_IRQHandler();
-  void DMA1_Channel2_IRQHandler();
-  void DMA1_Channel3_IRQHandler();
-  void DMA1_Channel4_IRQHandler();
-  void DMA1_Channel5_IRQHandler();
-  void DMA1_Channel6_IRQHandler();
-  void DMA1_Channel7_IRQHandler();
-  void ADC1_2_IRQHandler();
-  void USB_HP_CAN1_TX_IRQHandler();
-  void USB_LP_CAN1_RX0_IRQHandler();
-  void CAN1_RX1_IRQHandler();
-  void CAN1_SCE_IRQHandler();
-  void EXTI9_5_IRQHandler();
-  void TIM1_BRK_IRQHandler();
-  void TIM1_UP_IRQHandler();
-  void TIM1_TRG_COM_IRQHandler();
-  void TIM1_CC_IRQHandler();
-  void TIM2_IRQHandler();
-  void TIM3_IRQHandler();
-  void TIM4_IRQHandler();
-  void I2C1_EV_IRQHandler();
-  void I2C1_ER_IRQHandler();
-  void I2C2_EV_IRQHandler();
-  void I2C2_ER_IRQHandler();
-  void SPI1_IRQHandler();
-  void SPI2_IRQHandler();
-  void USART1_IRQHandler();
-  void USART2_IRQHandler();
-  void USART3_IRQHandler();
-  void EXTI15_10_IRQHandler();
-  void RTCAlarm_IRQHandler();
-  void USBWakeUp_IRQHandler();
-#endif
-#ifdef STM32F401xC
-#endif
-}

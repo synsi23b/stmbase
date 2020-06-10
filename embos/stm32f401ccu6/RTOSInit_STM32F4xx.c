@@ -71,7 +71,7 @@ Purpose : Initializes and handles the hardware for embOS
 **********************************************************************
 */
 #if (OS_VIEW_IFSELECT == OS_VIEW_IF_JLINK)
-  const OS_U32 OS_JLINKMEM_BufferSize = 32u;  // Size of the communication buffer for JLINKMEM
+  const OS_U32 OS_JLINKMEM_BufferSize = 64u;  // Size of the communication buffer for JLINKMEM
 #else
   const OS_U32 OS_JLINKMEM_BufferSize = 0u;   // Buffer not used
 #endif

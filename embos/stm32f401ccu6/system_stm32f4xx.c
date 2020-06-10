@@ -138,6 +138,7 @@
   */
   uint32_t SystemCoreClock = 16000000;
 const uint8_t AHBPrescTable[16] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 6, 7, 8, 9};
+const uint8_t APBPrescTable[8] = {0, 0, 0, 0, 1, 2, 3, 4};
 
 /**
   * @}
@@ -205,7 +206,7 @@ void SystemInit(void)
   // Set SystemClock
   //
   FLASH->ACR   = 0
-              | (2uL << 0)   // Set 2 waitstates
+              | (2uL << 0)   // Set 2 waitstates for 84MHz
               | FLASH_ACR_PRFTEN
               | FLASH_ACR_ICEN
               | FLASH_ACR_DCEN
@@ -221,14 +222,24 @@ void SystemInit(void)
               | (336uL <<  6)  // PLLN   = multiply by 336 
               | (  1uL << 16)  // PLLP   = divide by 4 = 84MHz Core
               | (  1uL << 22)  // PLLSRC = 1 (HSE)
-              | (  7ul << 24)  // PLLQ   = 7 (336 / 7 = 48)
+              | (  7ul << 24)  // PLLQ   = 7 (336 / 7 = 48MHz to USB Core)
               ;   // Configurate PLL
   RCC->CR      |= (1uL << 24);  // Enable PLL
   while ((RCC->CR & (1uL << 25)) == 0) {
     ; 
   }
-  RCC->CFGR = (25ul << 16) | RCC_CFGR_PPRE1_DIV2;
+  RCC->CFGR = (25ul << 16) | RCC_CFGR_PPRE1_DIV2; // set prescaler for 42MHz bus
   RCC->CFGR    |= (2uL << 0);   // Select PLL as system clock
+
+  //
+  // Enable Default peripherals
+  //
+  RCC->AHB1ENR = RCC_AHB1ENR_DMA2EN | RCC_AHB1ENR_DMA1EN | RCC_AHB1ENR_GPIOCEN | RCC_AHB1ENR_GPIOBEN | RCC_AHB1ENR_GPIOAEN;
+  RCC->APB1ENR = RCC_APB1ENR_PWREN;
+  RCC->APB2ENR = RCC_APB2ENR_SYSCFGEN;
+  SYSCFG->CMPCR = SYSCFG_CMPCR_CMP_PD; // enable powercell to allow highest speed IOs
+  GPIOA->MODER = 0x28000000; // disable jtag NJRST on PA15
+  GPIOB->MODER = 0x00000000; // disable jtag on PB 3 / 4
 }
 
 /**
