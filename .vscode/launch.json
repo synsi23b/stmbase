@@ -5,17 +5,18 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Generate Messages",
+            "name": "Generate Synrpc Messages STM32",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/synrpc_generator/synrpcgen.py",
-            "console": "integratedTerminal"
+            "console": "integratedTerminal",
+            "args": ["STM32"],
         },
         {
             "name": "Run synrpc tests",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/synrpc_generator/test_usbcon.py",
+            "program": "${workspaceFolder}/test_usbcon.py",
             "console": "integratedTerminal"
         },
         {
@@ -24,7 +25,15 @@
             "request": "launch",
             "program": "${workspaceFolder}/startproject.py",
             "console": "integratedTerminal",
-            "args": ["stm32f103c8", "8192"]
+            "args": ["STM32", "stm32f103c8", "8192"]
+        },
+        {
+            "name": "Generate stm32f401ccu6",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/startproject.py",
+            "console": "integratedTerminal",
+            "args": ["STM32", "stm32f401ccu6", "20480"]
         }
     ]
 }

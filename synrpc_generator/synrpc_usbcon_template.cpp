@@ -1,72 +1,75 @@
-#include <synrpc_usbcon.h>
+#include "synrpc_usbcon.h"
 #include <cstring> // strcopy for error msg
 using namespace syn;
 
-PacketHandler::PacketHandler() :
-    Thread("PacketHandler", SYN_USBRPC_PRIORITY, SYN_USBRPC_STACKSIZE) {
+// the mailbox into which the usb device will push messages
+// it is public, but really isn't.
+MailBox<UsbRpc::Packet, SYN_USBRPC_BUFFSIZE> UsbRpc::Handler::_mailbox;
+
+UsbRpc::Handler::Handler() : Thread("PacketHandler", SYN_USBRPC_PRIORITY, SYN_USBRPC_STACKSIZE)
+{
 }
 
-const char* handlePacket(const Packet& p);
+const char *handlePacket(const UsbRpc::Packet &p);
 
-void PacketHandler::run() {
-  UsbCdc::init();
+void UsbRpc::Handler::run()
+{
 #if (SYN_USBRPC_USELED == 1)
   Led led;
   LedTimer ledtimer(led);
 #endif
-  while (true) {
-    // check if we have at least one byte (payloadsize)
-    // else chill for up to 10 millis and then check again in case we missed it
-    uint16_t incount = UsbCdc::in_avail();
-    if (incount) {
-      uint8_t plcount = 0;
-      UsbCdc::peek(plcount, 0);
-      uint16_t payloadsize = plcount;
-      while (incount < payloadsize + 5) { // count + type + payload + rev_count
-        UsbCdc::waitData(3);
-        incount = UsbCdc::in_avail();
-      }
-      UsbCdc::peek(plcount, payloadsize + 4);
-      if (payloadsize == (uint16_t(SYNRPC_USBCON_MAX) - uint16_t(plcount))) {
-        // Packet is complete. read it and evoke handler and switch led
+  Packet *pmsg;
+  while (true)
+  {
+    _inbox.get_inplace(pmsg);
 #if (SYN_USBRPC_USELED == 1)
-        led.on();
-        ledtimer.start();
+    led.on();
+    ledtimer.start();
 #endif
-        UsbCdc::read(_packetbuff.rawData(), payloadsize + 5);
-        const char* err = handlePacket(_packetbuff);
-        if(err){
-          // an error was reported, copy it to packetbuffer and report back to host
-          SynRPCError* pe = _packetbuff.cast<SynRPCError>();
-          pe->intype = _packetbuff.type();
-          pe->write_errormsg(err);
-          _packetbuff.form(SynRPCError::_size, SynRPCError::_type, SynRPCError::_sha1);
-          UsbCdc::write(_packetbuff.rawData(), _packetbuff.rawSize());
-        }
-      } else {
-        UsbCdc::flush(1); // something is wrong, discard erroneous size byte
-      }
-    } else {
-      UsbCdc::waitData(10);
+    const char *err = handlePacket(*pmsg);
+    if (err)
+    {
+      // an error was reported, copy it to packetbuffer and report back to host
+      SynRPCError *pe = pmsg->cast<SynRPCError>();
+      pe->intype = pmsg->type();
+      pe->write_errormsg(err);
+      sendMessage(*pe);
+    }
+    bool inbox_full = _inbox.count() == SYN_USBRPC_BUFFSIZE;
+    _inbox.purge();
+    if (inbox_full)
+    {
+      UsbRpc::_enable_rx();
     }
   }
 }
 
 #if (SYN_USBRPC_USELED == 1)
-PacketHandler::LedTimer::LedTimer(syn::Led& led) :
-  SoftTimer("LedTimer", 5, false), _led(led){
-    _led.off();
-  }
+UsbRpc::Handler::LedTimer::LedTimer(syn::Led &led) : SoftTimer("LedTimer", 5, false), _led(led)
+{
+  _led.off();
+}
 
-void PacketHandler::LedTimer::execute(){
+void UsbRpc::Handler::LedTimer::execute()
+{
   _led.off();
 }
 #endif
 
-template<typename MsgType, typename MsgHandler>
-const char* Converter(MsgHandler hndl, const Packet& p) {
-  if(p.sha1() == MsgType::_sha1)
-      return hndl(*(p.cast<MsgType>()));
+template <typename MsgType, typename MsgHandler>
+const char *Converter(MsgHandler hndl, const UsbRpc::Packet &p)
+{
+  if (p.sha1() == MsgType::_sha1)
+    return hndl(*(p.cast<MsgType>()));
   return "Sha-1 checksum mismatch";
 }
-typedef const char* (*converter_t)(const Packet& p);
+typedef const char *(*converter_t)(const UsbRpc::Packet &p);
+
+template <typename MsgType>
+uint16_t Checker(const UsbRpc::Packet &p)
+{
+  if (p.sha1() == MsgType::_sha1)
+    return p.rawSize();
+  return 0;
+}
+typedef uint16_t (*checker_t)(const UsbRpc::Packet &p);

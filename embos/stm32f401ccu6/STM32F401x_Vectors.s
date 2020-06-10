@@ -66,11 +66,11 @@ Dummy_Handler:
   .weak PVD_IRQHandler
   .thumb_set PVD_IRQHandler,Dummy_Handler
 
-  .weak TAMPER_IRQHandler
-  .thumb_set TAMPER_IRQHandler,Dummy_Handler
+  .weak TAMP_STAMP_IRQHandler
+  .thumb_set TAMP_STAMP_IRQHandler,Dummy_Handler
 
-  .weak RTC_IRQHandler
-  .thumb_set RTC_IRQHandler,Dummy_Handler
+  .weak RTC_WKUP_IRQHandler
+  .thumb_set RTC_WKUP_IRQHandler,Dummy_Handler
 
   .weak FLASH_IRQHandler
   .thumb_set FLASH_IRQHandler,Dummy_Handler
@@ -93,41 +93,29 @@ Dummy_Handler:
   .weak EXTI4_IRQHandler
   .thumb_set EXTI4_IRQHandler,Dummy_Handler
 
-  .weak DMA1_Channel1_IRQHandler
-  .thumb_set DMA1_Channel1_IRQHandler,Dummy_Handler
+  .weak DMA1_Stream0_IRQHandler
+  .thumb_set DMA1_Stream0_IRQHandler,Dummy_Handler
 
-  .weak DMA1_Channel2_IRQHandler
-  .thumb_set DMA1_Channel2_IRQHandler,Dummy_Handler
+  .weak DMA1_Stream1_IRQHandler
+  .thumb_set DMA1_Stream1_IRQHandler,Dummy_Handler
 
-  .weak DMA1_Channel3_IRQHandler
-  .thumb_set DMA1_Channel3_IRQHandler,Dummy_Handler
+  .weak DMA1_Stream2_IRQHandler
+  .thumb_set DMA1_Stream2_IRQHandler,Dummy_Handler
 
-  .weak DMA1_Channel4_IRQHandler
-  .thumb_set DMA1_Channel4_IRQHandler,Dummy_Handler
+  .weak DMA1_Stream3_IRQHandler
+  .thumb_set DMA1_Stream3_IRQHandler,Dummy_Handler
 
-  .weak DMA1_Channel5_IRQHandler
-  .thumb_set DMA1_Channel5_IRQHandler,Dummy_Handler
+  .weak DMA1_Stream4_IRQHandler
+  .thumb_set DMA1_Stream4_IRQHandler,Dummy_Handler
 
-  .weak DMA1_Channel6_IRQHandler
-  .thumb_set DMA1_Channel6_IRQHandler,Dummy_Handler
+  .weak DMA1_Stream5_IRQHandler
+  .thumb_set DMA1_Stream5_IRQHandler,Dummy_Handler
 
-  .weak DMA1_Channel7_IRQHandler
-  .thumb_set DMA1_Channel7_IRQHandler,Dummy_Handler
+  .weak DMA1_Stream6_IRQHandler
+  .thumb_set DMA1_Stream6_IRQHandler,Dummy_Handler
 
   .weak ADC_IRQHandler
   .thumb_set ADC_IRQHandler,Dummy_Handler
-
-  .weak USB_HP_CAN1_TX_IRQHandler
-  .thumb_set USB_HP_CAN1_TX_IRQHandler,Dummy_Handler
-
-  .weak USB_LP_CAN1_RX0_IRQHandler
-  .thumb_set USB_LP_CAN1_RX0_IRQHandler,Dummy_Handler
-
-  .weak CAN1_RX1_IRQHandler
-  .thumb_set CAN1_RX1_IRQHandler,Dummy_Handler
-
-  .weak CAN1_SCE_IRQHandler
-  .thumb_set CAN1_SCE_IRQHandler,Dummy_Handler
 
   .weak EXTI9_5_IRQHandler
   .thumb_set EXTI9_5_IRQHandler,Dummy_Handler
@@ -177,35 +165,17 @@ Dummy_Handler:
   .weak USART2_IRQHandler
   .thumb_set USART2_IRQHandler,Dummy_Handler
 
-  .weak USART3_IRQHandler
-  .thumb_set USART3_IRQHandler,Dummy_Handler
-
   .weak EXTI15_10_IRQHandler
   .thumb_set EXTI15_10_IRQHandler,Dummy_Handler
 
-  .weak RTCAlarm_IRQHandler
-  .thumb_set RTCAlarm_IRQHandler,Dummy_Handler
+  .weak RTC_Alarm_IRQHandler
+  .thumb_set RTC_Alarm_IRQHandler,Dummy_Handler
 
-  .weak USB_FS_WKUP_IRQHandler
-  .thumb_set USB_FS_WKUP_IRQHandler,Dummy_Handler
+  .weak OTG_FS_WKUP_IRQHandler
+  .thumb_set OTG_FS_WKUP_IRQHandler,Dummy_Handler
 
-  .weak TIM8_BRK_TIM12_IRQHandler
-  .thumb_set TIM8_BRK_TIM12_IRQHandler,Dummy_Handler
-
-  .weak TIM8_UP_TIM13_IRQHandler
-  .thumb_set TIM8_UP_TIM13_IRQHandler,Dummy_Handler
-
-  .weak TIM8_TRG_COM_TIM14_IRQHandler
-  .thumb_set TIM8_TRG_COM_TIM14_IRQHandler,Dummy_Handler
-
-  .weak TIM8_CC_IRQHandler
-  .thumb_set TIM8_CC_IRQHandler,Dummy_Handler
-
-  .weak ADC3_IRQHandler
-  .thumb_set ADC3_IRQHandler,Dummy_Handler
-
-  .weak FSMC_IRQHandler
-  .thumb_set FSMC_IRQHandler,Dummy_Handler
+  .weak DMA1_Stream7_IRQHandler
+  .thumb_set DMA1_Stream7_IRQHandler,Dummy_Handler
 
   .weak SDIO_IRQHandler
   .thumb_set SDIO_IRQHandler,Dummy_Handler
@@ -216,29 +186,44 @@ Dummy_Handler:
   .weak SPI3_IRQHandler
   .thumb_set SPI3_IRQHandler,Dummy_Handler
 
-  .weak UART4_IRQHandler
-  .thumb_set UART4_IRQHandler,Dummy_Handler
+  .weak DMA2_Stream0_IRQHandler
+  .thumb_set DMA2_Stream0_IRQHandler,Dummy_Handler
 
-  .weak UART5_IRQHandler
-  .thumb_set UART5_IRQHandler,Dummy_Handler
+  .weak DMA2_Stream1_IRQHandler
+  .thumb_set DMA2_Stream1_IRQHandler,Dummy_Handler
 
-  .weak TIM6_IRQHandler
-  .thumb_set TIM6_IRQHandler,Dummy_Handler
+  .weak DMA2_Stream2_IRQHandler
+  .thumb_set DMA2_Stream2_IRQHandler,Dummy_Handler
 
-  .weak TIM7_IRQHandler
-  .thumb_set TIM7_IRQHandler,Dummy_Handler
+  .weak DMA2_Stream3_IRQHandler
+  .thumb_set DMA2_Stream3_IRQHandler,Dummy_Handler
 
-  .weak DMA2_Channel1_IRQHandler
-  .thumb_set DMA2_Channel1_IRQHandler,Dummy_Handler
+  .weak DMA2_Stream4_IRQHandler
+  .thumb_set DMA2_Stream4_IRQHandler,Dummy_Handler
 
-  .weak DMA2_Channel2_IRQHandler
-  .thumb_set DMA2_Channel2_IRQHandler,Dummy_Handler
+  .weak OTG_FS_IRQHandler
+  .thumb_set OTG_FS_IRQHandler,Dummy_Handler
 
-  .weak DMA2_Channel3_IRQHandler
-  .thumb_set DMA2_Channel3_IRQHandler,Dummy_Handler
+  .weak DMA2_Stream5_IRQHandler
+  .thumb_set DMA2_Stream5_IRQHandler,Dummy_Handler
 
-  .weak DMA2_Channel4_5_IRQHandler
-  .thumb_set DMA2_Channel4_5_IRQHandler,Dummy_Handler
+  .weak DMA2_Stream6_IRQHandler
+  .thumb_set DMA2_Stream6_IRQHandler,Dummy_Handler
+
+  .weak DMA2_Stream7_IRQHandler
+  .thumb_set DMA2_Stream7_IRQHandler,Dummy_Handler
+
+  .weak USART6_IRQHandler
+  .thumb_set USART6_IRQHandler,Dummy_Handler
+
+  .weak I2C3_EV_IRQHandler
+  .thumb_set I2C3_EV_IRQHandler,Dummy_Handler
+
+  .weak I2C3_ER_IRQHandler
+  .thumb_set I2C3_ER_IRQHandler,Dummy_Handler
+
+  .weak FPU_IRQHandler
+  .thumb_set FPU_IRQHandler,Dummy_Handler
 
 #else
 
@@ -253,13 +238,13 @@ PVD_IRQHandler:
   b .
 
   .thumb_func
-  .weak TAMPER_IRQHandler
-TAMPER_IRQHandler:
+  .weak TAMP_STAMP_IRQHandler
+TAMP_STAMP_IRQHandler:
   b .
 
   .thumb_func
-  .weak RTC_IRQHandler
-RTC_IRQHandler:
+  .weak RTC_WKUP_IRQHandler
+RTC_WKUP_IRQHandler:
   b .
 
   .thumb_func
@@ -298,63 +283,43 @@ EXTI4_IRQHandler:
   b .
 
   .thumb_func
-  .weak DMA1_Channel1_IRQHandler
-DMA1_Channel1_IRQHandler:
+  .weak DMA1_Stream0_IRQHandler
+DMA1_Stream0_IRQHandler:
   b .
 
   .thumb_func
-  .weak DMA1_Channel2_IRQHandler
-DMA1_Channel2_IRQHandler:
+  .weak DMA1_Stream1_IRQHandler
+DMA1_Stream1_IRQHandler:
   b .
 
   .thumb_func
-  .weak DMA1_Channel3_IRQHandler
-DMA1_Channel3_IRQHandler:
+  .weak DMA1_Stream2_IRQHandler
+DMA1_Stream2_IRQHandler:
   b .
 
   .thumb_func
-  .weak DMA1_Channel4_IRQHandler
-DMA1_Channel4_IRQHandler:
+  .weak DMA1_Stream3_IRQHandler
+DMA1_Stream3_IRQHandler:
   b .
 
   .thumb_func
-  .weak DMA1_Channel5_IRQHandler
-DMA1_Channel5_IRQHandler:
+  .weak DMA1_Stream4_IRQHandler
+DMA1_Stream4_IRQHandler:
   b .
 
   .thumb_func
-  .weak DMA1_Channel6_IRQHandler
-DMA1_Channel6_IRQHandler:
+  .weak DMA1_Stream5_IRQHandler
+DMA1_Stream5_IRQHandler:
   b .
 
   .thumb_func
-  .weak DMA1_Channel7_IRQHandler
-DMA1_Channel7_IRQHandler:
+  .weak DMA1_Stream6_IRQHandler
+DMA1_Stream6_IRQHandler:
   b .
 
   .thumb_func
   .weak ADC_IRQHandler
 ADC_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak USB_HP_CAN1_TX_IRQHandler
-USB_HP_CAN1_TX_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak USB_LP_CAN1_RX0_IRQHandler
-USB_LP_CAN1_RX0_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak CAN1_RX1_IRQHandler
-CAN1_RX1_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak CAN1_SCE_IRQHandler
-CAN1_SCE_IRQHandler:
   b .
 
   .thumb_func
@@ -438,53 +403,23 @@ USART2_IRQHandler:
   b .
 
   .thumb_func
-  .weak USART3_IRQHandler
-USART3_IRQHandler:
-  b .
-
-  .thumb_func
   .weak EXTI15_10_IRQHandler
 EXTI15_10_IRQHandler:
   b .
 
   .thumb_func
-  .weak RTCAlarm_IRQHandler
-RTCAlarm_IRQHandler:
+  .weak RTC_Alarm_IRQHandler
+RTC_Alarm_IRQHandler:
   b .
 
   .thumb_func
-  .weak USB_FS_WKUP_IRQHandler
-USB_FS_WKUP_IRQHandler:
+  .weak OTG_FS_WKUP_IRQHandler
+OTG_FS_WKUP_IRQHandler:
   b .
 
   .thumb_func
-  .weak TIM8_BRK_TIM12_IRQHandler
-TIM8_BRK_TIM12_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak TIM8_UP_TIM13_IRQHandler
-TIM8_UP_TIM13_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak TIM8_TRG_COM_TIM14_IRQHandler
-TIM8_TRG_COM_TIM14_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak TIM8_CC_IRQHandler
-TIM8_CC_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak ADC3_IRQHandler
-ADC3_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak FSMC_IRQHandler
-FSMC_IRQHandler:
+  .weak DMA1_Stream7_IRQHandler
+DMA1_Stream7_IRQHandler:
   b .
 
   .thumb_func
@@ -503,43 +438,68 @@ SPI3_IRQHandler:
   b .
 
   .thumb_func
-  .weak UART4_IRQHandler
-UART4_IRQHandler:
+  .weak DMA2_Stream0_IRQHandler
+DMA2_Stream0_IRQHandler:
   b .
 
   .thumb_func
-  .weak UART5_IRQHandler
-UART5_IRQHandler:
+  .weak DMA2_Stream1_IRQHandler
+DMA2_Stream1_IRQHandler:
   b .
 
   .thumb_func
-  .weak TIM6_IRQHandler
-TIM6_IRQHandler:
+  .weak DMA2_Stream2_IRQHandler
+DMA2_Stream2_IRQHandler:
   b .
 
   .thumb_func
-  .weak TIM7_IRQHandler
-TIM7_IRQHandler:
+  .weak DMA2_Stream3_IRQHandler
+DMA2_Stream3_IRQHandler:
   b .
 
   .thumb_func
-  .weak DMA2_Channel1_IRQHandler
-DMA2_Channel1_IRQHandler:
+  .weak DMA2_Stream4_IRQHandler
+DMA2_Stream4_IRQHandler:
   b .
 
   .thumb_func
-  .weak DMA2_Channel2_IRQHandler
-DMA2_Channel2_IRQHandler:
+  .weak OTG_FS_IRQHandler
+OTG_FS_IRQHandler:
   b .
 
   .thumb_func
-  .weak DMA2_Channel3_IRQHandler
-DMA2_Channel3_IRQHandler:
+  .weak DMA2_Stream5_IRQHandler
+DMA2_Stream5_IRQHandler:
   b .
 
   .thumb_func
-  .weak DMA2_Channel4_5_IRQHandler
-DMA2_Channel4_5_IRQHandler:
+  .weak DMA2_Stream6_IRQHandler
+DMA2_Stream6_IRQHandler:
+  b .
+
+  .thumb_func
+  .weak DMA2_Stream7_IRQHandler
+DMA2_Stream7_IRQHandler:
+  b .
+
+  .thumb_func
+  .weak USART6_IRQHandler
+USART6_IRQHandler:
+  b .
+
+  .thumb_func
+  .weak I2C3_EV_IRQHandler
+I2C3_EV_IRQHandler:
+  b .
+
+  .thumb_func
+  .weak I2C3_ER_IRQHandler
+I2C3_ER_IRQHandler:
+  b .
+
+  .thumb_func
+  .weak FPU_IRQHandler
+FPU_IRQHandler:
   b .
 
 #endif
@@ -573,8 +533,8 @@ _vectors:
   .word SysTick_Handler
   .word WWDG_IRQHandler
   .word PVD_IRQHandler
-  .word TAMPER_IRQHandler
-  .word RTC_IRQHandler
+  .word TAMP_STAMP_IRQHandler
+  .word RTC_WKUP_IRQHandler
   .word FLASH_IRQHandler
   .word RCC_IRQHandler
   .word EXTI0_IRQHandler
@@ -582,18 +542,18 @@ _vectors:
   .word EXTI2_IRQHandler
   .word EXTI3_IRQHandler
   .word EXTI4_IRQHandler
-  .word DMA1_Channel1_IRQHandler
-  .word DMA1_Channel2_IRQHandler
-  .word DMA1_Channel3_IRQHandler
-  .word DMA1_Channel4_IRQHandler
-  .word DMA1_Channel5_IRQHandler
-  .word DMA1_Channel6_IRQHandler
-  .word DMA1_Channel7_IRQHandler
+  .word DMA1_Stream0_IRQHandler
+  .word DMA1_Stream1_IRQHandler
+  .word DMA1_Stream2_IRQHandler
+  .word DMA1_Stream3_IRQHandler
+  .word DMA1_Stream4_IRQHandler
+  .word DMA1_Stream5_IRQHandler
+  .word DMA1_Stream6_IRQHandler
   .word ADC_IRQHandler
-  .word USB_HP_CAN1_TX_IRQHandler
-  .word USB_LP_CAN1_RX0_IRQHandler
-  .word CAN1_RX1_IRQHandler
-  .word CAN1_SCE_IRQHandler
+  .word Dummy_Handler /* Reserved */
+  .word Dummy_Handler /* Reserved */
+  .word Dummy_Handler /* Reserved */
+  .word Dummy_Handler /* Reserved */
   .word EXTI9_5_IRQHandler
   .word TIM1_BRK_TIM9_IRQHandler
   .word TIM1_UP_TIM10_IRQHandler
@@ -610,27 +570,49 @@ _vectors:
   .word SPI2_IRQHandler
   .word USART1_IRQHandler
   .word USART2_IRQHandler
-  .word USART3_IRQHandler
+  .word Dummy_Handler /* Reserved */
   .word EXTI15_10_IRQHandler
-  .word RTCAlarm_IRQHandler
-  .word USB_FS_WKUP_IRQHandler
-  .word TIM8_BRK_TIM12_IRQHandler
-  .word TIM8_UP_TIM13_IRQHandler
-  .word TIM8_TRG_COM_TIM14_IRQHandler
-  .word TIM8_CC_IRQHandler
-  .word ADC3_IRQHandler
-  .word FSMC_IRQHandler
+  .word RTC_Alarm_IRQHandler
+  .word OTG_FS_WKUP_IRQHandler
+  .word Dummy_Handler /* Reserved */
+  .word Dummy_Handler /* Reserved */
+  .word Dummy_Handler /* Reserved */
+  .word Dummy_Handler /* Reserved */
+  .word DMA1_Stream7_IRQHandler
+  .word Dummy_Handler /* Reserved */
   .word SDIO_IRQHandler
   .word TIM5_IRQHandler
   .word SPI3_IRQHandler
-  .word UART4_IRQHandler
-  .word UART5_IRQHandler
-  .word TIM6_IRQHandler
-  .word TIM7_IRQHandler
-  .word DMA2_Channel1_IRQHandler
-  .word DMA2_Channel2_IRQHandler
-  .word DMA2_Channel3_IRQHandler
-  .word DMA2_Channel4_5_IRQHandler
+  .word Dummy_Handler /* Reserved */
+  .word Dummy_Handler /* Reserved */
+  .word Dummy_Handler /* Reserved */
+  .word Dummy_Handler /* Reserved */
+  .word DMA2_Stream0_IRQHandler
+  .word DMA2_Stream1_IRQHandler
+  .word DMA2_Stream2_IRQHandler
+  .word DMA2_Stream3_IRQHandler
+  .word DMA2_Stream4_IRQHandler
+  .word Dummy_Handler /* Reserved */
+  .word Dummy_Handler /* Reserved */
+  .word Dummy_Handler /* Reserved */
+  .word Dummy_Handler /* Reserved */
+  .word Dummy_Handler /* Reserved */
+  .word Dummy_Handler /* Reserved */
+  .word OTG_FS_IRQHandler
+  .word DMA2_Stream5_IRQHandler
+  .word DMA2_Stream6_IRQHandler
+  .word DMA2_Stream7_IRQHandler
+  .word USART6_IRQHandler
+  .word I2C3_EV_IRQHandler
+  .word I2C3_ER_IRQHandler
+  .word Dummy_Handler /* Reserved */
+  .word Dummy_Handler /* Reserved */
+  .word Dummy_Handler /* Reserved */
+  .word Dummy_Handler /* Reserved */
+  .word Dummy_Handler /* Reserved */
+  .word Dummy_Handler /* Reserved */
+  .word Dummy_Handler /* Reserved */
+  .word FPU_IRQHandler
 _vectors_end:
 
 #ifdef VECTORS_IN_RAM

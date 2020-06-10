@@ -23,17 +23,17 @@
 # Compiled Static libraries
 *.lai
 *.la
-#*.a
+*.a
 *.lib
 
 # Executables
 *.exe
 *.out
 *.app
+*.hex
 
-.directory
-# ignore atomthreads stuff
-synos8/ports/
-synos8/kernel/
-
-*.pyc
+# intermediate files
+*.elf
+*.ind
+*.ld
+*.map

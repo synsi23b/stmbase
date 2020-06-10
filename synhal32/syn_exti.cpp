@@ -3,7 +3,7 @@
      SYN_EXTI_TYPE_5 != 0 || SYN_EXTI_TYPE_6 != 0 || SYN_EXTI_TYPE_7 != 0 || SYN_EXTI_TYPE_8 != 0 || SYN_EXTI_TYPE_9 != 0 || \
      SYN_EXTI_TYPE_10 != 0 || SYN_EXTI_TYPE_11 != 0 || SYN_EXTI_TYPE_12 != 0 || SYN_EXTI_TYPE_13 != 0 || SYN_EXTI_TYPE_14 != 0 || SYN_EXTI_TYPE_15 != 0)
 
-#include "../../synhal_isr.h"
+#include "../../src/synhal_isr.h"
 
 using namespace syn;
 

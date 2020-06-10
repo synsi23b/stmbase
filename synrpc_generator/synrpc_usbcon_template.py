@@ -1,6 +1,14 @@
 import struct, serial, threading
 from time import sleep
 
+# transmitting over usb happens in packets of up to 64 byte
+# if we send exactly 64 bytes, the host is not
+# sure wether or not the transmission is finished.
+# it will than ask the again and we need to transmit a zero length packet
+# so by defining the max size at 122 and adding the packet descriptor of 5 bytes
+# we can finish any transmission in 2 steps and can optimize the device buffer easily
+SYNRPC_MAX_MSGSIZE = 122
+
 class _Array(object):
     def __init__(self, parentlist, start, end):
         self._parent = parentlist
@@ -117,7 +125,7 @@ while True:
             if len(buffer) >= plsize + 5:
                 # check if end of packet matches plsize
                 plsrev = buffer[plsize + 4]
-                if (255 - plsrev) == plsize:
+                if (SYNRPC_USBCON_MAX - plsrev) == plsize:
                     try: # valid packet sizes, check content
                         #msgs = ''.join(buffer[:plsize + 5])
                         msg = _generateMessage(buffer[1], buffer)
@@ -153,10 +161,10 @@ def _generateMessage(msgtype, buffer):
 
 class SynRpcError(object):
     _type = 0
-    _size = 58
-    _header = int('ffff', 16) << 16 | 0 << 8 | 58
-    _footer = 255 - 58
-    _packer = struct.Struct("<LB57sB")
+    _size = 27
+    _header = int('ffff', 16) << 16 | 0 << 8 | 27
+    _footer = SYNRPC_MAX_MSGSIZE - 27
+    _packer = struct.Struct("<LB26sB")
 
     def __init__(self, buffer):
         data = SynRpcError._packer.unpack_from(buffer)
