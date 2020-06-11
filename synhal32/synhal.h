@@ -1003,7 +1003,8 @@ namespace syn
       Input = 0x0,
       MHz_10 = 0x1,
       MHz_2 = 0x2,
-      MHz_50 = 0x3
+      MHz_50 = 0x3,
+      MHz_100 = 0x4
     };
 
     enum Alternate
@@ -1035,6 +1036,10 @@ namespace syn
         OS_ASSERT(s != Input, ERR_FORBIDDEN);
       }
 #ifdef STM32F103xB
+      if(s == MHz_100)
+      {
+        s = MHz_50;
+      }
       if(m == in_pullup)
       {
         set();
@@ -1111,6 +1116,8 @@ namespace syn
       case MHz_50:
         _pPort->OSPEEDR |= (0x2 << (_pin * 2));
         break;
+      case MHz_100:
+        _pPort->OSPEEDR |= (0x3 << (_pin * 2));
       case Input:
       case MHz_2:
         break;
