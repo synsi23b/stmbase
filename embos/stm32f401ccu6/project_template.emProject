@@ -34,7 +34,7 @@
       project_type="Executable"
       target_reset_script="Reset();"
       target_script_file="$(ProjectDir)/stmbase/embos/stm32f401ccu6/STM32F4xx_Target.js" />
-    <folder Name="SEGGER">
+    <folder Name="sys_SEGGER">
       <file file_name="$(ProjectDir)/stmbase/embos/common/SEGGER_RTT.c" />
       <file file_name="$(ProjectDir)/stmbase/embos/common/SEGGER_RTT_Syscalls_SES.c">
         <configuration Name="Release" build_exclude_from_build="Yes" />
@@ -79,8 +79,9 @@
         </file>
       </folder>
       <file file_name="stmbase/embos/common/RTOS.h" />
+      <configuration Name="Debug" gcc_optimization_level="Level 3" />
     </folder>
-    <folder Name="Setup">
+    <folder Name="sys_Setup">
       <file file_name="$(ProjectDir)/stmbase/embos/stm32f401ccu6/SEGGER_THUMB_Startup.s" />
       <file file_name="$(ProjectDir)/stmbase/embos/stm32f401ccu6/RTOSInit_STM32F4xx.c" />
       <file file_name="$(ProjectDir)/stmbase/embos/stm32f401ccu6/STM32F401_Flash.icf" />
@@ -106,6 +107,20 @@
       <file file_name="stmbase/synhal32/syn_i2c.cpp" />
       <file file_name="stmbase/synhal32/syn_timer.cpp" />
       <file file_name="stmbase/synhal32/syn_usb.cpp" />
+    </folder>
+    <folder Name="sys_cube_usb">
+      <file file_name="stmbase/cube_usb_cdc/stm32f4xx_hal.c" />
+      <file file_name="stmbase/cube_usb_cdc/stm32f4xx_ll_usb.c" />
+      <file file_name="stmbase/cube_usb_cdc/usb_device.c" />
+      <file file_name="stmbase/cube_usb_cdc/usbd_cdc.c" />
+      <file file_name="stmbase/cube_usb_cdc/usbd_cdc_if.c" />
+      <file file_name="stmbase/cube_usb_cdc/usbd_conf.c" />
+      <file file_name="stmbase/cube_usb_cdc/usbd_core.c" />
+      <file file_name="stmbase/cube_usb_cdc/usbd_ctlreq.c" />
+      <file file_name="stmbase/cube_usb_cdc/usbd_desc.c" />
+      <file file_name="stmbase/cube_usb_cdc/usbd_ioreq.c" />
+      <file file_name="stmbase/cube_usb_cdc/stm32f4xx_hal_pcd.c" />
+      <file file_name="stmbase/cube_usb_cdc/stm32f4xx_hal_pcd_ex.c" />
     </folder>
   </project>
   <configuration

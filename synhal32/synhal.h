@@ -1077,15 +1077,18 @@ namespace syn
       _pPort->OSPEEDR &= ~(0x3 << (_pin * 2));
       _pPort->PUPDR &= ~(0x3 << (_pin * 2));
       volatile uint32_t* pAfr;
+      uint32_t afr_shift;
       if(_pin < 8)
       {
         pAfr = &_pPort->AFR[0];
+        afr_shift = _pin  * 4;
       }
       else
       {
         pAfr = &_pPort->AFR[1];
+        afr_shift = (_pin - 8)  * 4;
       }
-      *pAfr &= ~(0xF << (_pin *4));
+      *pAfr &= ~(0xF << afr_shift);
       switch (m)
       {
       case in_analog:
@@ -1110,12 +1113,12 @@ namespace syn
       case out_alt_push_pull:
         _pPort->MODER |= (0x2 << (_pin * 2));
         _pPort->OTYPER &= ~(0x1 << _pin);
-        *pAfr |= (a << (_pin *4));
+        *pAfr |= (a << afr_shift);
         break;
       case out_alt_open_drain:
         _pPort->MODER |= (0x2 << (_pin * 2));
         _pPort->OTYPER |= (0x1 << _pin);
-        *pAfr |= (a << (_pin *4));
+        *pAfr |= (a << afr_shift);
         break;
       }
       switch (s)

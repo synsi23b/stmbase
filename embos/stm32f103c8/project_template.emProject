@@ -33,7 +33,7 @@
       project_type="Executable"
       target_reset_script="Reset();"
       target_script_file="$(ProjectDir)/stmbase/embos/stm32f103c8/STM32F1xx_Target.js" />
-    <folder Name="SEGGER">
+    <folder Name="sys_SEGGER">
       <file file_name="$(ProjectDir)/stmbase/embos/common/SEGGER_RTT.c" />
       <file file_name="$(ProjectDir)/stmbase/embos/common/SEGGER_RTT_Syscalls_SES.c">
         <configuration Name="Release" build_exclude_from_build="Yes" />
@@ -78,8 +78,9 @@
         </file>
       </folder>
       <file file_name="stmbase/embos/common/RTOS.h" />
+      <configuration Name="Debug" gcc_optimization_level="Level 3" />
     </folder>
-    <folder Name="Setup">
+    <folder Name="sys_Setup">
       <file file_name="$(ProjectDir)/stmbase/embos/stm32f103c8/SEGGER_THUMB_Startup.s" />
       <file file_name="$(ProjectDir)/stmbase/embos/stm32f103c8/RTOSInit_STM32F1xx.c" />
       <file file_name="$(ProjectDir)/stmbase/embos/stm32f103c8/STM32F103_Flash.icf" />

@@ -4,6 +4,7 @@ using namespace syn;
 
 #include "../../src/synrpc_usbcon.h"
 
+#ifdef STM32F103
 namespace usb
 {
   // this signal is set when a transmission on endpoint 1 IN is possible
@@ -1091,4 +1092,66 @@ extern "C"
     Core::leave_isr();
   }
 } // END extern C
-#endif
+#endif // STM32f103
+#ifdef STM32F401xC
+
+#include "../cube_usb_cdc/usb_device.h"
+
+void UsbRpc::init()
+{
+  RCC->AHB2ENR |= RCC_AHB2ENR_OTGFSEN;
+  // usb::mem->buffer_table[0].setTX(usb::mem->buffer_ctrl_ep);
+  // usb::mem->buffer_table[0].setRx(usb::mem->buffer_ctrl_ep, usb::max_packet);
+  // usb::mem->buffer_table[1].setTX(usb::mem->buffer_cdc_in_0);
+  // usb::mem->buffer_table[1].setRx(usb::mem->buffer_cdc_out_0, usb::max_packet);
+  // usb::mem->temp_address = 0;  // no address
+  // usb::mem->usb_status = 0x01; // self powered
+  // usb::mem->usb_config = 0;    // not configured
+  // usb::mem->data_rx_off = 0;   // rx is ready after startup, mailbox empty
+  // usb::mem->ctrl_opcode = 0xFF;
+  // usb::Device::Descriptor::init();
+  // // setup the eventset
+  // usb::sig_tx_ready.init();
+  // // setup incoming packet buffer
+  // Handler::_mailbox.init();
+  // Handler::_mailbox.reserve((Packet **)&usb::packetbuffer);
+  // *usb::packetbuffer = 0;                     // make sure to completely wipe packetheader
+  // usb::mem->buffer_state[1].rx_remaining = 0; // fresh packet
+  /**USB_OTG_FS GPIO Configuration    
+    PA11     ------> USB_OTG_FS_DM
+    PA12     ------> USB_OTG_FS_DP 
+  */
+  Gpio pin_dm('A', 11);
+  pin_dm.mode(Gpio::out_alt_push_pull, Gpio::MHz_100, Gpio::OTG_FS);
+  Gpio pin_dp('A', 12);
+  pin_dp.mode(Gpio::out_alt_push_pull, Gpio::MHz_100, Gpio::OTG_FS);
+  // set irq priority highest possible with beeing able to call free rtos functions
+  Core::enable_isr(OTG_FS_IRQn, 8);
+  // initialize USB using cube mx firmware
+  MX_USB_DEVICE_Init();
+}
+
+extern "C"
+{
+  extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
+/**
+  * @brief This function handles USB On The Go FS global interrupt.
+  */
+void OTG_FS_IRQHandler(void)
+{
+  /* USER CODE BEGIN OTG_FS_IRQn 0 */
+
+  /* USER CODE END OTG_FS_IRQn 0 */
+  HAL_PCD_IRQHandler(&hpcd_USB_OTG_FS);
+  /* USER CODE BEGIN OTG_FS_IRQn 1 */
+
+  /* USER CODE END OTG_FS_IRQn 1 */
+}
+
+void Error_Handler(void)
+{
+  OS_ASSERT(true == false, ERR_CUBE_HAL_SUCKS);
+}
+}
+#endif // STM32F401xC
+#endif // enable USBRPC
