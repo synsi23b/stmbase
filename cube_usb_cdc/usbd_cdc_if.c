@@ -99,7 +99,7 @@ uint8_t UserRxBufferFS[APP_RX_DATA_SIZE];
 uint8_t UserTxBufferFS[APP_TX_DATA_SIZE];
 
 /* USER CODE BEGIN PRIVATE_VARIABLES */
-
+USBD_CDC_LineCodingTypeDef _lineencoding = {9600, 0, 0, 8};
 /* USER CODE END PRIVATE_VARIABLES */
 
 /**
@@ -228,12 +228,28 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
   /* 6      | bDataBits  |   1   | Number Data bits (5, 6, 7, 8 or 16).          */
   /*******************************************************************************/
     case CDC_SET_LINE_CODING:
-
+      memcpy(&_lineencoding, pbuf, length);
     break;
 
     case CDC_GET_LINE_CODING:
-
+      memcpy(pbuf, &_lineencoding, length);
     break;
+    // case SET_LINE_CODING:
+    // linecoding.bitrate = (uint32_t)(Buf[0] | (Buf[1] << 8) | (Buf[2] << 16) | (Buf[3] << 24));
+    // linecoding.format = Buf[4];
+    // linecoding.paritytype = Buf[5];
+    // linecoding.datatype = Buf[6];
+    // break;
+
+    // case GET_LINE_CODING:
+    // Buf[0] = (uint8_t)(linecoding.bitrate);
+    // Buf[1] = (uint8_t)(linecoding.bitrate >> 8);
+    // Buf[2] = (uint8_t)(linecoding.bitrate >> 16);
+    // Buf[3] = (uint8_t)(linecoding.bitrate >> 24);
+    // Buf[4] = linecoding.format;
+    // Buf[5] = linecoding.paritytype;
+    // Buf[6] = linecoding.datatype; 
+    // break;
 
     case CDC_SET_CONTROL_LINE_STATE:
 
