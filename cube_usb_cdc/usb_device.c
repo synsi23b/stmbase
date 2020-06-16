@@ -73,19 +73,23 @@ void MX_USB_DEVICE_Init(void)
   {
     Error_Handler();
   }
-  if (USBD_RegisterClass(&hUsbDeviceFS, &USBD_CDC) != USBD_OK)
-  {
-    Error_Handler();
-  }
-  if (USBD_CDC_RegisterInterface(&hUsbDeviceFS, &USBD_Interface_fops_FS) != USBD_OK)
-  {
-    Error_Handler();
-  }
-  if (USBD_Start(&hUsbDeviceFS) != USBD_OK)
-  {
-    Error_Handler();
-  }
-
+  // if (USBD_RegisterClass(&hUsbDeviceFS, &USBD_CDC) != USBD_OK)
+  // {
+  //   Error_Handler();
+  // }
+  uint16_t len = 0;
+  hUsbDeviceFS.pClass = &USBD_CDC;
+  hUsbDeviceFS.pConfDesc = (void *)USBD_CDC.GetFSConfigDescriptor(&len);
+  // if (USBD_CDC_RegisterInterface(&hUsbDeviceFS, &USBD_Interface_fops_FS) != USBD_OK)
+  // {
+  //   Error_Handler();
+  // }
+  hUsbDeviceFS.pUserData = &USBD_Interface_fops_FS;
+  // if (USBD_Start(&hUsbDeviceFS) != USBD_OK)
+  // {
+  //   Error_Handler();
+  // }
+  HAL_PCD_Start(hUsbDeviceFS.pData);
   /* USER CODE BEGIN USB_DEVICE_Init_PostTreatment */
   
   /* USER CODE END USB_DEVICE_Init_PostTreatment */

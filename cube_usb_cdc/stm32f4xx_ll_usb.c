@@ -39,7 +39,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f4xx_hal.h"
-
+#include "stm32f4xx_ll_usb.h"
 /** @addtogroup STM32F4xx_LL_USB_DRIVER
   * @{
   */
@@ -716,7 +716,7 @@ HAL_StatusTypeDef USB_DeactivateDedicatedEndpoint( USB_OTG_EPTypeDef *ep)
   *           1 : DMA feature used
   * @retval HAL status
   */
-HAL_StatusTypeDef USB_EPStartXfer( USB_OTG_EPTypeDef *ep, uint8_t dma)
+HAL_StatusTypeDef USB_EPStartXfer( USB_OTG_EPTypeDef *ep)
 {
   // uint32_t USBx_BASE = (uint32_t)USBx;
   uint32_t epnum = (uint32_t)ep->num;
@@ -751,29 +751,29 @@ HAL_StatusTypeDef USB_EPStartXfer( USB_OTG_EPTypeDef *ep, uint8_t dma)
       }
     }
 
-    if (dma == 1U)
-    {
-      if ((uint32_t)ep->dma_addr != 0U)
-      {
-        USBx_INEP(epnum)->DIEPDMA = (uint32_t)(ep->dma_addr);
-      }
+    // if (dma == 1U)
+    // {
+    //   if ((uint32_t)ep->dma_addr != 0U)
+    //   {
+    //     USBx_INEP(epnum)->DIEPDMA = (uint32_t)(ep->dma_addr);
+    //   }
 
-      if (ep->type == EP_TYPE_ISOC)
-      {
-        if ((USBx_DEVICE->DSTS & (1U << 8)) == 0U)
-        {
-          USBx_INEP(epnum)->DIEPCTL |= USB_OTG_DIEPCTL_SODDFRM;
-        }
-        else
-        {
-          USBx_INEP(epnum)->DIEPCTL |= USB_OTG_DIEPCTL_SD0PID_SEVNFRM;
-        }
-      }
+    //   if (ep->type == EP_TYPE_ISOC)
+    //   {
+    //     if ((USBx_DEVICE->DSTS & (1U << 8)) == 0U)
+    //     {
+    //       USBx_INEP(epnum)->DIEPCTL |= USB_OTG_DIEPCTL_SODDFRM;
+    //     }
+    //     else
+    //     {
+    //       USBx_INEP(epnum)->DIEPCTL |= USB_OTG_DIEPCTL_SD0PID_SEVNFRM;
+    //     }
+    //   }
 
-      /* EP enable, IN data in FIFO */
-      USBx_INEP(epnum)->DIEPCTL |= (USB_OTG_DIEPCTL_CNAK | USB_OTG_DIEPCTL_EPENA);
-    }
-    else
+    //   /* EP enable, IN data in FIFO */
+    //   USBx_INEP(epnum)->DIEPCTL |= (USB_OTG_DIEPCTL_CNAK | USB_OTG_DIEPCTL_EPENA);
+    // }
+    // else
     {
       /* EP enable, IN data in FIFO */
       USBx_INEP(epnum)->DIEPCTL |= (USB_OTG_DIEPCTL_CNAK | USB_OTG_DIEPCTL_EPENA);
@@ -797,7 +797,7 @@ HAL_StatusTypeDef USB_EPStartXfer( USB_OTG_EPTypeDef *ep, uint8_t dma)
           USBx_INEP(epnum)->DIEPCTL |= USB_OTG_DIEPCTL_SD0PID_SEVNFRM;
         }
 
-        (void)USB_WritePacket(ep->xfer_buff, ep->num, (uint16_t)ep->xfer_len, dma);
+        (void)USB_WritePacket(ep->xfer_buff, ep->num, (uint16_t)ep->xfer_len);
       }
     }
   }
@@ -822,13 +822,13 @@ HAL_StatusTypeDef USB_EPStartXfer( USB_OTG_EPTypeDef *ep, uint8_t dma)
       USBx_OUTEP(epnum)->DOEPTSIZ |= USB_OTG_DOEPTSIZ_XFRSIZ & (ep->maxpacket * pktcnt);
     }
 
-    if (dma == 1U)
-    {
-      if ((uint32_t)ep->xfer_buff != 0U)
-      {
-        USBx_OUTEP(epnum)->DOEPDMA = (uint32_t)(ep->xfer_buff);
-      }
-    }
+    // if (dma == 1U)
+    // {
+    //   if ((uint32_t)ep->xfer_buff != 0U)
+    //   {
+    //     USBx_OUTEP(epnum)->DOEPDMA = (uint32_t)(ep->xfer_buff);
+    //   }
+    // }
 
     if (ep->type == EP_TYPE_ISOC)
     {
@@ -858,7 +858,7 @@ HAL_StatusTypeDef USB_EPStartXfer( USB_OTG_EPTypeDef *ep, uint8_t dma)
   *           1 : DMA feature used
   * @retval HAL status
   */
-HAL_StatusTypeDef USB_EP0StartXfer( USB_OTG_EPTypeDef *ep, uint8_t dma)
+HAL_StatusTypeDef USB_EP0StartXfer( USB_OTG_EPTypeDef *ep)
 {
   // uint32_t USBx_BASE = (uint32_t)USBx;
   uint32_t epnum = (uint32_t)ep->num;
@@ -891,17 +891,17 @@ HAL_StatusTypeDef USB_EP0StartXfer( USB_OTG_EPTypeDef *ep, uint8_t dma)
       USBx_INEP(epnum)->DIEPTSIZ |= (USB_OTG_DIEPTSIZ_XFRSIZ & ep->xfer_len);
     }
 
-    if (dma == 1U)
-    {
-      if ((uint32_t)ep->dma_addr != 0U)
-      {
-        USBx_INEP(epnum)->DIEPDMA = (uint32_t)(ep->dma_addr);
-      }
+    // if (dma == 1U)
+    // {
+    //   if ((uint32_t)ep->dma_addr != 0U)
+    //   {
+    //     USBx_INEP(epnum)->DIEPDMA = (uint32_t)(ep->dma_addr);
+    //   }
 
-      /* EP enable, IN data in FIFO */
-      USBx_INEP(epnum)->DIEPCTL |= (USB_OTG_DIEPCTL_CNAK | USB_OTG_DIEPCTL_EPENA);
-    }
-    else
+    //   /* EP enable, IN data in FIFO */
+    //   USBx_INEP(epnum)->DIEPCTL |= (USB_OTG_DIEPCTL_CNAK | USB_OTG_DIEPCTL_EPENA);
+    // }
+    // else
     {
       /* EP enable, IN data in FIFO */
       USBx_INEP(epnum)->DIEPCTL |= (USB_OTG_DIEPCTL_CNAK | USB_OTG_DIEPCTL_EPENA);
@@ -930,13 +930,13 @@ HAL_StatusTypeDef USB_EP0StartXfer( USB_OTG_EPTypeDef *ep, uint8_t dma)
     USBx_OUTEP(epnum)->DOEPTSIZ |= (USB_OTG_DOEPTSIZ_PKTCNT & (1U << 19));
     USBx_OUTEP(epnum)->DOEPTSIZ |= (USB_OTG_DOEPTSIZ_XFRSIZ & (ep->maxpacket));
 
-    if (dma == 1U)
-    {
-      if ((uint32_t)ep->xfer_buff != 0U)
-      {
-        USBx_OUTEP(epnum)->DOEPDMA = (uint32_t)(ep->xfer_buff);
-      }
-    }
+    // if (dma == 1U)
+    // {
+    //   if ((uint32_t)ep->xfer_buff != 0U)
+    //   {
+    //     USBx_OUTEP(epnum)->DOEPDMA = (uint32_t)(ep->xfer_buff);
+    //   }
+    // }
 
     /* EP enable */
     USBx_OUTEP(epnum)->DOEPCTL |= (USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA);
@@ -958,13 +958,13 @@ HAL_StatusTypeDef USB_EP0StartXfer( USB_OTG_EPTypeDef *ep, uint8_t dma)
   *           1 : DMA feature used
   * @retval HAL status
   */
-HAL_StatusTypeDef USB_WritePacket( uint8_t *src, uint8_t ch_ep_num, uint16_t len, uint8_t dma)
+HAL_StatusTypeDef USB_WritePacket( uint8_t *src, uint8_t ch_ep_num, uint16_t len)
 {
   // uint32_t USBx_BASE = (uint32_t)USBx;
   uint32_t *pSrc = (uint32_t *)src;
   uint32_t count32b, i;
 
-  if (dma == 0U)
+  //if (dma == 0U)
   {
     count32b = ((uint32_t)len + 3U) / 4U;
     for (i = 0U; i < count32b; i++)
@@ -1283,7 +1283,7 @@ HAL_StatusTypeDef  USB_ActivateSetup()
   * @param  psetup  pointer to setup packet
   * @retval HAL status
   */
-HAL_StatusTypeDef USB_EP0_OutStart( uint8_t dma, uint8_t *psetup)
+HAL_StatusTypeDef USB_EP0_OutStart()
 {
   // uint32_t USBx_BASE = (uint32_t)USBx;
   uint32_t gSNPSiD = *(__IO uint32_t *)(&USB_OTG_FS->CID + 0x1U);
@@ -1301,12 +1301,12 @@ HAL_StatusTypeDef USB_EP0_OutStart( uint8_t dma, uint8_t *psetup)
   USBx_OUTEP(0U)->DOEPTSIZ |= (3U * 8U);
   USBx_OUTEP(0U)->DOEPTSIZ |=  USB_OTG_DOEPTSIZ_STUPCNT;
 
-  if (dma == 1U)
-  {
-    USBx_OUTEP(0U)->DOEPDMA = (uint32_t)psetup;
-    /* EP enable */
-    USBx_OUTEP(0U)->DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_USBAEP;
-  }
+  // if (dma == 1U)
+  // {
+  //   USBx_OUTEP(0U)->DOEPDMA = (uint32_t)psetup;
+  //   /* EP enable */
+  //   USBx_OUTEP(0U)->DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_USBAEP;
+  // }
 
   return HAL_OK;
 }
@@ -1712,128 +1712,128 @@ HAL_StatusTypeDef USB_HC_Init(
   *           1 : DMA feature used
   * @retval HAL state
   */
-HAL_StatusTypeDef USB_HC_StartXfer( USB_OTG_HCTypeDef *hc, uint8_t dma)
-{
-  // uint32_t USBx_BASE = (uint32_t)USBx;
-  uint32_t ch_num = (uint32_t)hc->ch_num;
-  static __IO uint32_t tmpreg = 0U;
-  uint8_t  is_oddframe;
-  uint16_t len_words;
-  uint16_t num_packets;
-  uint16_t max_hc_pkt_count = 256U;
+// HAL_StatusTypeDef USB_HC_StartXfer( USB_OTG_HCTypeDef *hc, uint8_t dma)
+// {
+//   // uint32_t USBx_BASE = (uint32_t)USBx;
+//   uint32_t ch_num = (uint32_t)hc->ch_num;
+//   static __IO uint32_t tmpreg = 0U;
+//   uint8_t  is_oddframe;
+//   uint16_t len_words;
+//   uint16_t num_packets;
+//   uint16_t max_hc_pkt_count = 256U;
 
-  if (((USB_OTG_FS->CID & (0x1U << 8)) != 0U) && (hc->speed == USBH_HS_SPEED))
-  {
-    if ((dma == 0U) && (hc->do_ping == 1U))
-    {
-      (void)USB_DoPing(hc->ch_num);
-      return HAL_OK;
-    }
-    else if (dma == 1U)
-    {
-      USBx_HC(ch_num)->HCINTMSK &= ~(USB_OTG_HCINTMSK_NYET | USB_OTG_HCINTMSK_ACKM);
-      hc->do_ping = 0U;
-    }
-    else
-    {
-      /* ... */
-    }
-  }
+//   if (((USB_OTG_FS->CID & (0x1U << 8)) != 0U) && (hc->speed == USBH_HS_SPEED))
+//   {
+//     if ((dma == 0U) && (hc->do_ping == 1U))
+//     {
+//       (void)USB_DoPing(hc->ch_num);
+//       return HAL_OK;
+//     }
+//     else if (dma == 1U)
+//     {
+//       USBx_HC(ch_num)->HCINTMSK &= ~(USB_OTG_HCINTMSK_NYET | USB_OTG_HCINTMSK_ACKM);
+//       hc->do_ping = 0U;
+//     }
+//     else
+//     {
+//       /* ... */
+//     }
+//   }
 
-  /* Compute the expected number of packets associated to the transfer */
-  if (hc->xfer_len > 0U)
-  {
-    num_packets = (uint16_t)((hc->xfer_len + hc->max_packet - 1U) / hc->max_packet);
+//   /* Compute the expected number of packets associated to the transfer */
+//   if (hc->xfer_len > 0U)
+//   {
+//     num_packets = (uint16_t)((hc->xfer_len + hc->max_packet - 1U) / hc->max_packet);
 
-    if (num_packets > max_hc_pkt_count)
-    {
-      num_packets = max_hc_pkt_count;
-      hc->xfer_len = (uint32_t)num_packets * hc->max_packet;
-    }
-  }
-  else
-  {
-    num_packets = 1U;
-  }
-  if (hc->ep_is_in != 0U)
-  {
-    hc->xfer_len = (uint32_t)num_packets * hc->max_packet;
-  }
+//     if (num_packets > max_hc_pkt_count)
+//     {
+//       num_packets = max_hc_pkt_count;
+//       hc->xfer_len = (uint32_t)num_packets * hc->max_packet;
+//     }
+//   }
+//   else
+//   {
+//     num_packets = 1U;
+//   }
+//   if (hc->ep_is_in != 0U)
+//   {
+//     hc->xfer_len = (uint32_t)num_packets * hc->max_packet;
+//   }
 
-  /* Initialize the HCTSIZn register */
-  USBx_HC(ch_num)->HCTSIZ = (hc->xfer_len & USB_OTG_HCTSIZ_XFRSIZ) |
-                            (((uint32_t)num_packets << 19) & USB_OTG_HCTSIZ_PKTCNT) |
-                            (((uint32_t)hc->data_pid << 29) & USB_OTG_HCTSIZ_DPID);
+//   /* Initialize the HCTSIZn register */
+//   USBx_HC(ch_num)->HCTSIZ = (hc->xfer_len & USB_OTG_HCTSIZ_XFRSIZ) |
+//                             (((uint32_t)num_packets << 19) & USB_OTG_HCTSIZ_PKTCNT) |
+//                             (((uint32_t)hc->data_pid << 29) & USB_OTG_HCTSIZ_DPID);
 
-  if (dma != 0U)
-  {
-    /* xfer_buff MUST be 32-bits aligned */
-    USBx_HC(ch_num)->HCDMA = (uint32_t)hc->xfer_buff;
-  }
+//   if (dma != 0U)
+//   {
+//     /* xfer_buff MUST be 32-bits aligned */
+//     USBx_HC(ch_num)->HCDMA = (uint32_t)hc->xfer_buff;
+//   }
 
-  is_oddframe = (((uint32_t)USBx_HOST->HFNUM & 0x01U) != 0U) ? 0U : 1U;
-  USBx_HC(ch_num)->HCCHAR &= ~USB_OTG_HCCHAR_ODDFRM;
-  USBx_HC(ch_num)->HCCHAR |= (uint32_t)is_oddframe << 29;
+//   is_oddframe = (((uint32_t)USBx_HOST->HFNUM & 0x01U) != 0U) ? 0U : 1U;
+//   USBx_HC(ch_num)->HCCHAR &= ~USB_OTG_HCCHAR_ODDFRM;
+//   USBx_HC(ch_num)->HCCHAR |= (uint32_t)is_oddframe << 29;
 
-  /* Set host channel enable */
-  tmpreg = USBx_HC(ch_num)->HCCHAR;
-  tmpreg &= ~USB_OTG_HCCHAR_CHDIS;
+//   /* Set host channel enable */
+//   tmpreg = USBx_HC(ch_num)->HCCHAR;
+//   tmpreg &= ~USB_OTG_HCCHAR_CHDIS;
 
-  /* make sure to set the correct ep direction */
-  if (hc->ep_is_in != 0U)
-  {
-    tmpreg |= USB_OTG_HCCHAR_EPDIR;
-  }
-  else
-  {
-    tmpreg &= ~USB_OTG_HCCHAR_EPDIR;
-  }
-  tmpreg |= USB_OTG_HCCHAR_CHENA;
-  USBx_HC(ch_num)->HCCHAR = tmpreg;
+//   /* make sure to set the correct ep direction */
+//   if (hc->ep_is_in != 0U)
+//   {
+//     tmpreg |= USB_OTG_HCCHAR_EPDIR;
+//   }
+//   else
+//   {
+//     tmpreg &= ~USB_OTG_HCCHAR_EPDIR;
+//   }
+//   tmpreg |= USB_OTG_HCCHAR_CHENA;
+//   USBx_HC(ch_num)->HCCHAR = tmpreg;
 
-  if (dma == 0U) /* Slave mode */
-  {
-    if ((hc->ep_is_in == 0U) && (hc->xfer_len > 0U))
-    {
-      switch (hc->ep_type)
-      {
-        /* Non periodic transfer */
-        case EP_TYPE_CTRL:
-        case EP_TYPE_BULK:
+//   if (dma == 0U) /* Slave mode */
+//   {
+//     if ((hc->ep_is_in == 0U) && (hc->xfer_len > 0U))
+//     {
+//       switch (hc->ep_type)
+//       {
+//         /* Non periodic transfer */
+//         case EP_TYPE_CTRL:
+//         case EP_TYPE_BULK:
 
-          len_words = (uint16_t)((hc->xfer_len + 3U) / 4U);
+//           len_words = (uint16_t)((hc->xfer_len + 3U) / 4U);
 
-          /* check if there is enough space in FIFO space */
-          if (len_words > (USB_OTG_FS->HNPTXSTS & 0xFFFFU))
-          {
-            /* need to process data in nptxfempty interrupt */
-            USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_NPTXFEM;
-          }
-          break;
+//           /* check if there is enough space in FIFO space */
+//           if (len_words > (USB_OTG_FS->HNPTXSTS & 0xFFFFU))
+//           {
+//             /* need to process data in nptxfempty interrupt */
+//             USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_NPTXFEM;
+//           }
+//           break;
 
-        /* Periodic transfer */
-        case EP_TYPE_INTR:
-        case EP_TYPE_ISOC:
-          len_words = (uint16_t)((hc->xfer_len + 3U) / 4U);
-          /* check if there is enough space in FIFO space */
-          if (len_words > (USBx_HOST->HPTXSTS & 0xFFFFU)) /* split the transfer */
-          {
-            /* need to process data in ptxfempty interrupt */
-            USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_PTXFEM;
-          }
-          break;
+//         /* Periodic transfer */
+//         case EP_TYPE_INTR:
+//         case EP_TYPE_ISOC:
+//           len_words = (uint16_t)((hc->xfer_len + 3U) / 4U);
+//           /* check if there is enough space in FIFO space */
+//           if (len_words > (USBx_HOST->HPTXSTS & 0xFFFFU)) /* split the transfer */
+//           {
+//             /* need to process data in ptxfempty interrupt */
+//             USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_PTXFEM;
+//           }
+//           break;
 
-        default:
-          break;
-      }
+//         default:
+//           break;
+//       }
 
-      /* Write packet into the Tx FIFO. */
-      (void)USB_WritePacket(hc->xfer_buff, hc->ch_num, (uint16_t)hc->xfer_len, 0);
-    }
-  }
+//       /* Write packet into the Tx FIFO. */
+//       (void)USB_WritePacket(hc->xfer_buff, hc->ch_num, (uint16_t)hc->xfer_len, 0);
+//     }
+//   }
 
-  return HAL_OK;
-}
+//   return HAL_OK;
+// }
 
 /**
   * @brief Read all host channel interrupts status

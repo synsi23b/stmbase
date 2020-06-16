@@ -112,7 +112,7 @@ def getUserCode(lines, messages):
 def writeHeaderCpp(headerpath, messages):
     with open("synrpc_generator/synrpc_usbcon_template.h", 'r') as f:
         header = f.read().format(SYNRPC_USBCON_MAX_GEN=SYNRPC_GEN_MAX)
-    header += "\nconst uint16_t MAX_HANDLER_TYPE = {};\n".format(len(messages))
+    header += "\nconst uint8_t MAX_HANDLER_TYPE = {};\n".format(len(messages))
     for k, m in messages.items():
         header += m.genCppHeader()
     header += "\n}\n\n"

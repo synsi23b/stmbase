@@ -172,31 +172,31 @@ USBD_StatusTypeDef USBD_DeInit(USBD_HandleTypeDef *pdev)
   * @param  pclass: Class handle
   * @retval USBD Status
   */
-USBD_StatusTypeDef USBD_RegisterClass(USBD_HandleTypeDef *pdev, USBD_ClassTypeDef *pclass)
-{
-  uint16_t len = 0U;
+// USBD_StatusTypeDef USBD_RegisterClass(USBD_HandleTypeDef *pdev, USBD_ClassTypeDef *pclass)
+// {
+//   uint16_t len = 0U;
 
-  if (pclass == NULL)
-  {
-#if (USBD_DEBUG_LEVEL > 1U)
-    USBD_ErrLog("Invalid Class handle");
-#endif
-    return USBD_FAIL;
-  }
+//   if (pclass == NULL)
+//   {
+// #if (USBD_DEBUG_LEVEL > 1U)
+//     USBD_ErrLog("Invalid Class handle");
+// #endif
+//     return USBD_FAIL;
+//   }
 
-  /* link the class to the USB Device handle */
-  pdev->pClass = pclass;
+//   /* link the class to the USB Device handle */
+//   pdev->pClass = pclass;
 
-  /* Get Device Configuration Descriptor */
-#ifdef USE_USB_FS
-  pdev->pConfDesc = (void *)pdev->pClass->GetFSConfigDescriptor(&len);
-#else /* USE_USB_HS */
-  pdev->pConfDesc = (void *)pdev->pClass->GetHSConfigDescriptor(&len);
-#endif /* USE_USB_FS */
+//   /* Get Device Configuration Descriptor */
+// #ifdef USE_USB_FS
+//   pdev->pConfDesc = (void *)pdev->pClass->GetFSConfigDescriptor(&len);
+// #else /* USE_USB_HS */
+//   pdev->pConfDesc = (void *)pdev->pClass->GetHSConfigDescriptor(&len);
+// #endif /* USE_USB_FS */
 
 
-  return USBD_OK;
-}
+//   return USBD_OK;
+// }
 
 /**
   * @brief  USBD_Start
@@ -204,11 +204,11 @@ USBD_StatusTypeDef USBD_RegisterClass(USBD_HandleTypeDef *pdev, USBD_ClassTypeDe
   * @param  pdev: Device Handle
   * @retval USBD Status
   */
-USBD_StatusTypeDef USBD_Start(USBD_HandleTypeDef *pdev)
-{
-  /* Start the low level driver  */
-  return USBD_LL_Start(pdev);
-}
+// USBD_StatusTypeDef USBD_Start(USBD_HandleTypeDef *pdev)
+// {
+//   /* Start the low level driver  */
+//   return USBD_LL_Start(pdev);
+// }
 
 /**
   * @brief  USBD_Stop
@@ -340,7 +340,7 @@ USBD_StatusTypeDef USBD_LL_DataOutStage(USBD_HandleTypeDef *pdev,
                                         uint8_t epnum, uint8_t *pdata)
 {
   USBD_EndpointTypeDef *pep;
-  USBD_StatusTypeDef ret;
+  //USBD_StatusTypeDef ret;
 
   if (epnum == 0U)
   {
@@ -381,12 +381,13 @@ USBD_StatusTypeDef USBD_LL_DataOutStage(USBD_HandleTypeDef *pdev,
   else if ((pdev->pClass->DataOut != NULL) &&
            (pdev->dev_state == USBD_STATE_CONFIGURED))
   {
-    ret = (USBD_StatusTypeDef)pdev->pClass->DataOut(pdev, epnum);
+    (USBD_StatusTypeDef)pdev->pClass->DataOut(pdev, epnum);
 
-    if (ret != USBD_OK)
-    {
-      return ret;
-    }
+    // nobody checks returns here, its an interrupt..
+    // if (ret != USBD_OK)
+    // {
+    //   return ret;
+    // }
   }
   else
   {

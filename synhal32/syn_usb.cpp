@@ -474,10 +474,10 @@ namespace usb
 
       static const uint8_t USBD_LangIDDesc[] = {0x04, 0x03, 0x09, 0x04};
       static const uint8_t USBD_Manu[] = {6, 0x03, 'S', 0, 'T', 0};
-      static const uint8_t USBD_PRODUCT_STRING[] = {42, 0x03, 'S', 0, 'T', 0, 'M', 0, '3', 0, '2', 0, ' ', 0, 'V', 0, '-', 0, 'C', 0, 'O', 0, 'M', 0, ' ', 0, 'b',
-                                                    0, 'y', 0, ' ', 0, 's', 0, 'y', 0, 'n', 0, 's', 0, 'i', 0};
-      static uint8_t USBD_SERIAL[50] = {
-          50,
+      static const uint8_t USBD_PRODUCT_STRING[] = {38, 0x03, 'S', 0, 'T', 0, 'M', 0, '3', 0, '2', 0, ' ', 0, 'V', 0, '-', 0, 'C', 0, 'O', 0, 'M', 0, ' ', 0, 'S',
+                                                    0, 'y', 0, 'n', 0, 'R', 0, 'p', 0, 'c', 0};
+      static uint8_t USBD_SERIAL[34] = {
+          34,
           0x03,
       };
 
@@ -616,9 +616,9 @@ namespace usb
       void init()
       {
         // read out this chips unique serial number and create device id using it
-        mtl::IntToUnicode((*(uint32_t *)0x1FFFF7E8), (USBD_SERIAL + 2), 8);
+        mtl::IntToUnicode((*(uint32_t *)0x1FFFF7E8) + (*(uint32_t *)0x1FFFF7F0), (USBD_SERIAL + 2), 8);
         mtl::IntToUnicode((*(uint32_t *)0x1FFFF7EC), (USBD_SERIAL + 18), 8);
-        mtl::IntToUnicode((*(uint32_t *)0x1FFFF7F0), (USBD_SERIAL + 34), 8);
+        //mtl::IntToUnicode((*(uint32_t *)0x1FFFF7F0), (USBD_SERIAL + 34), 8);
       }
 
       const DescriptorHandler_t descriptor_requesthandler[] = {&device, &configuration, &string};

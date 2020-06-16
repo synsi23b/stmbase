@@ -4,8 +4,8 @@
 
 namespace syn
 {{
-  const int SYNRPC_USBCON_MAX = 122;
-  const int SYNRPC_USBCON_GEN = {SYNRPC_USBCON_MAX_GEN};
+  const uint8_t SYNRPC_USBCON_MAX = 122;
+  const uint8_t SYNRPC_USBCON_GEN = {SYNRPC_USBCON_MAX_GEN};
 
   class UsbRpc::Packet
   {{

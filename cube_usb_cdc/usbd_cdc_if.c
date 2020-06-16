@@ -158,8 +158,13 @@ static int8_t CDC_Init_FS(void)
 {
   /* USER CODE BEGIN 3 */
   /* Set Application Buffers */
-  USBD_CDC_SetTxBuffer(&hUsbDeviceFS, UserTxBufferFS, 0);
-  USBD_CDC_SetRxBuffer(&hUsbDeviceFS, UserRxBufferFS);
+  //USBD_CDC_SetTxBuffer(&hUsbDeviceFS, UserTxBufferFS, 0);
+  //USBD_CDC_HandleTypeDef *hcdc = (USBD_CDC_HandleTypeDef *)&hUsbDeviceFS.pClassData;
+  usb_cdc_handle.TxBuffer = UserTxBufferFS;
+  usb_cdc_handle.TxLength = 0;
+  //USBD_CDC_SetRxBuffer(&hUsbDeviceFS, UserRxBufferFS);
+  //USBD_CDC_HandleTypeDef *hcdc = (USBD_CDC_HandleTypeDef *)&hUsbDeviceFS.pClassData;
+  usb_cdc_handle.RxBuffer = UserRxBufferFS;
   return (USBD_OK);
   /* USER CODE END 3 */
 }
@@ -185,9 +190,6 @@ static int8_t CDC_DeInit_FS(void)
 static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
 {
   /* USER CODE BEGIN 5 */
-  (void)cmd;
-  (void)pbuf;
-  (void)length;
   switch(cmd)
   {
     case CDC_SEND_ENCAPSULATED_COMMAND:
@@ -285,8 +287,11 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 {
   /* USER CODE BEGIN 6 */
   (void)Len;
-  USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
-  USBD_CDC_ReceivePacket(&hUsbDeviceFS);
+  //USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
+  //USBD_CDC_HandleTypeDef *hcdc = (USBD_CDC_HandleTypeDef *)&hUsbDeviceFS.pClassData;
+  usb_cdc_handle.RxBuffer = UserRxBufferFS;
+  //USBD_CDC_ReceivePacket(&hUsbDeviceFS);
+  (void)USBD_LL_PrepareReceive(&hUsbDeviceFS, CDC_OUT_EP, &Buf[0], CDC_DATA_FS_OUT_PACKET_SIZE);
   return (USBD_OK);
   /* USER CODE END 6 */
 }
@@ -304,16 +309,34 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
   */
 uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len)
 {
-  uint8_t result = USBD_OK;
+  //uint8_t result = USBD_OK;
   /* USER CODE BEGIN 7 */
-  USBD_CDC_HandleTypeDef *hcdc = (USBD_CDC_HandleTypeDef*)hUsbDeviceFS.pClassData;
-  if (hcdc->TxState != 0){
+  //USBD_CDC_HandleTypeDef *hcdc = (USBD_CDC_HandleTypeDef*)hUsbDeviceFS.pClassData;
+  if (usb_cdc_handle.TxState != 0){
     return USBD_BUSY;
   }
-  USBD_CDC_SetTxBuffer(&hUsbDeviceFS, Buf, Len);
-  result = USBD_CDC_TransmitPacket(&hUsbDeviceFS);
+  //USBD_CDC_SetTxBuffer(&hUsbDeviceFS, Buf, Len);
+  usb_cdc_handle.TxBuffer = Buf;
+  usb_cdc_handle.TxLength = Len;
+  //result = USBD_CDC_TransmitPacket(&hUsbDeviceFS);
+  //USBD_StatusTypeDef ret = USBD_BUSY;
+
+  if (hUsbDeviceFS.pClassData == NULL)
+  {
+    return (uint8_t)USBD_FAIL;
+  }
+
+  /* Tx Transfer in progress */
+  usb_cdc_handle.TxState = 1U;
+
+  /* Update the packet total length */
+  hUsbDeviceFS.ep_in[CDC_IN_EP & 0xFU].total_length = Len;
+
+  /* Transmit next packet */
+  //(void)USBD_LL_Transmit(&hUsbDeviceFS, CDC_IN_EP, Buf, Len);
+  HAL_PCD_EP_Transmit(hUsbDeviceFS.pData, CDC_IN_EP, Buf, Len);
   /* USER CODE END 7 */
-  return result;
+  return USBD_OK;
 }
 
 /**

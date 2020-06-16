@@ -110,7 +110,7 @@ typedef struct _USBD_CDC_Itf
 
 typedef struct
 {
-  uint32_t data[CDC_DATA_HS_MAX_PACKET_SIZE / 4U];      /* Force 32bits alignment */
+  uint32_t data[CDC_DATA_FS_MAX_PACKET_SIZE / 4U];      /* Force 32bits alignment */
   uint8_t  CmdOpCode;
   uint8_t  CmdLength;
   uint8_t  *RxBuffer;
@@ -137,6 +137,7 @@ typedef struct
   */
 
 extern USBD_ClassTypeDef USBD_CDC;
+extern USBD_CDC_HandleTypeDef usb_cdc_handle;
 #define USBD_CDC_CLASS &USBD_CDC
 /**
   * @}

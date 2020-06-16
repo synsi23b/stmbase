@@ -42,7 +42,7 @@ PCD_HandleTypeDef hpcd_USB_OTG_FS;
 void Error_Handler(void);
 
 /* External functions --------------------------------------------------------*/
-void SystemClock_Config(void);
+//void SystemClock_Config(void);
 
 /* USER CODE BEGIN 0 */
 
@@ -177,31 +177,31 @@ HAL_StatusTypeDef HAL_PCD_Init(PCD_HandleTypeDef *hpcd)
 }
 
 
-void HAL_PCD_MspDeInit(PCD_HandleTypeDef* pcdHandle)
-{
-   (void)pcdHandle;
+// void HAL_PCD_MspDeInit(PCD_HandleTypeDef* pcdHandle)
+// {
+//    (void)pcdHandle;
 //  if(pcdHandle->Instance==USB_OTG_FS)
 //  {
 //  /* USER CODE BEGIN USB_OTG_FS_MspDeInit 0 */
-//
+
 //  /* USER CODE END USB_OTG_FS_MspDeInit 0 */
 //    /* Peripheral clock disable */
 //    __HAL_RCC_USB_OTG_FS_CLK_DISABLE();
-//  
+ 
 //    /**USB_OTG_FS GPIO Configuration    
 //    PA11     ------> USB_OTG_FS_DM
 //    PA12     ------> USB_OTG_FS_DP 
 //    */
 //    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_11|GPIO_PIN_12);
-//
+
 //    /* Peripheral interrupt Deinit*/
 //    HAL_NVIC_DisableIRQ(OTG_FS_IRQn);
-//
+
 //  /* USER CODE BEGIN USB_OTG_FS_MspDeInit 1 */
-//
+
 //  /* USER CODE END USB_OTG_FS_MspDeInit 1 */
 //  }
-}
+// }
 
 /**
   * @brief  Setup stage callback
@@ -433,9 +433,9 @@ USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev)
   HAL_PCD_RegisterIsoOutIncpltCallback(&hpcd_USB_OTG_FS, PCD_ISOOUTIncompleteCallback);
   HAL_PCD_RegisterIsoInIncpltCallback(&hpcd_USB_OTG_FS, PCD_ISOINIncompleteCallback);
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
-  HAL_PCDEx_SetRxFiFo(&hpcd_USB_OTG_FS, 0x80);
-  HAL_PCDEx_SetTxFiFo(&hpcd_USB_OTG_FS, 0, 0x40);
-  HAL_PCDEx_SetTxFiFo(&hpcd_USB_OTG_FS, 1, 0x80);
+  HAL_PCDEx_SetRxFiFo(&hpcd_USB_OTG_FS, 0x80); // 512 bytes
+  HAL_PCDEx_SetTxFiFo(&hpcd_USB_OTG_FS, 0, 0x40); // 256 bytes
+  HAL_PCDEx_SetTxFiFo(&hpcd_USB_OTG_FS, 1, 0x80); // 512 bytes
   }
   return USBD_OK;
 }
@@ -462,17 +462,17 @@ USBD_StatusTypeDef USBD_LL_DeInit(USBD_HandleTypeDef *pdev)
   * @param  pdev: Device handle
   * @retval USBD status
   */
-USBD_StatusTypeDef USBD_LL_Start(USBD_HandleTypeDef *pdev)
-{
-  //HAL_StatusTypeDef hal_status = HAL_OK;
-  //USBD_StatusTypeDef usb_status = USBD_OK;
+// USBD_StatusTypeDef USBD_LL_Start(USBD_HandleTypeDef *pdev)
+// {
+//   //HAL_StatusTypeDef hal_status = HAL_OK;
+//   //USBD_StatusTypeDef usb_status = USBD_OK;
  
-  HAL_PCD_Start(pdev->pData);
+//   HAL_PCD_Start(pdev->pData);
   
-  //usb_status =  USBD_Get_USB_Status(hal_status);     
+//   //usb_status =  USBD_Get_USB_Status(hal_status);     
   
-  return USBD_OK;
-}
+//   return USBD_OK;
+// }
 
 /**
   * @brief  Stops the low level portion of the device driver.

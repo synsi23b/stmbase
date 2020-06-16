@@ -99,8 +99,8 @@ typedef struct
   PCD_TypeDef             *Instance;   /*!< Register base address             */
   PCD_InitTypeDef         Init;        /*!< PCD required parameters           */
   __IO uint8_t            USB_Address; /*!< USB Address                       */
-  PCD_EPTypeDef           IN_ep[16];   /*!< IN endpoint parameters            */
-  PCD_EPTypeDef           OUT_ep[16];  /*!< OUT endpoint parameters           */
+  PCD_EPTypeDef           IN_ep[4];   /*!< IN endpoint parameters            */
+  PCD_EPTypeDef           OUT_ep[4];  /*!< OUT endpoint parameters           */
   HAL_LockTypeDef         Lock;        /*!< PCD peripheral status             */
   __IO PCD_StateTypeDef   State;       /*!< PCD communication state           */
   __IO  uint32_t          ErrorCode;   /*!< PCD Error code                    */
@@ -352,8 +352,8 @@ uint32_t          HAL_PCD_EP_GetRxCount(PCD_HandleTypeDef *hpcd, uint8_t ep_addr
 HAL_StatusTypeDef HAL_PCD_EP_SetStall(PCD_HandleTypeDef *hpcd, uint8_t ep_addr);
 HAL_StatusTypeDef HAL_PCD_EP_ClrStall(PCD_HandleTypeDef *hpcd, uint8_t ep_addr);
 HAL_StatusTypeDef HAL_PCD_EP_Flush(PCD_HandleTypeDef *hpcd, uint8_t ep_addr);
-HAL_StatusTypeDef HAL_PCD_ActivateRemoteWakeup(PCD_HandleTypeDef *hpcd);
-HAL_StatusTypeDef HAL_PCD_DeActivateRemoteWakeup(PCD_HandleTypeDef *hpcd);
+HAL_StatusTypeDef HAL_PCD_ActivateRemoteWakeup();
+HAL_StatusTypeDef HAL_PCD_DeActivateRemoteWakeup();
 /**
   * @}
   */
