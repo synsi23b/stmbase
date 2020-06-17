@@ -68,7 +68,7 @@
 /*---------- -----------*/
 #define USBD_MAX_NUM_CONFIGURATION     1U
 /*---------- -----------*/
-#define USBD_MAX_STR_DESC_SIZ     512U
+#define USBD_MAX_STR_DESC_SIZ     40U
 /*---------- -----------*/
 #define USBD_DEBUG_LEVEL     0U
 /*---------- -----------*/
@@ -81,7 +81,6 @@
 /****************************************/
 /* #define for FS and HS identification */
 #define DEVICE_FS 		0
-#define DEVICE_HS 		1
 
 /**
   * @}

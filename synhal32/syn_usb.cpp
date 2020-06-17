@@ -4,14 +4,18 @@ using namespace syn;
 
 #include "../../src/synrpc_usbcon.h"
 
-#ifdef STM32F103
 namespace usb
 {
   // this signal is set when a transmission on endpoint 1 IN is possible
   static Signal sig_tx_ready;
   // writepointer to currently reserved mail
   static uint32_t *packetbuffer;
-
+#ifdef STM32F103
+#else
+  static uint16_t packetbuffer_rx_remaining;
+}
+#endif
+#ifdef STM32F103
   static const uint32_t max_packet = 64;
   static const uint32_t max_descriptor = 68; // actually 67, but we need to round up
   static const uint32_t max_buffer_cdc = 128;
@@ -476,8 +480,8 @@ namespace usb
       static const uint8_t USBD_Manu[] = {6, 0x03, 'S', 0, 'T', 0};
       static const uint8_t USBD_PRODUCT_STRING[] = {38, 0x03, 'S', 0, 'T', 0, 'M', 0, '3', 0, '2', 0, ' ', 0, 'V', 0, '-', 0, 'C', 0, 'O', 0, 'M', 0, ' ', 0, 'S',
                                                     0, 'y', 0, 'n', 0, 'R', 0, 'p', 0, 'c', 0};
-      static uint8_t USBD_SERIAL[34] = {
-          34,
+      static uint8_t USBD_SERIAL[26] = {
+          26,
           0x03,
       };
 
@@ -617,7 +621,7 @@ namespace usb
       {
         // read out this chips unique serial number and create device id using it
         mtl::IntToUnicode((*(uint32_t *)0x1FFFF7E8) + (*(uint32_t *)0x1FFFF7F0), (USBD_SERIAL + 2), 8);
-        mtl::IntToUnicode((*(uint32_t *)0x1FFFF7EC), (USBD_SERIAL + 18), 8);
+        mtl::IntToUnicode((*(uint32_t *)0x1FFFF7EC), (USBD_SERIAL + 18), 4);
         //mtl::IntToUnicode((*(uint32_t *)0x1FFFF7F0), (USBD_SERIAL + 34), 8);
       }
 
@@ -1095,28 +1099,163 @@ extern "C"
 #endif // STM32f103
 #ifdef STM32F401xC
 
-#include "../cube_usb_cdc/usb_device.h"
+#include "../cube_usb_cdc/usbd_core.h"
+#include "../cube_usb_cdc/usbd_desc.h"
+#include "../cube_usb_cdc/usbd_cdc.h"
+
+extern "C"
+{
+  USBD_HandleTypeDef hUsbDeviceFS;
+  extern uint8_t *USBD_CDC_GetFSCfgDesc(uint16_t *length);
+  int8_t CDC_Init_FS(void);
+  int8_t CDC_DeInit_FS(void);
+  int8_t CDC_Control_FS(uint8_t cmd, uint8_t *pbuf, uint16_t length);
+  int8_t CDC_Receive_FS(uint8_t *Buf, uint32_t *Len);
+  void CDC_Transmit_FS(uint8_t *Buf, uint16_t Len);
+  int8_t CDC_TransmitCplt_FS(uint8_t *Buf, uint32_t *Len, uint8_t epnum);
+}
+
+int8_t CDC_Init_FS(void)
+{
+  usb_cdc_handle.TxBuffer = 0;
+  usb_cdc_handle.TxLength = 0;
+  usb_cdc_handle.RxBuffer = (uint8_t *)usb::packetbuffer;
+  return USBD_OK;
+}
+
+int8_t CDC_DeInit_FS(void)
+{
+  return USBD_OK;
+}
+
+int8_t CDC_Control_FS(uint8_t cmd, uint8_t *pbuf, uint16_t length)
+{
+  static USBD_CDC_LineCodingTypeDef _lineencoding = {9600, 0, 0, 8};
+  switch (cmd)
+  {
+  case CDC_SEND_ENCAPSULATED_COMMAND:
+    break;
+  case CDC_GET_ENCAPSULATED_RESPONSE:
+    break;
+  case CDC_SET_COMM_FEATURE:
+    break;
+  case CDC_GET_COMM_FEATURE:
+    break;
+  case CDC_CLEAR_COMM_FEATURE:
+    break;
+    /*******************************************************************************/
+    /* Line Coding Structure                                                       */
+    /*-----------------------------------------------------------------------------*/
+    /* Offset | Field       | Size | Value  | Description                          */
+    /* 0      | dwDTERate   |   4  | Number |Data terminal rate, in bits per second*/
+    /* 4      | bCharFormat |   1  | Number | Stop bits                            */
+    /*                                        0 - 1 Stop bit                       */
+    /*                                        1 - 1.5 Stop bits                    */
+    /*                                        2 - 2 Stop bits                      */
+    /* 5      | bParityType |  1   | Number | Parity                               */
+    /*                                        0 - None                             */
+    /*                                        1 - Odd                              */
+    /*                                        2 - Even                             */
+    /*                                        3 - Mark                             */
+    /*                                        4 - Space                            */
+    /* 6      | bDataBits  |   1   | Number Data bits (5, 6, 7, 8 or 16).          */
+    /*******************************************************************************/
+  case CDC_SET_LINE_CODING:
+    memcpy(&_lineencoding, pbuf, length);
+    break;
+  case CDC_GET_LINE_CODING:
+    memcpy(pbuf, &_lineencoding, length);
+    break;
+  case CDC_SET_CONTROL_LINE_STATE:
+    break;
+  case CDC_SEND_BREAK:
+    break;
+  default:
+    break;
+  }
+  return USBD_OK;
+}
+
+/**
+  * @brief  Data received over USB OUT endpoint are sent over CDC interface
+  *         through this function.
+  *
+  *         @note
+  *         This function will block any OUT packet reception on USB endpoint
+  *         untill exiting this function. If you exit this function before transfer
+  *         is complete on CDC interface (ie. using DMA controller) it will result
+  *         in receiving more data while previous ones are still not sent.
+  *
+  * @param  Buf: Buffer of data to be received
+  * @param  Len: Number of data received (in bytes)
+  * @retval Result of the operation: USBD_OK if all operations are OK else USBD_FAIL
+  */
+int8_t CDC_Receive_FS(uint8_t *Buf, uint32_t *Len)
+{
+  (void)Len;
+  usb_cdc_handle.RxBuffer = (uint8_t *)usb::packetbuffer;
+  (void)USBD_LL_PrepareReceive(CDC_OUT_EP, &Buf[0], CDC_DATA_FS_OUT_PACKET_SIZE);
+  return USBD_OK;
+}
+
+/**
+  * @brief  CDC_Transmit_FS
+  *         Data to send over USB IN endpoint are sent over CDC interface
+  *         through this function.
+  *         @note
+  *
+  *
+  * @param  Buf: Buffer of data to be sent
+  * @param  Len: Number of data to be sent (in bytes)
+  * @retval USBD_OK if all operations are OK else USBD_FAIL or USBD_BUSY
+  */
+void CDC_Transmit_FS(const uint8_t *Buf, uint16_t Len)
+{
+  usb_cdc_handle.TxBuffer = Buf;
+  usb_cdc_handle.TxLength = Len;
+
+  /* Tx Transfer in progress */
+  usb_cdc_handle.TxState = 1U;
+
+  /* Update the packet total length */
+  hUsbDeviceFS.ep_in[CDC_IN_EP & 0xFU].total_length = Len;
+
+  /* Transmit next packet */
+  HAL_PCD_EP_Transmit(CDC_IN_EP, Buf, Len);
+}
+
+/**
+  * @brief  CDC_TransmitCplt_FS
+  *         Data transmited callback
+  *
+  *         @note
+  *         This function is IN transfer complete callback used to inform user that
+  *         the submitted Data is successfully sent over USB.
+  *
+  * @param  Buf: Buffer of data to be received
+  * @param  Len: Number of data received (in bytes)
+  * @retval Result of the operation: USBD_OK if all operations are OK else USBD_FAIL
+  */
+int8_t CDC_TransmitCplt_FS(uint8_t *Buf, uint32_t *Len, uint8_t epnum)
+{
+  /* USER CODE BEGIN 13 */
+  UNUSED(Buf);
+  UNUSED(Len);
+  UNUSED(epnum);
+  /* USER CODE END 13 */
+  return USBD_OK;
+}
 
 void UsbRpc::init()
 {
   RCC->AHB2ENR |= RCC_AHB2ENR_OTGFSEN;
-  // usb::mem->buffer_table[0].setTX(usb::mem->buffer_ctrl_ep);
-  // usb::mem->buffer_table[0].setRx(usb::mem->buffer_ctrl_ep, usb::max_packet);
-  // usb::mem->buffer_table[1].setTX(usb::mem->buffer_cdc_in_0);
-  // usb::mem->buffer_table[1].setRx(usb::mem->buffer_cdc_out_0, usb::max_packet);
-  // usb::mem->temp_address = 0;  // no address
-  // usb::mem->usb_status = 0x01; // self powered
-  // usb::mem->usb_config = 0;    // not configured
-  // usb::mem->data_rx_off = 0;   // rx is ready after startup, mailbox empty
-  // usb::mem->ctrl_opcode = 0xFF;
-  // usb::Device::Descriptor::init();
-  // // setup the eventset
-  // usb::sig_tx_ready.init();
-  // // setup incoming packet buffer
-  // Handler::_mailbox.init();
-  // Handler::_mailbox.reserve((Packet **)&usb::packetbuffer);
-  // *usb::packetbuffer = 0;                     // make sure to completely wipe packetheader
-  // usb::mem->buffer_state[1].rx_remaining = 0; // fresh packet
+  // setup the eventset
+  usb::sig_tx_ready.init();
+  // setup incoming packet buffer
+  Handler::_mailbox.init();
+  Handler::_mailbox.reserve((Packet **)&usb::packetbuffer);
+  *usb::packetbuffer = 0; // make sure to completely wipe packetheader
+  usb::packetbuffer_rx_remaining = 0;
   /**USB_OTG_FS GPIO Configuration    
     PA11     ------> USB_OTG_FS_DM
     PA12     ------> USB_OTG_FS_DP 
@@ -1127,31 +1266,60 @@ void UsbRpc::init()
   pin_dp.mode(Gpio::out_alt_push_pull, Gpio::MHz_100, Gpio::OTG_FS);
   // set irq priority highest possible with beeing able to call free rtos functions
   Core::enable_isr(OTG_FS_IRQn, 8);
+
   // initialize USB using cube mx firmware
-  MX_USB_DEVICE_Init();
+  if (USBD_Init(&FS_Desc) != USBD_OK)
+  {
+    OS_ASSERT(true == false, ERR_CUBE_HAL_SUCKS);
+  }
+
+  HAL_PCD_Start();
 }
+
+// blocks until the buffer was written, or until timeout, if non-zero
+bool UsbRpc::write(const uint8_t *data, uint16_t size, uint32_t timeout)
+{
+  if (timeout != 0)
+  {
+    if (!usb::sig_tx_ready.wait(timeout))
+    {
+      return false;
+    }
+  }
+  else
+  {
+    usb::sig_tx_ready.wait();
+  }
+  CDC_Transmit_FS(data, size);
+  return true;
+}
+
+void UsbRpc::_enable_rx()
+{
+//  if (usb::mem->data_rx_off != 0 && usb::packetbuffer == 0)
+//  {
+//    if (Handler::_mailbox.try_reserve((Packet **)&usb::packetbuffer))
+//    {
+//      usb::mem->data_rx_off = 0;
+//      set_rx_stat(&USB->EP1R, usb::lowlevel::eValid);
+//    }
+//  }
+}
+
 
 extern "C"
 {
-  extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
-/**
-  * @brief This function handles USB On The Go FS global interrupt.
-  */
-void OTG_FS_IRQHandler(void)
-{
-  /* USER CODE BEGIN OTG_FS_IRQn 0 */
+  void OTG_FS_IRQHandler(void)
+  {
+    Core::enter_isr();
+    HAL_PCD_IRQHandler();
+    Core::leave_isr();
+  }
 
-  /* USER CODE END OTG_FS_IRQn 0 */
-  HAL_PCD_IRQHandler(&hpcd_USB_OTG_FS);
-  /* USER CODE BEGIN OTG_FS_IRQn 1 */
-
-  /* USER CODE END OTG_FS_IRQn 1 */
-}
-
-void Error_Handler(void)
-{
-  OS_ASSERT(true == false, ERR_CUBE_HAL_SUCKS);
-}
+  void Error_Handler(void)
+  {
+    OS_ASSERT(true == false, ERR_CUBE_HAL_SUCKS);
+  }
 }
 #endif // STM32F401xC
 #endif // enable USBRPC

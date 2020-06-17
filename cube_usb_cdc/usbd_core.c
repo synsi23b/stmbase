@@ -20,63 +20,14 @@
 /* Includes ------------------------------------------------------------------*/
 #include "usbd_core.h"
 
-/** @addtogroup STM32_USBD_DEVICE_LIBRARY
-* @{
-*/
 
-
-/** @defgroup USBD_CORE
-* @brief usbd core module
-* @{
-*/
-
-/** @defgroup USBD_CORE_Private_TypesDefinitions
-* @{
-*/
-
-/**
-* @}
-*/
-
-
-/** @defgroup USBD_CORE_Private_Defines
-* @{
-*/
-
-/**
-* @}
-*/
-
-
-/** @defgroup USBD_CORE_Private_Macros
-* @{
-*/
-
-/**
-* @}
-*/
-
-
-/** @defgroup USBD_CORE_Private_FunctionPrototypes
-* @{
-*/
-
-/**
-* @}
-*/
-
-/** @defgroup USBD_CORE_Private_Variables
-* @{
-*/
-
-/**
-* @}
-*/
-
-
-/** @defgroup USBD_CORE_Private_Functions
-* @{
-*/
+extern uint8_t USBD_CDC_Init(uint8_t cfgidx);
+extern uint8_t USBD_CDC_DeInit(uint8_t cfgidx);
+extern uint8_t USBD_CDC_Setup(USBD_SetupReqTypedef *req);
+extern uint8_t USBD_CDC_DataIn(uint8_t epnum);
+extern uint8_t USBD_CDC_DataOut(uint8_t epnum);
+extern uint8_t USBD_CDC_EP0_RxReady();
+extern uint8_t *USBD_CDC_GetFSCfgDesc(uint16_t *length);
 
 /**
 * @brief  USBD_Init
@@ -86,43 +37,21 @@
 * @param  id: Low level core index
 * @retval None
 */
-USBD_StatusTypeDef USBD_Init(USBD_HandleTypeDef *pdev,
-                             USBD_DescriptorsTypeDef *pdesc, uint8_t id)
+USBD_StatusTypeDef USBD_Init(USBD_DescriptorsTypeDef *pdesc)
 {
   USBD_StatusTypeDef ret;
-
-  /* Check whether the USB Host handle is valid */
-  if (pdev == NULL)
-  {
-#if (USBD_DEBUG_LEVEL > 1U)
-    USBD_ErrLog("Invalid Device handle");
-#endif
-    return USBD_FAIL;
-  }
-
-  /* Unlink previous class */
-  if (pdev->pClass != NULL)
-  {
-    pdev->pClass = NULL;
-  }
-
-  if (pdev->pConfDesc != NULL)
-  {
-    pdev->pConfDesc = NULL;
-  }
 
   /* Assign USBD Descriptors */
   if (pdesc != NULL)
   {
-    pdev->pDesc = pdesc;
+    hUsbDeviceFS.pDesc = pdesc;
   }
 
   /* Set Device initial State */
-  pdev->dev_state = USBD_STATE_DEFAULT;
-  pdev->id = id;
+  hUsbDeviceFS.dev_state = USBD_STATE_DEFAULT;
 
   /* Initialize low level driver */
-  ret = USBD_LL_Init(pdev);
+  ret = USBD_LL_Init();
 
   return ret;
 }
@@ -133,26 +62,17 @@ USBD_StatusTypeDef USBD_Init(USBD_HandleTypeDef *pdev,
 * @param  pdev: device instance
 * @retval status: status
 */
-USBD_StatusTypeDef USBD_DeInit(USBD_HandleTypeDef *pdev)
+USBD_StatusTypeDef USBD_DeInit()
 {
   USBD_StatusTypeDef ret;
 
   /* Set Default State */
-  pdev->dev_state = USBD_STATE_DEFAULT;
+  hUsbDeviceFS.dev_state = USBD_STATE_DEFAULT;
 
-  /* Free Class Resources */
-  if (pdev->pClass != NULL)
-  {
-    pdev->pClass->DeInit(pdev, (uint8_t)pdev->dev_config);
-  }
-
-  if (pdev->pConfDesc != NULL)
-  {
-    pdev->pConfDesc = NULL;
-  }
-
+  USBD_CDC_DeInit((uint8_t)hUsbDeviceFS.dev_config);
+ 
   /* Stop the low level driver  */
-  ret = USBD_LL_Stop(pdev);
+  ret = USBD_LL_Stop();
 
   if (ret != USBD_OK)
   {
@@ -160,7 +80,7 @@ USBD_StatusTypeDef USBD_DeInit(USBD_HandleTypeDef *pdev)
   }
 
   /* Initialize low level driver */
-  ret = USBD_LL_DeInit(pdev);
+  ret = USBD_LL_DeInit();
 
   return ret;
 }
@@ -172,7 +92,7 @@ USBD_StatusTypeDef USBD_DeInit(USBD_HandleTypeDef *pdev)
   * @param  pclass: Class handle
   * @retval USBD Status
   */
-// USBD_StatusTypeDef USBD_RegisterClass(USBD_HandleTypeDef *pdev, USBD_ClassTypeDef *pclass)
+// USBD_StatusTypeDef USBD_RegisterClass(, USBD_ClassTypeDef *pclass)
 // {
 //   uint16_t len = 0U;
 
@@ -185,13 +105,13 @@ USBD_StatusTypeDef USBD_DeInit(USBD_HandleTypeDef *pdev)
 //   }
 
 //   /* link the class to the USB Device handle */
-//   pdev->pClass = pclass;
+//   hUsbDeviceFS.pClass = pclass;
 
 //   /* Get Device Configuration Descriptor */
 // #ifdef USE_USB_FS
-//   pdev->pConfDesc = (void *)pdev->pClass->GetFSConfigDescriptor(&len);
+//   hUsbDeviceFS.pConfDesc = (void *)hUsbDeviceFS.pClass->GetFSConfigDescriptor(&len);
 // #else /* USE_USB_HS */
-//   pdev->pConfDesc = (void *)pdev->pClass->GetHSConfigDescriptor(&len);
+//   hUsbDeviceFS.pConfDesc = (void *)hUsbDeviceFS.pClass->GetHSConfigDescriptor(&len);
 // #endif /* USE_USB_FS */
 
 
@@ -204,10 +124,10 @@ USBD_StatusTypeDef USBD_DeInit(USBD_HandleTypeDef *pdev)
   * @param  pdev: Device Handle
   * @retval USBD Status
   */
-// USBD_StatusTypeDef USBD_Start(USBD_HandleTypeDef *pdev)
+// USBD_StatusTypeDef USBD_Start()
 // {
 //   /* Start the low level driver  */
-//   return USBD_LL_Start(pdev);
+//   return USBD_LL_Start();
 // }
 
 /**
@@ -216,23 +136,16 @@ USBD_StatusTypeDef USBD_DeInit(USBD_HandleTypeDef *pdev)
   * @param  pdev: Device Handle
   * @retval USBD Status
   */
-USBD_StatusTypeDef USBD_Stop(USBD_HandleTypeDef *pdev)
+USBD_StatusTypeDef USBD_Stop()
 {
   USBD_StatusTypeDef ret;
 
-  /* Free Class Resources */
-  if (pdev->pClass != NULL)
-  {
-    pdev->pClass->DeInit(pdev, (uint8_t)pdev->dev_config);
-  }
 
-  if (pdev->pConfDesc != NULL)
-  {
-    pdev->pConfDesc = NULL;
-  }
+  USBD_CDC_DeInit((uint8_t)hUsbDeviceFS.dev_config);
+
 
   /* Stop the low level driver */
-  ret = USBD_LL_Stop(pdev);
+  ret = USBD_LL_Stop();
 
   return ret;
 }
@@ -243,10 +156,8 @@ USBD_StatusTypeDef USBD_Stop(USBD_HandleTypeDef *pdev)
 * @param  pdev: device instance
 * @retval status
 */
-USBD_StatusTypeDef USBD_RunTestMode(USBD_HandleTypeDef  *pdev)
+USBD_StatusTypeDef USBD_RunTestMode()
 {
-  /* Prevent unused argument compilation warning */
-  UNUSED(pdev);
 
   return USBD_OK;
 }
@@ -259,15 +170,11 @@ USBD_StatusTypeDef USBD_RunTestMode(USBD_HandleTypeDef  *pdev)
 * @retval status
 */
 
-USBD_StatusTypeDef USBD_SetClassConfig(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
+USBD_StatusTypeDef USBD_SetClassConfig(uint8_t cfgidx)
 {
   USBD_StatusTypeDef ret = USBD_FAIL;
 
-  if (pdev->pClass != NULL)
-  {
-    /* Set configuration and Start the Class */
-    ret = (USBD_StatusTypeDef)pdev->pClass->Init(pdev, cfgidx);
-  }
+  ret = (USBD_StatusTypeDef)USBD_CDC_Init(cfgidx);
 
   return ret;
 }
@@ -279,13 +186,9 @@ USBD_StatusTypeDef USBD_SetClassConfig(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
 * @param  cfgidx: configuration index
 * @retval status: USBD_StatusTypeDef
 */
-USBD_StatusTypeDef USBD_ClrClassConfig(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
+USBD_StatusTypeDef USBD_ClrClassConfig(uint8_t cfgidx)
 {
-  /* Clear configuration and De-initialize the Class process */
-  if (pdev->pClass != NULL)
-  {
-    pdev->pClass->DeInit(pdev, cfgidx);
-  }
+  USBD_CDC_DeInit(cfgidx);
 
   return USBD_OK;
 }
@@ -297,32 +200,32 @@ USBD_StatusTypeDef USBD_ClrClassConfig(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
 * @param  pdev: device instance
 * @retval status
 */
-USBD_StatusTypeDef USBD_LL_SetupStage(USBD_HandleTypeDef *pdev, uint8_t *psetup)
+USBD_StatusTypeDef USBD_LL_SetupStage(uint8_t *psetup)
 {
   USBD_StatusTypeDef ret;
 
-  USBD_ParseSetupRequest(&pdev->request, psetup);
+  USBD_ParseSetupRequest(&hUsbDeviceFS.request, psetup);
 
-  pdev->ep0_state = USBD_EP0_SETUP;
+  hUsbDeviceFS.ep0_state = USBD_EP0_SETUP;
 
-  pdev->ep0_data_len = pdev->request.wLength;
+  hUsbDeviceFS.ep0_data_len = hUsbDeviceFS.request.wLength;
 
-  switch (pdev->request.bmRequest & 0x1FU)
+  switch (hUsbDeviceFS.request.bmRequest & 0x1FU)
   {
     case USB_REQ_RECIPIENT_DEVICE:
-      ret = USBD_StdDevReq(pdev, &pdev->request);
+      ret = USBD_StdDevReq(&hUsbDeviceFS.request);
       break;
 
     case USB_REQ_RECIPIENT_INTERFACE:
-      ret = USBD_StdItfReq(pdev, &pdev->request);
+      ret = USBD_StdItfReq(&hUsbDeviceFS.request);
       break;
 
     case USB_REQ_RECIPIENT_ENDPOINT:
-      ret = USBD_StdEPReq(pdev, &pdev->request);
+      ret = USBD_StdEPReq(&hUsbDeviceFS.request);
       break;
 
     default:
-      ret = USBD_LL_StallEP(pdev, (pdev->request.bmRequest & 0x80U));
+      ret = HAL_PCD_EP_SetStall((hUsbDeviceFS.request.bmRequest & 0x80U));
       break;
   }
 
@@ -336,52 +239,49 @@ USBD_StatusTypeDef USBD_LL_SetupStage(USBD_HandleTypeDef *pdev, uint8_t *psetup)
 * @param  epnum: endpoint index
 * @retval status
 */
-USBD_StatusTypeDef USBD_LL_DataOutStage(USBD_HandleTypeDef *pdev,
-                                        uint8_t epnum, uint8_t *pdata)
+USBD_StatusTypeDef USBD_LL_DataOutStage(uint8_t epnum, uint8_t *pdata)
 {
   USBD_EndpointTypeDef *pep;
   //USBD_StatusTypeDef ret;
 
   if (epnum == 0U)
   {
-    pep = &pdev->ep_out[0];
+    pep = &hUsbDeviceFS.ep_out[0];
 
-    if (pdev->ep0_state == USBD_EP0_DATA_OUT)
+    if (hUsbDeviceFS.ep0_state == USBD_EP0_DATA_OUT)
     {
       if (pep->rem_length > pep->maxpacket)
       {
         pep->rem_length -= pep->maxpacket;
 
-        (void)USBD_CtlContinueRx(pdev, pdata, MIN(pep->rem_length, pep->maxpacket));
+        USBD_CtlContinueRx(pdata, MIN(pep->rem_length, pep->maxpacket));
       }
       else
       {
-        if ((pdev->pClass->EP0_RxReady != NULL) &&
-            (pdev->dev_state == USBD_STATE_CONFIGURED))
+        if (hUsbDeviceFS.dev_state == USBD_STATE_CONFIGURED)
         {
-          pdev->pClass->EP0_RxReady(pdev);
+          USBD_CDC_EP0_RxReady();
         }
-        (void)USBD_CtlSendStatus(pdev);
+        USBD_CtlSendStatus();
       }
     }
     else
     {
 #if 0
-      if (pdev->ep0_state == USBD_EP0_STATUS_OUT)
+      if (hUsbDeviceFS.ep0_state == USBD_EP0_STATUS_OUT)
       {
         /*
          * STATUS PHASE completed, update ep0_state to idle
          */
-        pdev->ep0_state = USBD_EP0_IDLE;
-        (void)USBD_LL_StallEP(pdev, 0U);
+        hUsbDeviceFS.ep0_state = USBD_EP0_IDLE;
+        USBD_LL_StallEP(0U);
       }
 #endif
     }
   }
-  else if ((pdev->pClass->DataOut != NULL) &&
-           (pdev->dev_state == USBD_STATE_CONFIGURED))
+  else if (hUsbDeviceFS.dev_state == USBD_STATE_CONFIGURED)
   {
-    (USBD_StatusTypeDef)pdev->pClass->DataOut(pdev, epnum);
+    USBD_CDC_DataOut(epnum);
 
     // nobody checks returns here, its an interrupt..
     // if (ret != USBD_OK)
@@ -405,73 +305,71 @@ USBD_StatusTypeDef USBD_LL_DataOutStage(USBD_HandleTypeDef *pdev,
 * @param  epnum: endpoint index
 * @retval status
 */
-USBD_StatusTypeDef USBD_LL_DataInStage(USBD_HandleTypeDef *pdev,
-                                       uint8_t epnum, uint8_t *pdata)
+USBD_StatusTypeDef USBD_LL_DataInStage(uint8_t epnum, uint8_t *pdata)
 {
   USBD_EndpointTypeDef *pep;
   USBD_StatusTypeDef ret;
 
   if (epnum == 0U)
   {
-    pep = &pdev->ep_in[0];
+    pep = &hUsbDeviceFS.ep_in[0];
 
-    if (pdev->ep0_state == USBD_EP0_DATA_IN)
+    if (hUsbDeviceFS.ep0_state == USBD_EP0_DATA_IN)
     {
       if (pep->rem_length > pep->maxpacket)
       {
         pep->rem_length -= pep->maxpacket;
 
-        (void)USBD_CtlContinueSendData(pdev, pdata, pep->rem_length);
+        USBD_CtlContinueSendData(pdata, pep->rem_length);
 
         /* Prepare endpoint for premature end of transfer */
-       (void)USBD_LL_PrepareReceive(pdev, 0U, NULL, 0U);
+       USBD_LL_PrepareReceive(0U, NULL, 0U);
       }
       else
       {
         /* last packet is MPS multiple, so send ZLP packet */
         if ((pep->maxpacket == pep->rem_length) &&
             (pep->total_length >= pep->maxpacket) &&
-            (pep->total_length < pdev->ep0_data_len))
+            (pep->total_length < hUsbDeviceFS.ep0_data_len))
         {
-          (void)USBD_CtlContinueSendData(pdev, NULL, 0U);
-          pdev->ep0_data_len = 0U;
+          USBD_CtlContinueSendData(NULL, 0U);
+          hUsbDeviceFS.ep0_data_len = 0U;
 
           /* Prepare endpoint for premature end of transfer */
-          (void)USBD_LL_PrepareReceive(pdev, 0U, NULL, 0U);
+          USBD_LL_PrepareReceive(0U, NULL, 0U);
         }
         else
         {
-          if ((pdev->pClass->EP0_TxSent != NULL) &&
-              (pdev->dev_state == USBD_STATE_CONFIGURED))
-          {
-            pdev->pClass->EP0_TxSent(pdev);
-          }
-          (void)USBD_LL_StallEP(pdev, 0x80U);
-          (void)USBD_CtlReceiveStatus(pdev);
+          // if ((hUsbDeviceFS.pClass->EP0_TxSent != NULL) &&
+          //     (hUsbDeviceFS.dev_state == USBD_STATE_CONFIGURED))
+          // {
+          //   hUsbDeviceFS.pClass->EP0_TxSent();
+          // }
+          HAL_PCD_EP_SetStall(0x80U);
+          USBD_CtlReceiveStatus();
         }
       }
     }
     else
     {
 #if 0
-      if ((pdev->ep0_state == USBD_EP0_STATUS_IN) ||
-          (pdev->ep0_state == USBD_EP0_IDLE))
+      if ((hUsbDeviceFS.ep0_state == USBD_EP0_STATUS_IN) ||
+          (hUsbDeviceFS.ep0_state == USBD_EP0_IDLE))
       {
-        (void)USBD_LL_StallEP(pdev, 0x80U);
+        USBD_LL_StallEP(0x80U);
       }
 #endif
     }
 
-    if (pdev->dev_test_mode == 1U)
+    if (hUsbDeviceFS.dev_test_mode == 1U)
     {
-      (void)USBD_RunTestMode(pdev);
-      pdev->dev_test_mode = 0U;
+      USBD_RunTestMode();
+      hUsbDeviceFS.dev_test_mode = 0U;
     }
   }
-  else if ((pdev->pClass->DataIn != NULL) &&
-           (pdev->dev_state == USBD_STATE_CONFIGURED))
+  else if (hUsbDeviceFS.dev_state == USBD_STATE_CONFIGURED)
   {
-    ret = (USBD_StatusTypeDef)pdev->pClass->DataIn(pdev, epnum);
+    ret = (USBD_StatusTypeDef)USBD_CDC_DataIn(epnum);
 
     if (ret != USBD_OK)
     {
@@ -494,30 +392,30 @@ USBD_StatusTypeDef USBD_LL_DataInStage(USBD_HandleTypeDef *pdev,
 * @retval status
 */
 
-USBD_StatusTypeDef USBD_LL_Reset(USBD_HandleTypeDef *pdev)
+USBD_StatusTypeDef USBD_LL_Reset()
 {
   /* Upon Reset call user call back */
-  pdev->dev_state = USBD_STATE_DEFAULT;
-  pdev->ep0_state = USBD_EP0_IDLE;
-  pdev->dev_config = 0U;
-  pdev->dev_remote_wakeup = 0U;
+  hUsbDeviceFS.dev_state = USBD_STATE_DEFAULT;
+  hUsbDeviceFS.ep0_state = USBD_EP0_IDLE;
+  hUsbDeviceFS.dev_config = 0U;
+  hUsbDeviceFS.dev_remote_wakeup = 0U;
 
-  if (pdev->pClassData != NULL)
+  if (hUsbDeviceFS.pClassData != NULL)
   {
-    pdev->pClass->DeInit(pdev, (uint8_t)pdev->dev_config);
+    USBD_CDC_DeInit((uint8_t)hUsbDeviceFS.dev_config);
   }
 
     /* Open EP0 OUT */
-  (void)USBD_LL_OpenEP(pdev, 0x00U, USBD_EP_TYPE_CTRL, USB_MAX_EP0_SIZE);
-  pdev->ep_out[0x00U & 0xFU].is_used = 1U;
+  USBD_LL_OpenEP(0x00U, USBD_EP_TYPE_CTRL, USB_MAX_EP0_SIZE);
+  hUsbDeviceFS.ep_out[0x00U & 0xFU].is_used = 1U;
 
-  pdev->ep_out[0].maxpacket = USB_MAX_EP0_SIZE;
+  hUsbDeviceFS.ep_out[0].maxpacket = USB_MAX_EP0_SIZE;
 
   /* Open EP0 IN */
-  (void)USBD_LL_OpenEP(pdev, 0x80U, USBD_EP_TYPE_CTRL, USB_MAX_EP0_SIZE);
-  pdev->ep_in[0x80U & 0xFU].is_used = 1U;
+  USBD_LL_OpenEP(0x80U, USBD_EP_TYPE_CTRL, USB_MAX_EP0_SIZE);
+  hUsbDeviceFS.ep_in[0x80U & 0xFU].is_used = 1U;
 
-  pdev->ep_in[0].maxpacket = USB_MAX_EP0_SIZE;
+  hUsbDeviceFS.ep_in[0].maxpacket = USB_MAX_EP0_SIZE;
 
   return USBD_OK;
 }
@@ -528,10 +426,9 @@ USBD_StatusTypeDef USBD_LL_Reset(USBD_HandleTypeDef *pdev)
 * @param  pdev: device instance
 * @retval status
 */
-USBD_StatusTypeDef USBD_LL_SetSpeed(USBD_HandleTypeDef *pdev,
-                                    USBD_SpeedTypeDef speed)
+USBD_StatusTypeDef USBD_LL_SetSpeed(USBD_SpeedTypeDef speed)
 {
-  pdev->dev_speed = speed;
+  hUsbDeviceFS.dev_speed = speed;
 
   return USBD_OK;
 }
@@ -543,10 +440,10 @@ USBD_StatusTypeDef USBD_LL_SetSpeed(USBD_HandleTypeDef *pdev,
 * @retval status
 */
 
-USBD_StatusTypeDef USBD_LL_Suspend(USBD_HandleTypeDef *pdev)
+USBD_StatusTypeDef USBD_LL_Suspend()
 {
-  pdev->dev_old_state = pdev->dev_state;
-  pdev->dev_state = USBD_STATE_SUSPENDED;
+  hUsbDeviceFS.dev_old_state = hUsbDeviceFS.dev_state;
+  hUsbDeviceFS.dev_state = USBD_STATE_SUSPENDED;
 
   return USBD_OK;
 }
@@ -558,11 +455,11 @@ USBD_StatusTypeDef USBD_LL_Suspend(USBD_HandleTypeDef *pdev)
 * @retval status
 */
 
-USBD_StatusTypeDef USBD_LL_Resume(USBD_HandleTypeDef *pdev)
+USBD_StatusTypeDef USBD_LL_Resume()
 {
-  if (pdev->dev_state == USBD_STATE_SUSPENDED)
+  if (hUsbDeviceFS.dev_state == USBD_STATE_SUSPENDED)
   {
-    pdev->dev_state = pdev->dev_old_state;
+    hUsbDeviceFS.dev_state = hUsbDeviceFS.dev_old_state;
   }
 
   return USBD_OK;
@@ -575,15 +472,15 @@ USBD_StatusTypeDef USBD_LL_Resume(USBD_HandleTypeDef *pdev)
 * @retval status
 */
 
-USBD_StatusTypeDef USBD_LL_SOF(USBD_HandleTypeDef *pdev)
+USBD_StatusTypeDef USBD_LL_SOF()
 {
-  if (pdev->dev_state == USBD_STATE_CONFIGURED)
-  {
-    if (pdev->pClass->SOF != NULL)
-    {
-      pdev->pClass->SOF(pdev);
-    }
-  }
+  // if (hUsbDeviceFS.dev_state == USBD_STATE_CONFIGURED)
+  // {
+  //   if (hUsbDeviceFS.pClass->SOF != NULL)
+  //   {
+  //     hUsbDeviceFS.pClass->SOF();
+  //   }
+  // }
 
   return USBD_OK;
 }
@@ -594,11 +491,9 @@ USBD_StatusTypeDef USBD_LL_SOF(USBD_HandleTypeDef *pdev)
 * @param  pdev: device instance
 * @retval status
 */
-USBD_StatusTypeDef USBD_LL_IsoINIncomplete(USBD_HandleTypeDef *pdev,
-                                           uint8_t epnum)
+USBD_StatusTypeDef USBD_LL_IsoINIncomplete(uint8_t epnum)
 {
   /* Prevent unused arguments compilation warning */
-  UNUSED(pdev);
   UNUSED(epnum);
 
   return USBD_OK;
@@ -610,11 +505,9 @@ USBD_StatusTypeDef USBD_LL_IsoINIncomplete(USBD_HandleTypeDef *pdev,
 * @param  pdev: device instance
 * @retval status
 */
-USBD_StatusTypeDef USBD_LL_IsoOUTIncomplete(USBD_HandleTypeDef *pdev,
-                                            uint8_t epnum)
+USBD_StatusTypeDef USBD_LL_IsoOUTIncomplete(uint8_t epnum)
 {
   /* Prevent unused arguments compilation warning */
-  UNUSED(pdev);
   UNUSED(epnum);
 
   return USBD_OK;
@@ -626,10 +519,9 @@ USBD_StatusTypeDef USBD_LL_IsoOUTIncomplete(USBD_HandleTypeDef *pdev,
 * @param  pdev: device instance
 * @retval status
 */
-USBD_StatusTypeDef USBD_LL_DevConnected(USBD_HandleTypeDef *pdev)
+USBD_StatusTypeDef USBD_LL_DevConnected()
 {
   /* Prevent unused argument compilation warning */
-  UNUSED(pdev);
 
   return USBD_OK;
 }
@@ -640,15 +532,12 @@ USBD_StatusTypeDef USBD_LL_DevConnected(USBD_HandleTypeDef *pdev)
 * @param  pdev: device instance
 * @retval status
 */
-USBD_StatusTypeDef USBD_LL_DevDisconnected(USBD_HandleTypeDef *pdev)
+USBD_StatusTypeDef USBD_LL_DevDisconnected()
 {
   /* Free Class Resources */
-  pdev->dev_state = USBD_STATE_DEFAULT;
+  hUsbDeviceFS.dev_state = USBD_STATE_DEFAULT;
 
-  if (pdev->pClass != NULL)
-  {
-    pdev->pClass->DeInit(pdev, (uint8_t)pdev->dev_config);
-  }
+  USBD_CDC_DeInit((uint8_t)hUsbDeviceFS.dev_config);
 
   return USBD_OK;
 }

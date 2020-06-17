@@ -7,7 +7,7 @@ current_milli_time = lambda: int(round(time.time() * 1000))
 current_micro_time = lambda: int(round(time.time()))
 import sys
 
-ph = usb.PacketHandler("/dev/ttyACM0")
+ph = usb.PacketHandler("COM3")
 
 start = current_milli_time()
 

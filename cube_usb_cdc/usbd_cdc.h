@@ -26,7 +26,8 @@ extern "C" {
 #endif
 
 /* Includes ------------------------------------------------------------------*/
-#include  "usbd_ioreq.h"
+//#include  "usbd_ioreq.h"
+#include "usbd_def.h"
 
 /** @addtogroup STM32_USB_DEVICE_LIBRARY
   * @{
@@ -114,7 +115,7 @@ typedef struct
   uint8_t  CmdOpCode;
   uint8_t  CmdLength;
   uint8_t  *RxBuffer;
-  uint8_t  *TxBuffer;
+  const uint8_t  *TxBuffer;
   uint32_t RxLength;
   uint32_t TxLength;
 
@@ -136,9 +137,9 @@ typedef struct
   * @{
   */
 
-extern USBD_ClassTypeDef USBD_CDC;
+//extern USBD_ClassTypeDef USBD_CDC;
 extern USBD_CDC_HandleTypeDef usb_cdc_handle;
-#define USBD_CDC_CLASS &USBD_CDC
+//#define USBD_CDC_CLASS &USBD_CDC
 /**
   * @}
   */
@@ -146,18 +147,25 @@ extern USBD_CDC_HandleTypeDef usb_cdc_handle;
 /** @defgroup USB_CORE_Exported_Functions
   * @{
   */
-uint8_t USBD_CDC_RegisterInterface(USBD_HandleTypeDef *pdev,
-                                   USBD_CDC_ItfTypeDef *fops);
+uint8_t USBD_CDC_RegisterInterface(USBD_CDC_ItfTypeDef *fops);
 
-uint8_t USBD_CDC_SetTxBuffer(USBD_HandleTypeDef *pdev, uint8_t *pbuff,
-                             uint32_t length);
+uint8_t USBD_CDC_SetTxBuffer(uint32_t length);
 
-uint8_t USBD_CDC_SetRxBuffer(USBD_HandleTypeDef *pdev, uint8_t *pbuff);
-uint8_t USBD_CDC_ReceivePacket(USBD_HandleTypeDef *pdev);
-uint8_t USBD_CDC_TransmitPacket(USBD_HandleTypeDef *pdev);
+uint8_t USBD_CDC_SetRxBuffer(uint8_t *pbuff);
+uint8_t USBD_CDC_ReceivePacket();
+uint8_t USBD_CDC_TransmitPacket();
 /**
   * @}
   */
+
+uint8_t USBD_CDC_Init(uint8_t cfgidx);
+uint8_t USBD_CDC_DeInit(uint8_t cfgidx);
+uint8_t USBD_CDC_Setup(USBD_SetupReqTypedef *req);
+uint8_t USBD_CDC_DataIn(uint8_t epnum);
+uint8_t USBD_CDC_DataOut(uint8_t epnum);
+uint8_t USBD_CDC_EP0_RxReady();
+uint8_t *USBD_CDC_GetFSCfgDesc(uint16_t *length);
+uint8_t *USBD_CDC_GetDeviceQualifierDescriptor(uint16_t *length);
 
 #ifdef __cplusplus
 }

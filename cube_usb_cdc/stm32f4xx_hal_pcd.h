@@ -137,12 +137,18 @@ typedef struct
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 } PCD_HandleTypeDef;
 
+extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
+
 /**
   * @}
   */
 
 /* Include PCD HAL Extended module */
-#include "stm32f4xx_hal_pcd_ex.h"
+//#include "stm32f4xx_hal_pcd_ex.h"
+HAL_StatusTypeDef HAL_PCDEx_SetTxFiFo(uint8_t fifo, uint16_t size);
+HAL_StatusTypeDef HAL_PCDEx_SetRxFiFo(uint16_t size);
+void HAL_PCDEx_LPM_Callback(PCD_LPM_MsgTypeDef msg);
+void HAL_PCDEx_BCD_Callback(PCD_BCD_MsgTypeDef msg);
 
 /* Exported constants --------------------------------------------------------*/
 /** @defgroup PCD_Exported_Constants PCD Exported Constants
@@ -191,20 +197,20 @@ typedef struct
  * @{
  */
 #if defined (USB_OTG_FS) || defined (USB_OTG_HS)
-#define __HAL_PCD_ENABLE(__HANDLE__)                       (void)USB_EnableGlobalInt ((__HANDLE__)->Instance)
-#define __HAL_PCD_DISABLE(__HANDLE__)                      (void)USB_DisableGlobalInt ((__HANDLE__)->Instance)
+#define __HAL_PCD_ENABLE()                       (void)USB_EnableGlobalInt ()
+#define __HAL_PCD_DISABLE()                      (void)USB_DisableGlobalInt ()
 
-#define __HAL_PCD_GET_FLAG(__HANDLE__, __INTERRUPT__)      ((USB_ReadInterrupts((__HANDLE__)->Instance) & (__INTERRUPT__)) == (__INTERRUPT__))
-#define __HAL_PCD_CLEAR_FLAG(__HANDLE__, __INTERRUPT__)    (((__HANDLE__)->Instance->GINTSTS) &=  (__INTERRUPT__))
-#define __HAL_PCD_IS_INVALID_INTERRUPT(__HANDLE__)         (USB_ReadInterrupts((__HANDLE__)->Instance) == 0U)
+#define __HAL_PCD_GET_FLAG(__INTERRUPT__)      ((USB_ReadInterrupts() & (__INTERRUPT__)) == (__INTERRUPT__))
+#define __HAL_PCD_CLEAR_FLAG(__INTERRUPT__)    ((USB_OTG_FS->GINTSTS) &=  (__INTERRUPT__))
+#define __HAL_PCD_IS_INVALID_INTERRUPT()         (USB_ReadInterrupts() == 0U)
 
 
-#define __HAL_PCD_UNGATE_PHYCLOCK(__HANDLE__)             *(__IO uint32_t *)((uint32_t)((__HANDLE__)->Instance) + USB_OTG_PCGCCTL_BASE) &= \
+#define __HAL_PCD_UNGATE_PHYCLOCK()             *(__IO uint32_t *)((uint32_t)(USB_OTG_FS) + USB_OTG_PCGCCTL_BASE) &= \
                                                           ~(USB_OTG_PCGCCTL_STOPCLK)
 
-#define __HAL_PCD_GATE_PHYCLOCK(__HANDLE__)               *(__IO uint32_t *)((uint32_t)((__HANDLE__)->Instance) + USB_OTG_PCGCCTL_BASE) |= USB_OTG_PCGCCTL_STOPCLK
+#define __HAL_PCD_GATE_PHYCLOCK()               *(__IO uint32_t *)((uint32_t)(USB_OTG_FS) + USB_OTG_PCGCCTL_BASE) |= USB_OTG_PCGCCTL_STOPCLK
 
-#define __HAL_PCD_IS_PHY_SUSPENDED(__HANDLE__)            ((*(__IO uint32_t *)((uint32_t)((__HANDLE__)->Instance) + USB_OTG_PCGCCTL_BASE)) & 0x10U)
+#define __HAL_PCD_IS_PHY_SUSPENDED()            ((*(__IO uint32_t *)((uint32_t)(USB_OTG_FS) + USB_OTG_PCGCCTL_BASE)) & 0x10U)
 
 #define __HAL_USB_OTG_HS_WAKEUP_EXTI_ENABLE_IT()    EXTI->IMR |= (USB_OTG_HS_WAKEUP_EXTI_LINE)
 #define __HAL_USB_OTG_HS_WAKEUP_EXTI_DISABLE_IT()   EXTI->IMR &= ~(USB_OTG_HS_WAKEUP_EXTI_LINE)
@@ -242,10 +248,10 @@ typedef struct
 /** @addtogroup PCD_Exported_Functions_Group1 Initialization and de-initialization functions
   * @{
   */
-HAL_StatusTypeDef HAL_PCD_Init(PCD_HandleTypeDef *hpcd);
-HAL_StatusTypeDef HAL_PCD_DeInit(PCD_HandleTypeDef *hpcd);
-void HAL_PCD_MspInit(PCD_HandleTypeDef *hpcd);
-void HAL_PCD_MspDeInit(PCD_HandleTypeDef *hpcd);
+HAL_StatusTypeDef HAL_PCD_Init();
+HAL_StatusTypeDef HAL_PCD_DeInit();
+void HAL_PCD_MspInit();
+void HAL_PCD_MspDeInit();
 
 #if (USE_HAL_PCD_REGISTER_CALLBACKS == 1U)
 /** @defgroup HAL_PCD_Callback_ID_enumeration_definition HAL USB OTG PCD Callback ID enumeration definition
@@ -317,22 +323,22 @@ HAL_StatusTypeDef HAL_PCD_UnRegisterLpmCallback(PCD_HandleTypeDef *hpcd);
 /** @addtogroup PCD_Exported_Functions_Group2 Input and Output operation functions
   * @{
   */
-HAL_StatusTypeDef HAL_PCD_Start(PCD_HandleTypeDef *hpcd);
-HAL_StatusTypeDef HAL_PCD_Stop(PCD_HandleTypeDef *hpcd);
-void HAL_PCD_IRQHandler(PCD_HandleTypeDef *hpcd);
+HAL_StatusTypeDef HAL_PCD_Start();
+HAL_StatusTypeDef HAL_PCD_Stop();
+void HAL_PCD_IRQHandler();
 
-void HAL_PCD_SOFCallback(PCD_HandleTypeDef *hpcd);
-void HAL_PCD_SetupStageCallback(PCD_HandleTypeDef *hpcd);
-void HAL_PCD_ResetCallback(PCD_HandleTypeDef *hpcd);
-void HAL_PCD_SuspendCallback(PCD_HandleTypeDef *hpcd);
-void HAL_PCD_ResumeCallback(PCD_HandleTypeDef *hpcd);
-void HAL_PCD_ConnectCallback(PCD_HandleTypeDef *hpcd);
-void HAL_PCD_DisconnectCallback(PCD_HandleTypeDef *hpcd);
+void HAL_PCD_SOFCallback();
+void HAL_PCD_SetupStageCallback();
+void HAL_PCD_ResetCallback();
+void HAL_PCD_SuspendCallback();
+void HAL_PCD_ResumeCallback();
+void HAL_PCD_ConnectCallback();
+void HAL_PCD_DisconnectCallback();
 
-void HAL_PCD_DataOutStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum);
-void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum);
-void HAL_PCD_ISOOUTIncompleteCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum);
-void HAL_PCD_ISOINIncompleteCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum);
+void HAL_PCD_DataOutStageCallback(uint8_t epnum);
+void HAL_PCD_DataInStageCallback(uint8_t epnum);
+void HAL_PCD_ISOOUTIncompleteCallback(uint8_t epnum);
+void HAL_PCD_ISOINIncompleteCallback(uint8_t epnum);
 /**
   * @}
   */
@@ -341,17 +347,17 @@ void HAL_PCD_ISOINIncompleteCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum);
 /** @addtogroup PCD_Exported_Functions_Group3 Peripheral Control functions
   * @{
   */
-HAL_StatusTypeDef HAL_PCD_DevConnect(PCD_HandleTypeDef *hpcd);
-HAL_StatusTypeDef HAL_PCD_DevDisconnect(PCD_HandleTypeDef *hpcd);
-HAL_StatusTypeDef HAL_PCD_SetAddress(PCD_HandleTypeDef *hpcd, uint8_t address);
-HAL_StatusTypeDef HAL_PCD_EP_Open(PCD_HandleTypeDef *hpcd, uint8_t ep_addr, uint16_t ep_mps, uint8_t ep_type);
-HAL_StatusTypeDef HAL_PCD_EP_Close(PCD_HandleTypeDef *hpcd, uint8_t ep_addr);
-HAL_StatusTypeDef HAL_PCD_EP_Receive(PCD_HandleTypeDef *hpcd, uint8_t ep_addr, uint8_t *pBuf, uint32_t len);
-HAL_StatusTypeDef HAL_PCD_EP_Transmit(PCD_HandleTypeDef *hpcd, uint8_t ep_addr, uint8_t *pBuf, uint32_t len);
-uint32_t          HAL_PCD_EP_GetRxCount(PCD_HandleTypeDef *hpcd, uint8_t ep_addr);
-HAL_StatusTypeDef HAL_PCD_EP_SetStall(PCD_HandleTypeDef *hpcd, uint8_t ep_addr);
-HAL_StatusTypeDef HAL_PCD_EP_ClrStall(PCD_HandleTypeDef *hpcd, uint8_t ep_addr);
-HAL_StatusTypeDef HAL_PCD_EP_Flush(PCD_HandleTypeDef *hpcd, uint8_t ep_addr);
+HAL_StatusTypeDef HAL_PCD_DevConnect();
+HAL_StatusTypeDef HAL_PCD_DevDisconnect();
+HAL_StatusTypeDef HAL_PCD_SetAddress(uint8_t address);
+HAL_StatusTypeDef HAL_PCD_EP_Open(uint8_t ep_addr, uint16_t ep_mps, uint8_t ep_type);
+HAL_StatusTypeDef HAL_PCD_EP_Close(uint8_t ep_addr);
+HAL_StatusTypeDef HAL_PCD_EP_Receive(uint8_t ep_addr, uint8_t *pBuf, uint32_t len);
+HAL_StatusTypeDef HAL_PCD_EP_Transmit(uint8_t ep_addr, const uint8_t *pBuf, uint32_t len);
+uint32_t          HAL_PCD_EP_GetRxCount(uint8_t ep_addr);
+HAL_StatusTypeDef HAL_PCD_EP_SetStall(uint8_t ep_addr);
+HAL_StatusTypeDef HAL_PCD_EP_ClrStall(uint8_t ep_addr);
+HAL_StatusTypeDef HAL_PCD_EP_Flush(uint8_t ep_addr);
 HAL_StatusTypeDef HAL_PCD_ActivateRemoteWakeup();
 HAL_StatusTypeDef HAL_PCD_DeActivateRemoteWakeup();
 /**
@@ -362,7 +368,7 @@ HAL_StatusTypeDef HAL_PCD_DeActivateRemoteWakeup();
 /** @addtogroup PCD_Exported_Functions_Group4 Peripheral State functions
   * @{
   */
-PCD_StateTypeDef HAL_PCD_GetState(PCD_HandleTypeDef *hpcd);
+PCD_StateTypeDef HAL_PCD_GetState();
 /**
   * @}
   */
