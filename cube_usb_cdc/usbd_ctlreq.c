@@ -82,11 +82,11 @@ static uint8_t USBD_GetLen(uint8_t *buf);
 /**
   * @}
   */
-extern uint8_t USBD_CDC_Init(uint8_t cfgidx);
-extern uint8_t USBD_CDC_DeInit(uint8_t cfgidx);
+extern uint8_t USBD_CDC_Init();
+extern void USBD_CDC_DeInit();
 extern uint8_t USBD_CDC_Setup(USBD_SetupReqTypedef *req);
-extern uint8_t USBD_CDC_DataIn(uint8_t epnum);
-extern uint8_t USBD_CDC_DataOut(uint8_t epnum);
+//extern uint8_t USBD_CDC_DataIn(uint8_t epnum);
+extern void USBD_CDC_DataOut();
 extern uint8_t USBD_CDC_EP0_RxReady();
 extern uint8_t *USBD_CDC_GetFSCfgDesc(uint16_t *length);
 
@@ -391,34 +391,13 @@ static void USBD_GetDescriptor(USBD_SetupReqTypedef *req)
 
   switch (req->wValue >> 8)
   {
-#if ((USBD_LPM_ENABLED == 1U) || (USBD_CLASS_BOS_ENABLED == 1U))
-  case USB_DESC_TYPE_BOS:
-    if (hUsbDeviceFS.pDesc->GetBOSDescriptor != NULL)
-    {
-      pbuf = hUsbDeviceFS.pDesc->GetBOSDescriptor(&len);
-    }
-    else
-    {
-      USBD_CtlError(req);
-      err++;
-    }
-    break;
-#endif
   case USB_DESC_TYPE_DEVICE:
     pbuf = hUsbDeviceFS.pDesc->GetDeviceDescriptor(&len);
     break;
 
   case USB_DESC_TYPE_CONFIGURATION:
-    // if (hUsbDeviceFS.dev_speed == USBD_SPEED_HIGH)
-    // {
-    //   pbuf = hUsbDeviceFS.pClass->GetHSConfigDescriptor(&len);
-    //   pbuf[1] = USB_DESC_TYPE_CONFIGURATION;
-    // }
-    // else
-    {
-      pbuf = USBD_CDC_GetFSCfgDesc(&len);
-      pbuf[1] = USB_DESC_TYPE_CONFIGURATION;
-    }
+    pbuf = USBD_CDC_GetFSCfgDesc(&len);
+    pbuf[1] = USB_DESC_TYPE_CONFIGURATION;
     break;
 
   case USB_DESC_TYPE_STRING:

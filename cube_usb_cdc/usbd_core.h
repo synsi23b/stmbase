@@ -85,7 +85,6 @@ USBD_StatusTypeDef USBD_Init(USBD_DescriptorsTypeDef *pdesc);
 USBD_StatusTypeDef USBD_DeInit();
 USBD_StatusTypeDef USBD_Start();
 USBD_StatusTypeDef USBD_Stop();
-USBD_StatusTypeDef USBD_RegisterClass(USBD_ClassTypeDef *pclass);
 
 USBD_StatusTypeDef USBD_RunTestMode();
 USBD_StatusTypeDef USBD_SetClassConfig(uint8_t cfgidx);
@@ -96,7 +95,7 @@ USBD_StatusTypeDef USBD_LL_DataOutStage(uint8_t epnum, uint8_t *pdata);
 USBD_StatusTypeDef USBD_LL_DataInStage(uint8_t epnum, uint8_t *pdata);
 
 USBD_StatusTypeDef USBD_LL_Reset();
-USBD_StatusTypeDef USBD_LL_SetSpeed(USBD_SpeedTypeDef speed);
+//USBD_StatusTypeDef USBD_LL_SetSpeed(USBD_SpeedTypeDef speed);
 USBD_StatusTypeDef USBD_LL_Suspend();
 USBD_StatusTypeDef USBD_LL_Resume();
 

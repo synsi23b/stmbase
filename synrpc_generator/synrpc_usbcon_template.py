@@ -125,7 +125,7 @@ while True:
             if len(buffer) >= plsize + 5:
                 # check if end of packet matches plsize
                 plsrev = buffer[plsize + 4]
-                if (SYNRPC_USBCON_MAX - plsrev) == plsize:
+                if (SYNRPC_MAX_MSGSIZE - plsrev) == plsize:
                     try: # valid packet sizes, check content
                         #msgs = ''.join(buffer[:plsize + 5])
                         msg = _generateMessage(buffer[1], buffer)

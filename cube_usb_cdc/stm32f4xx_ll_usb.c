@@ -81,51 +81,18 @@ static HAL_StatusTypeDef USB_CoreReset();
   *         the configuration information for the specified USBx peripheral.
   * @retval HAL status
   */
-HAL_StatusTypeDef USB_CoreInit(USB_OTG_CfgTypeDef cfg)
+HAL_StatusTypeDef USB_CoreInit()
 {
   HAL_StatusTypeDef ret;
 
-  if (cfg.phy_itface == USB_OTG_ULPI_PHY)
-  {
-    USB_OTG_FS->GCCFG &= ~(USB_OTG_GCCFG_PWRDWN);
+  /* Select FS Embedded PHY */
+  USB_OTG_FS->GUSBCFG |= USB_OTG_GUSBCFG_PHYSEL;
 
-    /* Init The ULPI Interface */
-    USB_OTG_FS->GUSBCFG &= ~(USB_OTG_GUSBCFG_TSDPS | USB_OTG_GUSBCFG_ULPIFSLS | USB_OTG_GUSBCFG_PHYSEL);
+  /* Reset after a PHY select and set Host mode */
+  ret = USB_CoreReset();
 
-    /* Select vbus source */
-    USB_OTG_FS->GUSBCFG &= ~(USB_OTG_GUSBCFG_ULPIEVBUSD | USB_OTG_GUSBCFG_ULPIEVBUSI);
-    if (cfg.use_external_vbus == 1U)
-    {
-      USB_OTG_FS->GUSBCFG |= USB_OTG_GUSBCFG_ULPIEVBUSD;
-    }
-    /* Reset after a PHY select  */
-    ret = USB_CoreReset();
-  }
-  else /* FS interface (embedded Phy) */
-  {
-    /* Select FS Embedded PHY */
-    USB_OTG_FS->GUSBCFG |= USB_OTG_GUSBCFG_PHYSEL;
-
-    /* Reset after a PHY select and set Host mode */
-    ret = USB_CoreReset();
-
-    if (cfg.battery_charging_enable == 0U)
-    {
-      /* Activate the USB Transceiver */
-      USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_PWRDWN;
-    }
-    else
-    {
-      /* Deactivate the USB Transceiver */
-      USB_OTG_FS->GCCFG &= ~(USB_OTG_GCCFG_PWRDWN);
-    }
-  }
-
-  if (cfg.dma_enable == 1U)
-  {
-    USB_OTG_FS->GAHBCFG |= USB_OTG_GAHBCFG_HBSTLEN_2;
-    USB_OTG_FS->GAHBCFG |= USB_OTG_GAHBCFG_DMAEN;
-  }
+  /* Activate the USB Transceiver */
+  USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_PWRDWN;
 
   return ret;
 }
@@ -286,44 +253,16 @@ HAL_StatusTypeDef USB_DevInit(USB_OTG_CfgTypeDef cfg)
   {
     USB_OTG_FS->DIEPTXF[i] = 0U;
   }
-
-#if defined(STM32F446xx) || defined(STM32F469xx) || defined(STM32F479xx) || defined(STM32F412Zx) || defined(STM32F412Vx) || defined(STM32F412Rx) || defined(STM32F412Cx) || defined(STM32F413xx) || defined(STM32F423xx)
   /* VBUS Sensing setup */
-  if (cfg.vbus_sensing_enable == 0U)
-  {
-    USBx_DEVICE->DCTL |= USB_OTG_DCTL_SDIS;
-
-    /* Deactivate VBUS Sensing B */
-    USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
-
-    /* B-peripheral session valid override enable */
-    USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
-    USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
-  }
-  else
-  {
-    /* Enable HW VBUS sensing */
-    USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
-  }
-#else
-  /* VBUS Sensing setup */
-  if (cfg.vbus_sensing_enable == 0U)
-  {
-    /*
+  /*
      * Disable HW VBUS sensing. VBUS is internally considered to be always
      * at VBUS-Valid level (5V).
      */
-    USBx_DEVICE->DCTL |= USB_OTG_DCTL_SDIS;
-    USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_NOVBUSSENS;
-    USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBUSBSEN;
-    USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBUSASEN;
-  }
-  else
-  {
-    /* Enable HW VBUS sensing */
-    USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_NOVBUSSENS;
-    USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBUSBSEN;
-  }
+  USBx_DEVICE->DCTL |= USB_OTG_DCTL_SDIS;
+  USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_NOVBUSSENS;
+  USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBUSBSEN;
+  USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBUSASEN;
+
 #endif /* defined(STM32F446xx) || defined(STM32F469xx) || defined(STM32F479xx) || defined(STM32F412Zx) || defined(STM32F412Vx) || defined(STM32F412Rx) || defined(STM32F412Cx) || defined(STM32F413xx) || defined(STM32F423xx) */
 
   /* Restart the Phy Clock */
@@ -332,24 +271,8 @@ HAL_StatusTypeDef USB_DevInit(USB_OTG_CfgTypeDef cfg)
   /* Device mode configuration */
   USBx_DEVICE->DCFG |= DCFG_FRAME_INTERVAL_80;
 
-  if (cfg.phy_itface == USB_OTG_ULPI_PHY)
-  {
-    if (cfg.speed == USBD_HS_SPEED)
-    {
-      /* Set Core speed to High speed mode */
-      (void)USB_SetDevSpeed(USB_OTG_SPEED_HIGH);
-    }
-    else
-    {
-      /* Set Core speed to Full speed mode */
-      (void)USB_SetDevSpeed(USB_OTG_SPEED_HIGH_IN_FULL);
-    }
-  }
-  else
-  {
-    /* Set Core speed to Full speed mode */
-    (void)USB_SetDevSpeed(USB_OTG_SPEED_FULL);
-  }
+  /* Set Core speed to Full speed mode */
+  USB_SetDevSpeed(USB_OTG_SPEED_FULL);
 
   /* Flush the FIFOs */
   if (USB_FlushTxFifo(0x10U) != HAL_OK) /* all Tx FIFOs */
@@ -367,7 +290,7 @@ HAL_StatusTypeDef USB_DevInit(USB_OTG_CfgTypeDef cfg)
   USBx_DEVICE->DOEPMSK = 0U;
   USBx_DEVICE->DAINTMSK = 0U;
 
-  for (i = 0U; i < cfg.dev_endpoints; i++)
+  for (i = 0U; i < 4; i++)
   {
     if ((USBx_INEP(i)->DIEPCTL & USB_OTG_DIEPCTL_EPENA) == USB_OTG_DIEPCTL_EPENA)
     {
@@ -389,7 +312,7 @@ HAL_StatusTypeDef USB_DevInit(USB_OTG_CfgTypeDef cfg)
     USBx_INEP(i)->DIEPINT = 0xFB7FU;
   }
 
-  for (i = 0U; i < cfg.dev_endpoints; i++)
+  for (i = 0U; i < 4; i++)
   {
     if ((USBx_OUTEP(i)->DOEPCTL & USB_OTG_DOEPCTL_EPENA) == USB_OTG_DOEPCTL_EPENA)
     {
@@ -420,26 +343,13 @@ HAL_StatusTypeDef USB_DevInit(USB_OTG_CfgTypeDef cfg)
   USB_OTG_FS->GINTSTS = 0xBFFFFFFFU;
 
   /* Enable the common interrupts */
-  if (cfg.dma_enable == 0U)
-  {
-    USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_RXFLVLM;
-  }
+  USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_RXFLVLM;
 
   /* Enable interrupts matching to the Device mode ONLY */
   USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_USBSUSPM | USB_OTG_GINTMSK_USBRST |
                          USB_OTG_GINTMSK_ENUMDNEM | USB_OTG_GINTMSK_IEPINT |
                          USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_IISOIXFRM |
                          USB_OTG_GINTMSK_PXFRM_IISOOXFRM | USB_OTG_GINTMSK_WUIM;
-
-  if (cfg.Sof_enable != 0U)
-  {
-    USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_SOFM;
-  }
-
-  if (cfg.vbus_sensing_enable == 1U)
-  {
-    USB_OTG_FS->GINTMSK |= (USB_OTG_GINTMSK_SRQIM | USB_OTG_GINTMSK_OTGINT);
-  }
 
   return ret;
 }
@@ -504,7 +414,6 @@ HAL_StatusTypeDef USB_FlushRxFifo()
   */
 HAL_StatusTypeDef USB_SetDevSpeed(uint8_t speed)
 {
-
 
   USBx_DEVICE->DCFG |= speed;
   return HAL_OK;
@@ -747,7 +656,7 @@ HAL_StatusTypeDef USB_EPStartXfer(USB_OTG_EPTypeDef *ep)
       // USBx_DEVICE->DIEPEMPMSK |= 1UL << (ep->num & EP_ADDR_MSK);
       // instead of interrupt, use the RX buffer, its huge
 #ifdef DEBUG
-      if((USBx_INEP(epnum)->DTXFSTS & USB_OTG_DTXFSTS_INEPTFSAV) < ((ep->xfer_len + 3) / 4))
+      if ((USBx_INEP(epnum)->DTXFSTS & USB_OTG_DTXFSTS_INEPTFSAV) < ((ep->xfer_len + 3) / 4))
       {
         Error_Handler();
       }
@@ -1018,7 +927,6 @@ HAL_StatusTypeDef USB_StopDevice()
 HAL_StatusTypeDef USB_SetDevAddress(uint8_t address)
 {
 
-
   USBx_DEVICE->DCFG &= ~(USB_OTG_DCFG_DAD);
   USBx_DEVICE->DCFG |= ((uint32_t)address << 4) & USB_OTG_DCFG_DAD;
 
@@ -1033,7 +941,6 @@ HAL_StatusTypeDef USB_SetDevAddress(uint8_t address)
 HAL_StatusTypeDef USB_DevConnect()
 {
 
-
   USBx_DEVICE->DCTL &= ~USB_OTG_DCTL_SDIS;
   HAL_Delay(3U);
 
@@ -1047,7 +954,6 @@ HAL_StatusTypeDef USB_DevConnect()
   */
 HAL_StatusTypeDef USB_DevDisconnect()
 {
-
 
   USBx_DEVICE->DCTL |= USB_OTG_DCTL_SDIS;
   HAL_Delay(3U);
@@ -1171,7 +1077,6 @@ uint32_t USB_GetMode()
   */
 HAL_StatusTypeDef USB_ActivateSetup()
 {
-
 
   /* Set the MPS of the IN EP0 to 64 bytes */
   USBx_INEP(0U)->DIEPCTL &= ~USB_OTG_DIEPCTL_MPSIZ;
@@ -1368,7 +1273,6 @@ HAL_StatusTypeDef USB_HostInit(USB_OTG_CfgTypeDef cfg)
 HAL_StatusTypeDef USB_InitFSLSPClkSel(uint8_t freq)
 {
 
-
   USBx_HOST->HCFG &= ~(USB_OTG_HCFG_FSLSPCS);
   USBx_HOST->HCFG |= (uint32_t)freq & USB_OTG_HCFG_FSLSPCS;
 
@@ -1397,7 +1301,6 @@ HAL_StatusTypeDef USB_InitFSLSPClkSel(uint8_t freq)
   */
 HAL_StatusTypeDef USB_ResetPort()
 {
-
 
   __IO uint32_t hprt0 = 0U;
 
@@ -1468,7 +1371,6 @@ uint32_t USB_GetHostSpeed()
 */
 uint32_t USB_GetCurrentFrame()
 {
-
 
   return (USBx_HOST->HFNUM & USB_OTG_HFNUM_FRNUM);
 }
@@ -1620,7 +1522,7 @@ HAL_StatusTypeDef USB_HC_Init(
   */
 // HAL_StatusTypeDef USB_HC_StartXfer( USB_OTG_HCTypeDef *hc, uint8_t dma)
 // {
-// 
+//
 //   uint32_t ch_num = (uint32_t)hc->ch_num;
 //   static __IO uint32_t tmpreg = 0U;
 //   uint8_t  is_oddframe;
@@ -1748,7 +1650,6 @@ HAL_StatusTypeDef USB_HC_Init(
   */
 uint32_t USB_HC_ReadInterrupt()
 {
-
 
   return ((USBx_HOST->HAINT) & 0xFFFFU);
 }
@@ -1905,7 +1806,6 @@ HAL_StatusTypeDef USB_StopHost()
 HAL_StatusTypeDef USB_ActivateRemoteWakeup()
 {
 
-
   if ((USBx_DEVICE->DSTS & USB_OTG_DSTS_SUSPSTS) == USB_OTG_DSTS_SUSPSTS)
   {
     /* active Remote wakeup signalling */
@@ -1923,7 +1823,6 @@ HAL_StatusTypeDef USB_ActivateRemoteWakeup()
 HAL_StatusTypeDef USB_DeActivateRemoteWakeup()
 {
 
-
   /* active Remote wakeup signalling */
   USBx_DEVICE->DCTL &= ~(USB_OTG_DCTL_RWUSIG);
 
@@ -1938,7 +1837,6 @@ HAL_StatusTypeDef USB_DeActivateRemoteWakeup()
 /**
   * @}
   */
-#endif /* defined (USB_OTG_FS) || defined (USB_OTG_HS) */
 #endif /* defined (HAL_PCD_MODULE_ENABLED) || defined (HAL_HCD_MODULE_ENABLED) */
 
 /**

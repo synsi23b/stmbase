@@ -116,7 +116,7 @@ while True:
             inavail = self._serial.in_waiting
             if not inavail:
                 if not buffer: # empty
-                    sleep(0.001)
+                    sleep(0.01)
                     continue
             else:
                 buffer += self._serial.read(inavail)

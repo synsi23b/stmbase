@@ -21,7 +21,7 @@ void UsbRpc::Handler::run()
   Packet *pmsg;
   while (true)
   {
-    _inbox.get_inplace(pmsg);
+    _mailbox.peek(&pmsg);
 #if (SYN_USBRPC_USELED == 1)
     led.on();
     ledtimer.start();
@@ -35,10 +35,11 @@ void UsbRpc::Handler::run()
       pe->write_errormsg(err);
       sendMessage(*pe);
     }
-    bool inbox_full = _inbox.count() == SYN_USBRPC_BUFFSIZE;
-    _inbox.purge();
-    if (inbox_full)
+    bool mailbox_full = _mailbox.is_full();
+    _mailbox.purge();
+    if (mailbox_full)
     {
+      // we purged a message, it's not full anymore
       UsbRpc::_enable_rx();
     }
   }

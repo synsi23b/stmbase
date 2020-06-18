@@ -83,14 +83,14 @@ HAL_StatusTypeDef HAL_PCD_Init()
 
   //USBx = hpcd->Instance;
   hpcd_USB_OTG_FS.State = HAL_PCD_STATE_BUSY;
-  hpcd_USB_OTG_FS.Init.dma_enable = 0U;
+  //hpcd_USB_OTG_FS.Init.dma_enable = 0U;
   
 
   /* Disable the Interrupts */
   __HAL_PCD_DISABLE();
 
   /*Init the Core (common init.) */
-  if (USB_CoreInit(hpcd_USB_OTG_FS.Init) != HAL_OK)
+  if (USB_CoreInit() != HAL_OK)
   {
     hpcd_USB_OTG_FS.State = HAL_PCD_STATE_ERROR;
     return HAL_ERROR;
@@ -100,7 +100,7 @@ HAL_StatusTypeDef HAL_PCD_Init()
   (void)USB_SetCurrentMode(USB_DEVICE_MODE);
 
   /* Init endpoints structures */
-  for (i = 0U; i < 4; i++)
+  for (i = 0U; i < USB_CDC_IN_EP_COUNT; i++)
   {
     /* Init ep structure */
     hpcd_USB_OTG_FS.IN_ep[i].is_in = 1U;
@@ -113,7 +113,7 @@ HAL_StatusTypeDef HAL_PCD_Init()
     hpcd_USB_OTG_FS.IN_ep[i].xfer_len = 0U;
   }
 
-  for (i = 0U; i < 4; i++)
+  for (i = 0U; i < USB_CDC_OUT_EP_COUNT; i++)
   {
     hpcd_USB_OTG_FS.OUT_ep[i].is_in = 0U;
     hpcd_USB_OTG_FS.OUT_ep[i].num = i;
@@ -125,7 +125,7 @@ HAL_StatusTypeDef HAL_PCD_Init()
   }
 
   /* Init Device */
-  if (USB_DevInit(hpcd_USB_OTG_FS.Init) != HAL_OK)
+  if (USB_DevInit() != HAL_OK)
   {
     hpcd_USB_OTG_FS.State = HAL_PCD_STATE_ERROR;
     return HAL_ERROR;
@@ -133,14 +133,7 @@ HAL_StatusTypeDef HAL_PCD_Init()
 
   hpcd_USB_OTG_FS.USB_Address = 0U;
   hpcd_USB_OTG_FS.State = HAL_PCD_STATE_READY;
-  #if defined(STM32F446xx) || defined(STM32F469xx) || defined(STM32F479xx) || defined(STM32F412Zx) || defined(STM32F412Vx) || defined(STM32F412Rx) || defined(STM32F412Cx) || defined(STM32F413xx) || defined(STM32F423xx)
-  /* Activate LPM */
-  if (hpcd->Init.lpm_enable == 1U)
-  {
-    (void)HAL_PCDEx_ActivateLPM(hpcd);
-  }
-  #endif /* defined(STM32F446xx) || defined(STM32F469xx) || defined(STM32F479xx) || defined(STM32F412Zx) || defined(STM32F412Vx) || defined(STM32F412Rx) || defined(STM32F412Cx) || defined(STM32F413xx) || defined(STM32F423xx) */
-  (void)USB_DevDisconnect(hpcd_USB_OTG_FS.Instance);
+  (void)USB_DevDisconnect();
 
   return HAL_OK;
 }
@@ -215,7 +208,7 @@ void HAL_PCD_ResetCallback()
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 { 
     /* Set Speed. */
-  USBD_LL_SetSpeed(USBD_SPEED_FULL);
+  //USBD_LL_SetSpeed(USBD_SPEED_FULL);
 
   /* Reset Device. */
   USBD_LL_Reset();
@@ -237,13 +230,6 @@ void HAL_PCD_SuspendCallback()
   USBD_LL_Suspend();
   __HAL_PCD_GATE_PHYCLOCK();
   /* Enter in STOP mode. */
-  /* USER CODE BEGIN 2 */
-  if (hpcd_USB_OTG_FS.Init.low_power_enable)
-  {
-    /* Set SLEEPDEEP bit and SleepOnExit of Cortex System Control Register. */
-    SCB->SCR |= (uint32_t)((uint32_t)(SCB_SCR_SLEEPDEEP_Msk | SCB_SCR_SLEEPONEXIT_Msk));
-  }
-  /* USER CODE END 2 */
 }
 
 /**
@@ -335,19 +321,19 @@ USBD_StatusTypeDef USBD_LL_Init()
 {
   /* Init USB Ip. */
   /* Link the driver to the stack. */
-  hpcd_USB_OTG_FS.pData = &hUsbDeviceFS;
-  hUsbDeviceFS.pData = &hpcd_USB_OTG_FS;
+  //hpcd_USB_OTG_FS.pData = &hUsbDeviceFS;
+  //hUsbDeviceFS.pData = &hpcd_USB_OTG_FS;
   
-  hpcd_USB_OTG_FS.Instance = USB_OTG_FS;
-  hpcd_USB_OTG_FS.Init.dev_endpoints = 4;
-  hpcd_USB_OTG_FS.Init.speed = PCD_SPEED_FULL;
-  hpcd_USB_OTG_FS.Init.dma_enable = DISABLE;
-  hpcd_USB_OTG_FS.Init.phy_itface = PCD_PHY_EMBEDDED;
-  hpcd_USB_OTG_FS.Init.Sof_enable = DISABLE;
-  hpcd_USB_OTG_FS.Init.low_power_enable = DISABLE;
-  hpcd_USB_OTG_FS.Init.lpm_enable = DISABLE;
-  hpcd_USB_OTG_FS.Init.vbus_sensing_enable = DISABLE;
-  hpcd_USB_OTG_FS.Init.use_dedicated_ep1 = DISABLE;
+  //hpcd_USB_OTG_FS.Instance = USB_OTG_FS;
+  //hpcd_USB_OTG_FS.Init.dev_endpoints = 4;
+  //hpcd_USB_OTG_FS.Init.speed = PCD_SPEED_FULL;
+  //hpcd_USB_OTG_FS.Init.dma_enable = DISABLE;
+  //hpcd_USB_OTG_FS.Init.phy_itface = PCD_PHY_EMBEDDED;
+  //hpcd_USB_OTG_FS.Init.Sof_enable = DISABLE;
+  //hpcd_USB_OTG_FS.Init.low_power_enable = DISABLE;
+  //hpcd_USB_OTG_FS.Init.lpm_enable = DISABLE;
+  //hpcd_USB_OTG_FS.Init.vbus_sensing_enable = DISABLE;
+  //hpcd_USB_OTG_FS.Init.use_dedicated_ep1 = DISABLE;
   if (HAL_PCD_Init() != HAL_OK)
   {
     Error_Handler( );

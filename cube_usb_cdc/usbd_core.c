@@ -21,11 +21,11 @@
 #include "usbd_core.h"
 
 
-extern uint8_t USBD_CDC_Init(uint8_t cfgidx);
-extern uint8_t USBD_CDC_DeInit(uint8_t cfgidx);
+extern uint8_t USBD_CDC_Init();
+extern uint8_t USBD_CDC_DeInit();
 extern uint8_t USBD_CDC_Setup(USBD_SetupReqTypedef *req);
-extern uint8_t USBD_CDC_DataIn(uint8_t epnum);
-extern uint8_t USBD_CDC_DataOut(uint8_t epnum);
+extern uint8_t USBD_CDC_DataIn();
+extern void USBD_CDC_DataOut();
 extern uint8_t USBD_CDC_EP0_RxReady();
 extern uint8_t *USBD_CDC_GetFSCfgDesc(uint16_t *length);
 
@@ -69,7 +69,7 @@ USBD_StatusTypeDef USBD_DeInit()
   /* Set Default State */
   hUsbDeviceFS.dev_state = USBD_STATE_DEFAULT;
 
-  USBD_CDC_DeInit((uint8_t)hUsbDeviceFS.dev_config);
+  USBD_CDC_DeInit();
  
   /* Stop the low level driver  */
   ret = USBD_LL_Stop();
@@ -85,50 +85,6 @@ USBD_StatusTypeDef USBD_DeInit()
   return ret;
 }
 
-/**
-  * @brief  USBD_RegisterClass
-  *         Link class driver to Device Core.
-  * @param  pDevice : Device Handle
-  * @param  pclass: Class handle
-  * @retval USBD Status
-  */
-// USBD_StatusTypeDef USBD_RegisterClass(, USBD_ClassTypeDef *pclass)
-// {
-//   uint16_t len = 0U;
-
-//   if (pclass == NULL)
-//   {
-// #if (USBD_DEBUG_LEVEL > 1U)
-//     USBD_ErrLog("Invalid Class handle");
-// #endif
-//     return USBD_FAIL;
-//   }
-
-//   /* link the class to the USB Device handle */
-//   hUsbDeviceFS.pClass = pclass;
-
-//   /* Get Device Configuration Descriptor */
-// #ifdef USE_USB_FS
-//   hUsbDeviceFS.pConfDesc = (void *)hUsbDeviceFS.pClass->GetFSConfigDescriptor(&len);
-// #else /* USE_USB_HS */
-//   hUsbDeviceFS.pConfDesc = (void *)hUsbDeviceFS.pClass->GetHSConfigDescriptor(&len);
-// #endif /* USE_USB_FS */
-
-
-//   return USBD_OK;
-// }
-
-/**
-  * @brief  USBD_Start
-  *         Start the USB Device Core.
-  * @param  pdev: Device Handle
-  * @retval USBD Status
-  */
-// USBD_StatusTypeDef USBD_Start()
-// {
-//   /* Start the low level driver  */
-//   return USBD_LL_Start();
-// }
 
 /**
   * @brief  USBD_Stop
@@ -141,7 +97,7 @@ USBD_StatusTypeDef USBD_Stop()
   USBD_StatusTypeDef ret;
 
 
-  USBD_CDC_DeInit((uint8_t)hUsbDeviceFS.dev_config);
+  USBD_CDC_DeInit();
 
 
   /* Stop the low level driver */
@@ -150,17 +106,7 @@ USBD_StatusTypeDef USBD_Stop()
   return ret;
 }
 
-/**
-* @brief  USBD_RunTestMode
-*         Launch test mode process
-* @param  pdev: device instance
-* @retval status
-*/
-USBD_StatusTypeDef USBD_RunTestMode()
-{
 
-  return USBD_OK;
-}
 
 /**
 * @brief  USBD_SetClassConfig
@@ -172,9 +118,10 @@ USBD_StatusTypeDef USBD_RunTestMode()
 
 USBD_StatusTypeDef USBD_SetClassConfig(uint8_t cfgidx)
 {
+  UNUSED(cfgidx);
   USBD_StatusTypeDef ret = USBD_FAIL;
 
-  ret = (USBD_StatusTypeDef)USBD_CDC_Init(cfgidx);
+  ret = (USBD_StatusTypeDef)USBD_CDC_Init();
 
   return ret;
 }
@@ -188,7 +135,7 @@ USBD_StatusTypeDef USBD_SetClassConfig(uint8_t cfgidx)
 */
 USBD_StatusTypeDef USBD_ClrClassConfig(uint8_t cfgidx)
 {
-  USBD_CDC_DeInit(cfgidx);
+  USBD_CDC_DeInit();
 
   return USBD_OK;
 }
@@ -281,13 +228,7 @@ USBD_StatusTypeDef USBD_LL_DataOutStage(uint8_t epnum, uint8_t *pdata)
   }
   else if (hUsbDeviceFS.dev_state == USBD_STATE_CONFIGURED)
   {
-    USBD_CDC_DataOut(epnum);
-
-    // nobody checks returns here, its an interrupt..
-    // if (ret != USBD_OK)
-    // {
-    //   return ret;
-    // }
+    USBD_CDC_DataOut();
   }
   else
   {
@@ -361,20 +302,10 @@ USBD_StatusTypeDef USBD_LL_DataInStage(uint8_t epnum, uint8_t *pdata)
 #endif
     }
 
-    if (hUsbDeviceFS.dev_test_mode == 1U)
-    {
-      USBD_RunTestMode();
-      hUsbDeviceFS.dev_test_mode = 0U;
-    }
   }
   else if (hUsbDeviceFS.dev_state == USBD_STATE_CONFIGURED)
   {
-    ret = (USBD_StatusTypeDef)USBD_CDC_DataIn(epnum);
-
-    if (ret != USBD_OK)
-    {
-      return ret;
-    }
+    USBD_CDC_DataIn();
   }
   else
   {
@@ -400,10 +331,7 @@ USBD_StatusTypeDef USBD_LL_Reset()
   hUsbDeviceFS.dev_config = 0U;
   hUsbDeviceFS.dev_remote_wakeup = 0U;
 
-  if (hUsbDeviceFS.pClassData != NULL)
-  {
-    USBD_CDC_DeInit((uint8_t)hUsbDeviceFS.dev_config);
-  }
+  USBD_CDC_DeInit();
 
     /* Open EP0 OUT */
   USBD_LL_OpenEP(0x00U, USBD_EP_TYPE_CTRL, USB_MAX_EP0_SIZE);
@@ -420,18 +348,6 @@ USBD_StatusTypeDef USBD_LL_Reset()
   return USBD_OK;
 }
 
-/**
-* @brief  USBD_LL_Reset
-*         Handle Reset event
-* @param  pdev: device instance
-* @retval status
-*/
-USBD_StatusTypeDef USBD_LL_SetSpeed(USBD_SpeedTypeDef speed)
-{
-  hUsbDeviceFS.dev_speed = speed;
-
-  return USBD_OK;
-}
 
 /**
 * @brief  USBD_Suspend
@@ -537,7 +453,7 @@ USBD_StatusTypeDef USBD_LL_DevDisconnected()
   /* Free Class Resources */
   hUsbDeviceFS.dev_state = USBD_STATE_DEFAULT;
 
-  USBD_CDC_DeInit((uint8_t)hUsbDeviceFS.dev_config);
+  USBD_CDC_DeInit();
 
   return USBD_OK;
 }

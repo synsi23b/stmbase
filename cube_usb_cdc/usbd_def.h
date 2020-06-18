@@ -28,19 +28,6 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "usbd_conf.h"
 
-/** @addtogroup STM32_USBD_DEVICE_LIBRARY
-  * @{
-  */
-
-/** @defgroup USB_DEF
-  * @brief general defines for the usb device library file
-  * @{
-  */
-
-/** @defgroup USB_DEF_Exported_Defines
-  * @{
-  */
-
 #ifndef NULL
 #define NULL                                            0U
 #endif /* NULL */
@@ -52,10 +39,6 @@ extern "C" {
 #ifndef USBD_MAX_NUM_CONFIGURATION
 #define USBD_MAX_NUM_CONFIGURATION                      1U
 #endif /* USBD_MAX_NUM_CONFIGURATION */
-
-#ifndef USBD_LPM_ENABLED
-#define USBD_LPM_ENABLED                                0U
-#endif /* USBD_LPM_ENABLED */
 
 #ifndef USBD_SELF_POWERED
 #define USBD_SELF_POWERED                               1U
@@ -151,15 +134,6 @@ extern "C" {
 #define USBD_EP_TYPE_INTR                               0x03U
 
 
-/**
-  * @}
-  */
-
-
-/** @defgroup USBD_DEF_Exported_TypesDefinitions
-  * @{
-  */
-
 typedef  struct  usb_setup_req
 {
   uint8_t   bmRequest;
@@ -168,55 +142,6 @@ typedef  struct  usb_setup_req
   uint16_t  wIndex;
   uint16_t  wLength;
 } USBD_SetupReqTypedef;
-
-typedef struct
-{
-  uint8_t   bLength;
-  uint8_t   bDescriptorType;
-  uint8_t   wDescriptorLengthLow;
-  uint8_t   wDescriptorLengthHigh;
-  uint8_t   bNumInterfaces;
-  uint8_t   bConfigurationValue;
-  uint8_t   iConfiguration;
-  uint8_t   bmAttributes;
-  uint8_t   bMaxPower;
-} USBD_ConfigDescTypedef;
-
-typedef struct
-{
-  uint8_t   bLength;
-  uint8_t   bDescriptorType;
-  uint16_t  wTotalLength;
-  uint8_t   bNumDeviceCaps;
-} USBD_BosDescTypedef;
-
-
-struct _USBD_HandleTypeDef;
-
-typedef struct _Device_cb
-{
-  uint8_t (*Init)(uint8_t cfgidx);
-  uint8_t (*DeInit)(uint8_t cfgidx);
-  /* Control Endpoints*/
-  uint8_t (*Setup)(USBD_SetupReqTypedef  *req);
-  uint8_t (*EP0_TxSent)();
-  uint8_t (*EP0_RxReady)();
-  /* Class Specific Endpoints*/
-  uint8_t (*DataIn)(uint8_t epnum);
-  uint8_t (*DataOut)(uint8_t epnum);
-  uint8_t (*SOF)();
-  uint8_t (*IsoINIncomplete)(uint8_t epnum);
-  uint8_t (*IsoOUTIncomplete)(uint8_t epnum);
-
-  uint8_t  *(*GetHSConfigDescriptor)(uint16_t *length);
-  uint8_t  *(*GetFSConfigDescriptor)(uint16_t *length);
-  uint8_t  *(*GetOtherSpeedConfigDescriptor)(uint16_t *length);
-  uint8_t  *(*GetDeviceQualifierDescriptor)(uint16_t *length);
-#if (USBD_SUPPORT_USER_STRING_DESC == 1U)
-  uint8_t  *(*GetUsrStrDescriptor)(uint8_t index,  uint16_t *length);
-#endif
-
-} USBD_ClassTypeDef;
 
 /* Following USB Device Speed */
 typedef enum
@@ -245,12 +170,6 @@ typedef struct
   uint8_t *(*GetSerialStrDescriptor)(uint16_t *length);
   uint8_t *(*GetConfigurationStrDescriptor)(uint16_t *length);
   uint8_t *(*GetInterfaceStrDescriptor)(uint16_t *length);
-#if (USBD_CLASS_USER_STRING_DESC == 1)
-  uint8_t *(*GetUserStrDescriptor)(USBD_SpeedTypeDef speed, uint8_t idx, uint16_t *length);
-#endif
-#if ((USBD_LPM_ENABLED == 1U) || (USBD_CLASS_BOS_ENABLED == 1))
-  uint8_t *(*GetBOSDescriptor)(USBD_SpeedTypeDef speed, uint16_t *length);
-#endif
 } USBD_DescriptorsTypeDef;
 
 /* USB Device handle structure */
@@ -270,30 +189,19 @@ typedef struct _USBD_HandleTypeDef
   uint32_t                dev_config;
   uint32_t                dev_default_config;
   uint32_t                dev_config_status;
-  USBD_SpeedTypeDef       dev_speed;
-  USBD_EndpointTypeDef    ep_in[4];
-  USBD_EndpointTypeDef    ep_out[4];
+  USBD_EndpointTypeDef    ep_in[3];  // CTRL, CDC, CMD
+  USBD_EndpointTypeDef    ep_out[2]; // CTRL and CDC
   uint32_t                ep0_state;
   uint32_t                ep0_data_len;
   uint8_t                 dev_state;
   uint8_t                 dev_old_state;
   uint8_t                 dev_address;
-  uint8_t                 dev_connection_status;
-  uint8_t                 dev_test_mode;
   uint32_t                dev_remote_wakeup;
-  uint8_t                 ConfIdx;
 
   USBD_SetupReqTypedef    request;
   USBD_DescriptorsTypeDef *pDesc;
-  void                    *pClassData;
-  void                    *pUserData;
-  void                    *pData;
-  void                    *pBosDesc;
 } USBD_HandleTypeDef;
 
-/**
-  * @}
-  */
 extern USBD_HandleTypeDef hUsbDeviceFS;
 
 
@@ -353,38 +261,8 @@ __STATIC_INLINE uint16_t SWAPBYTE(uint8_t *addr)
 #endif /* __ALIGN_BEGIN */
 #endif /* __GNUC__ */
 
-
-/**
-  * @}
-  */
-
-/** @defgroup USBD_DEF_Exported_Variables
-  * @{
-  */
-
-/**
-  * @}
-  */
-
-/** @defgroup USBD_DEF_Exported_FunctionsPrototype
-  * @{
-  */
-
-/**
-  * @}
-  */
-
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* __USBD_DEF_H */
-
-/**
-  * @}
-  */
-
-/**
-* @}
-*/
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

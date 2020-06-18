@@ -427,8 +427,8 @@ typedef struct
   * @{
   */
 #if defined (USB_OTG_FS) || defined (USB_OTG_HS)
-HAL_StatusTypeDef USB_CoreInit(USB_OTG_CfgTypeDef cfg);
-HAL_StatusTypeDef USB_DevInit(USB_OTG_CfgTypeDef cfg);
+HAL_StatusTypeDef USB_CoreInit();
+HAL_StatusTypeDef USB_DevInit();
 HAL_StatusTypeDef USB_EnableGlobalInt();
 HAL_StatusTypeDef USB_DisableGlobalInt();
 HAL_StatusTypeDef USB_SetTurnaroundTime(uint32_t hclk, uint8_t speed);

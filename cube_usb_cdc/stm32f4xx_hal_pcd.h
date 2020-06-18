@@ -30,22 +30,6 @@ extern "C" {
 
 #if defined (USB_OTG_FS) || defined (USB_OTG_HS)
 
-/** @addtogroup STM32F4xx_HAL_Driver
-  * @{
-  */
-
-/** @addtogroup PCD
-  * @{
-  */
-
-/* Exported types ------------------------------------------------------------*/
-/** @defgroup PCD_Exported_Types PCD Exported Types
-  * @{
-  */
-
-/**
-  * @brief  PCD State structure definition
-  */
 typedef enum
 {
   HAL_PCD_STATE_RESET   = 0x00,
@@ -90,31 +74,34 @@ typedef USB_OTG_EPTypeDef      PCD_EPTypeDef;
 /**
   * @brief  PCD Handle Structure definition
   */
+#define USB_CDC_IN_EP_COUNT  3U
+#define USB_CDC_OUT_EP_COUNT 2U
+
 #if (USE_HAL_PCD_REGISTER_CALLBACKS == 1U)
 typedef struct __PCD_HandleTypeDef
 #else
 typedef struct
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
-  PCD_TypeDef             *Instance;   /*!< Register base address             */
-  PCD_InitTypeDef         Init;        /*!< PCD required parameters           */
+  //PCD_TypeDef             *Instance;   /*!< Register base address             */
+  //PCD_InitTypeDef         Init;        /*!< PCD required parameters           */
   __IO uint8_t            USB_Address; /*!< USB Address                       */
-  PCD_EPTypeDef           IN_ep[4];   /*!< IN endpoint parameters            */
-  PCD_EPTypeDef           OUT_ep[4];  /*!< OUT endpoint parameters           */
+  PCD_EPTypeDef           IN_ep[USB_CDC_IN_EP_COUNT];   /*!< IN endpoint parameters            */
+  PCD_EPTypeDef           OUT_ep[USB_CDC_OUT_EP_COUNT];  /*!< OUT endpoint parameters           */
   HAL_LockTypeDef         Lock;        /*!< PCD peripheral status             */
   __IO PCD_StateTypeDef   State;       /*!< PCD communication state           */
-  __IO  uint32_t          ErrorCode;   /*!< PCD Error code                    */
+  //__IO  uint32_t          ErrorCode;   /*!< PCD Error code                    */
   uint32_t                Setup[12];   /*!< Setup packet buffer               */
   PCD_LPM_StateTypeDef    LPM_State;   /*!< LPM State                         */
-  uint32_t                BESL;
+  //uint32_t                BESL;
 
 
   uint32_t lpm_active;                 /*!< Enable or disable the Link Power Management .
                                        This parameter can be set to ENABLE or DISABLE        */
 
-  uint32_t battery_charging_active;    /*!< Enable or disable Battery charging.
-                                       This parameter can be set to ENABLE or DISABLE        */
-  void                    *pData;      /*!< Pointer to upper stack Handler */
+  //uint32_t battery_charging_active;    /*!< Enable or disable Battery charging.
+  //                                     This parameter can be set to ENABLE or DISABLE        */
+  //void                    *pData;      /*!< Pointer to upper stack Handler */
 
 #if (USE_HAL_PCD_REGISTER_CALLBACKS == 1U)
   void (* SOFCallback)(struct __PCD_HandleTypeDef *hpcd);                              /*!< USB OTG PCD SOF callback                */

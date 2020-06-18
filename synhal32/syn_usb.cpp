@@ -13,6 +13,7 @@ namespace usb
 #ifdef STM32F103
 #else
   static uint16_t packetbuffer_rx_remaining;
+  static uint8_t data_rx_off;
 }
 #endif
 #ifdef STM32F103
@@ -971,7 +972,7 @@ void usb::rxCdcEndpoint()
     pbs->rx_remaining = 0;
     // copy over the write pointer, than release the packet to re-enable the receiver, if there is space
     // after that, start to read from cdc_1 while cdc_0 can be written by the host already
-    uint32_t *ptmp = usb::packetbuffer + 32;
+    uint32_t *ptmp = usb::packetbuffer + 16;
     mail_release();
     // we can do it even thou the packet isn't fully written, because
     // this is an interrupt handler and there will be no task switch until its end
@@ -1105,27 +1106,26 @@ extern "C"
 
 extern "C"
 {
+  typedef struct
+  {
+    uint32_t bitrate;
+    uint8_t format;
+    uint8_t paritytype;
+    uint8_t datatype;
+  } USBD_CDC_LineCodingTypeDef;
+
+  typedef struct
+  {
+    uint32_t data[CDC_DATA_FS_MAX_PACKET_SIZE / 4U]; /* Force 32bits alignment */
+    uint8_t CmdOpCode;
+    uint8_t CmdLength;
+  } USBD_CDC_HandleTypeDef;
+
   USBD_HandleTypeDef hUsbDeviceFS;
+  USBD_CDC_HandleTypeDef usb_cdc_handle;
+
   extern uint8_t *USBD_CDC_GetFSCfgDesc(uint16_t *length);
-  int8_t CDC_Init_FS(void);
-  int8_t CDC_DeInit_FS(void);
   int8_t CDC_Control_FS(uint8_t cmd, uint8_t *pbuf, uint16_t length);
-  int8_t CDC_Receive_FS(uint8_t *Buf, uint32_t *Len);
-  void CDC_Transmit_FS(uint8_t *Buf, uint16_t Len);
-  int8_t CDC_TransmitCplt_FS(uint8_t *Buf, uint32_t *Len, uint8_t epnum);
-}
-
-int8_t CDC_Init_FS(void)
-{
-  usb_cdc_handle.TxBuffer = 0;
-  usb_cdc_handle.TxLength = 0;
-  usb_cdc_handle.RxBuffer = (uint8_t *)usb::packetbuffer;
-  return USBD_OK;
-}
-
-int8_t CDC_DeInit_FS(void)
-{
-  return USBD_OK;
 }
 
 int8_t CDC_Control_FS(uint8_t cmd, uint8_t *pbuf, uint16_t length)
@@ -1176,75 +1176,426 @@ int8_t CDC_Control_FS(uint8_t cmd, uint8_t *pbuf, uint16_t length)
   return USBD_OK;
 }
 
+
+/* USB Standard Device Descriptor */
+__ALIGN_BEGIN static uint8_t USBD_CDC_DeviceQualifierDesc[USB_LEN_DEV_QUALIFIER_DESC] __ALIGN_END =
+    {
+        USB_LEN_DEV_QUALIFIER_DESC,
+        USB_DESC_TYPE_DEVICE_QUALIFIER,
+        0x00,
+        0x02,
+        0x00,
+        0x00,
+        0x00,
+        0x40,
+        0x01,
+        0x00,
+};
+
+/* USB CDC device Configuration Descriptor */
+__ALIGN_BEGIN static uint8_t USBD_CDC_CfgFSDesc[USB_CDC_CONFIG_DESC_SIZ] __ALIGN_END =
+    {
+        /* Configuration Descriptor */
+        0x09,                        /* bLength: Configuration Descriptor size */
+        USB_DESC_TYPE_CONFIGURATION, /* bDescriptorType: Configuration */
+        USB_CDC_CONFIG_DESC_SIZ,     /* wTotalLength:no of returned bytes */
+        0x00,
+        0x02, /* bNumInterfaces: 2 interface */
+        0x01, /* bConfigurationValue: Configuration value */
+        0x00, /* iConfiguration: Index of string descriptor describing the configuration */
+        0xC0, /* bmAttributes: self powered */
+        0x32, /* MaxPower 0 mA */
+
+        /*---------------------------------------------------------------------------*/
+
+        /* Interface Descriptor */
+        0x09,                    /* bLength: Interface Descriptor size */
+        USB_DESC_TYPE_INTERFACE, /* bDescriptorType: Interface */
+        /* Interface descriptor type */
+        0x00, /* bInterfaceNumber: Number of Interface */
+        0x00, /* bAlternateSetting: Alternate setting */
+        0x01, /* bNumEndpoints: One endpoints used */
+        0x02, /* bInterfaceClass: Communication Interface Class */
+        0x02, /* bInterfaceSubClass: Abstract Control Model */
+        0x01, /* bInterfaceProtocol: Common AT commands */
+        0x00, /* iInterface: */
+
+        /* Header Functional Descriptor */
+        0x05, /* bLength: Endpoint Descriptor size */
+        0x24, /* bDescriptorType: CS_INTERFACE */
+        0x00, /* bDescriptorSubtype: Header Func Desc */
+        0x10, /* bcdCDC: spec release number */
+        0x01,
+
+        /* Call Management Functional Descriptor */
+        0x05, /* bFunctionLength */
+        0x24, /* bDescriptorType: CS_INTERFACE */
+        0x01, /* bDescriptorSubtype: Call Management Func Desc */
+        0x00, /* bmCapabilities: D0+D1 */
+        0x01, /* bDataInterface: 1 */
+
+        /* ACM Functional Descriptor */
+        0x04, /* bFunctionLength */
+        0x24, /* bDescriptorType: CS_INTERFACE */
+        0x02, /* bDescriptorSubtype: Abstract Control Management desc */
+        0x02, /* bmCapabilities */
+
+        /* Union Functional Descriptor */
+        0x05, /* bFunctionLength */
+        0x24, /* bDescriptorType: CS_INTERFACE */
+        0x06, /* bDescriptorSubtype: Union func desc */
+        0x00, /* bMasterInterface: Communication class interface */
+        0x01, /* bSlaveInterface0: Data Class Interface */
+
+        /* Endpoint 2 Descriptor */
+        0x07,                        /* bLength: Endpoint Descriptor size */
+        USB_DESC_TYPE_ENDPOINT,      /* bDescriptorType: Endpoint */
+        CDC_CMD_EP,                  /* bEndpointAddress */
+        0x03,                        /* bmAttributes: Interrupt */
+        LOBYTE(CDC_CMD_PACKET_SIZE), /* wMaxPacketSize: */
+        HIBYTE(CDC_CMD_PACKET_SIZE),
+        CDC_FS_BINTERVAL, /* bInterval: */
+        /*---------------------------------------------------------------------------*/
+
+        /* Data class interface descriptor */
+        0x09,                    /* bLength: Endpoint Descriptor size */
+        USB_DESC_TYPE_INTERFACE, /* bDescriptorType: */
+        0x01,                    /* bInterfaceNumber: Number of Interface */
+        0x00,                    /* bAlternateSetting: Alternate setting */
+        0x02,                    /* bNumEndpoints: Two endpoints used */
+        0x0A,                    /* bInterfaceClass: CDC */
+        0x00,                    /* bInterfaceSubClass: */
+        0x00,                    /* bInterfaceProtocol: */
+        0x00,                    /* iInterface: */
+
+        /* Endpoint OUT Descriptor */
+        0x07,                                /* bLength: Endpoint Descriptor size */
+        USB_DESC_TYPE_ENDPOINT,              /* bDescriptorType: Endpoint */
+        CDC_OUT_EP,                          /* bEndpointAddress */
+        0x02,                                /* bmAttributes: Bulk */
+        LOBYTE(CDC_DATA_FS_MAX_PACKET_SIZE), /* wMaxPacketSize: */
+        HIBYTE(CDC_DATA_FS_MAX_PACKET_SIZE),
+        0x00, /* bInterval: ignore for Bulk transfer */
+
+        /* Endpoint IN Descriptor */
+        0x07,                                /* bLength: Endpoint Descriptor size */
+        USB_DESC_TYPE_ENDPOINT,              /* bDescriptorType: Endpoint */
+        CDC_IN_EP,                           /* bEndpointAddress */
+        0x02,                                /* bmAttributes: Bulk */
+        LOBYTE(CDC_DATA_FS_MAX_PACKET_SIZE), /* wMaxPacketSize: */
+        HIBYTE(CDC_DATA_FS_MAX_PACKET_SIZE),
+        0x00 /* bInterval: ignore for Bulk transfer */
+};
+
 /**
-  * @brief  Data received over USB OUT endpoint are sent over CDC interface
-  *         through this function.
-  *
-  *         @note
-  *         This function will block any OUT packet reception on USB endpoint
-  *         untill exiting this function. If you exit this function before transfer
-  *         is complete on CDC interface (ie. using DMA controller) it will result
-  *         in receiving more data while previous ones are still not sent.
-  *
-  * @param  Buf: Buffer of data to be received
-  * @param  Len: Number of data received (in bytes)
-  * @retval Result of the operation: USBD_OK if all operations are OK else USBD_FAIL
+  * @brief  USBD_CDC_Init
+  *         Initialize the CDC interface
+  * @param  pdev: device instance
+  * @param  cfgidx: Configuration index
+  * @retval status
   */
-int8_t CDC_Receive_FS(uint8_t *Buf, uint32_t *Len)
+uint8_t USBD_CDC_Init()
 {
-  (void)Len;
-  usb_cdc_handle.RxBuffer = (uint8_t *)usb::packetbuffer;
-  (void)USBD_LL_PrepareReceive(CDC_OUT_EP, &Buf[0], CDC_DATA_FS_OUT_PACKET_SIZE);
-  return USBD_OK;
+  /* Open EP IN */
+  USBD_LL_OpenEP(CDC_IN_EP, USBD_EP_TYPE_BULK,
+                 CDC_DATA_FS_IN_PACKET_SIZE);
+
+  hUsbDeviceFS.ep_in[CDC_IN_EP & 0xFU].is_used = 1U;
+
+  /* Open EP OUT */
+  USBD_LL_OpenEP(CDC_OUT_EP, USBD_EP_TYPE_BULK,
+                 CDC_DATA_FS_OUT_PACKET_SIZE);
+
+  hUsbDeviceFS.ep_out[CDC_OUT_EP & 0xFU].is_used = 1U;
+
+  /* Set bInterval for CMD Endpoint */
+  hUsbDeviceFS.ep_in[CDC_CMD_EP & 0xFU].bInterval = CDC_FS_BINTERVAL;
+
+  /* Open Command IN EP */
+  USBD_LL_OpenEP(CDC_CMD_EP, USBD_EP_TYPE_INTR, CDC_CMD_PACKET_SIZE);
+  hUsbDeviceFS.ep_in[CDC_CMD_EP & 0xFU].is_used = 1U;
+
+  /* Prepare Out endpoint to receive next packet */
+  USBD_LL_PrepareReceive(CDC_OUT_EP, (uint8_t *)usb::packetbuffer, CDC_DATA_FS_OUT_PACKET_SIZE);
+
+  // enable transciver
+  usb::sig_tx_ready.set();
+  return (uint8_t)USBD_OK;
 }
 
 /**
-  * @brief  CDC_Transmit_FS
-  *         Data to send over USB IN endpoint are sent over CDC interface
-  *         through this function.
-  *         @note
-  *
-  *
-  * @param  Buf: Buffer of data to be sent
-  * @param  Len: Number of data to be sent (in bytes)
-  * @retval USBD_OK if all operations are OK else USBD_FAIL or USBD_BUSY
+  * @brief  USBD_CDC_Init
+  *         DeInitialize the CDC layer
+  * @param  pdev: device instance
+  * @param  cfgidx: Configuration index
+  * @retval status
   */
-void CDC_Transmit_FS(const uint8_t *Buf, uint16_t Len)
+void USBD_CDC_DeInit()
 {
-  usb_cdc_handle.TxBuffer = Buf;
-  usb_cdc_handle.TxLength = Len;
+  usb::sig_tx_ready.try_wait(); // remove the ready signal if applicable
+  /* Close EP IN */
+  USBD_LL_CloseEP(CDC_IN_EP);
+  hUsbDeviceFS.ep_in[CDC_IN_EP & 0xFU].is_used = 0U;
 
-  /* Tx Transfer in progress */
-  usb_cdc_handle.TxState = 1U;
+  /* Close EP OUT */
+  USBD_LL_CloseEP(CDC_OUT_EP);
+  hUsbDeviceFS.ep_out[CDC_OUT_EP & 0xFU].is_used = 0U;
 
-  /* Update the packet total length */
-  hUsbDeviceFS.ep_in[CDC_IN_EP & 0xFU].total_length = Len;
-
-  /* Transmit next packet */
-  HAL_PCD_EP_Transmit(CDC_IN_EP, Buf, Len);
+  /* Close Command IN EP */
+  USBD_LL_CloseEP(CDC_CMD_EP);
+  hUsbDeviceFS.ep_in[CDC_CMD_EP & 0xFU].is_used = 0U;
+  hUsbDeviceFS.ep_in[CDC_CMD_EP & 0xFU].bInterval = 0U;
 }
 
 /**
-  * @brief  CDC_TransmitCplt_FS
-  *         Data transmited callback
-  *
-  *         @note
-  *         This function is IN transfer complete callback used to inform user that
-  *         the submitted Data is successfully sent over USB.
-  *
-  * @param  Buf: Buffer of data to be received
-  * @param  Len: Number of data received (in bytes)
-  * @retval Result of the operation: USBD_OK if all operations are OK else USBD_FAIL
+  * @brief  USBD_CDC_Setup
+  *         Handle the CDC specific requests
+  * @param  pdev: instance
+  * @param  req: usb requests
+  * @retval status
   */
-int8_t CDC_TransmitCplt_FS(uint8_t *Buf, uint32_t *Len, uint8_t epnum)
+uint8_t USBD_CDC_Setup(USBD_SetupReqTypedef *req)
 {
-  /* USER CODE BEGIN 13 */
-  UNUSED(Buf);
-  UNUSED(Len);
-  UNUSED(epnum);
-  /* USER CODE END 13 */
-  return USBD_OK;
+  uint8_t ifalt = 0U;
+  uint16_t status_info = 0U;
+  USBD_StatusTypeDef ret = USBD_OK;
+
+  switch (req->bmRequest & USB_REQ_TYPE_MASK)
+  {
+  case USB_REQ_TYPE_CLASS:
+    if (req->wLength != 0U)
+    {
+      if ((req->bmRequest & 0x80U) != 0U)
+      {
+        CDC_Control_FS(req->bRequest, (uint8_t *)usb_cdc_handle.data, req->wLength);
+        USBD_CtlSendData((uint8_t *)usb_cdc_handle.data, req->wLength);
+      }
+      else
+      {
+        usb_cdc_handle.CmdOpCode = req->bRequest;
+        usb_cdc_handle.CmdLength = (uint8_t)req->wLength;
+
+        USBD_CtlPrepareRx((uint8_t *)usb_cdc_handle.data, req->wLength);
+      }
+    }
+    else
+    {
+      CDC_Control_FS(req->bRequest, (uint8_t *)req, 0U);
+    }
+    break;
+
+  case USB_REQ_TYPE_STANDARD:
+    switch (req->bRequest)
+    {
+    case USB_REQ_GET_STATUS:
+      if (hUsbDeviceFS.dev_state == USBD_STATE_CONFIGURED)
+      {
+        USBD_CtlSendData((uint8_t *)&status_info, 2U);
+      }
+      else
+      {
+        USBD_CtlError(req);
+        ret = USBD_FAIL;
+      }
+      break;
+
+    case USB_REQ_GET_INTERFACE:
+      if (hUsbDeviceFS.dev_state == USBD_STATE_CONFIGURED)
+      {
+        USBD_CtlSendData(&ifalt, 1U);
+      }
+      else
+      {
+        USBD_CtlError(req);
+        ret = USBD_FAIL;
+      }
+      break;
+
+    case USB_REQ_SET_INTERFACE:
+      if (hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED)
+      {
+        USBD_CtlError(req);
+        ret = USBD_FAIL;
+      }
+      break;
+
+    case USB_REQ_CLEAR_FEATURE:
+      break;
+
+    default:
+      USBD_CtlError(req);
+      ret = USBD_FAIL;
+      break;
+    }
+    break;
+
+  default:
+    USBD_CtlError(req);
+    ret = USBD_FAIL;
+    break;
+  }
+
+  return (uint8_t)ret;
 }
+
+/**
+  * @brief  USBD_CDC_DataIn
+  *         Data sent on non-control IN endpoint
+  * @param  pdev: device instance
+  * @param  epnum: endpoint number
+  * @retval status
+  */
+uint8_t USBD_CDC_DataIn()
+{
+  if ((hUsbDeviceFS.ep_in[1].total_length > 0U) &&
+      ((hUsbDeviceFS.ep_in[1].total_length % hpcd_USB_OTG_FS.IN_ep[1].maxpacket) == 0U))
+  {
+    /* Update the packet total length */
+    hUsbDeviceFS.ep_in[1].total_length = 0U;
+
+    /* Send ZLP */
+    USBD_LL_Transmit(1, NULL, 0U);
+  }
+  else
+  {
+    usb::sig_tx_ready.set();
+  }
+
+  return (uint8_t)USBD_OK;
+}
+
+void mail_release()
+{
+  UsbRpc::Handler::_mailbox.release();
+  // packet was released, try to allocate a new one
+  if (UsbRpc::Handler::_mailbox.try_reserve((UsbRpc::Packet **)&usb::packetbuffer))
+  {
+    *usb::packetbuffer = 0; // make sure to completely wipe packetheader
+    // turn on the receiver again, we got space for messages
+    // enable receiver
+    USBD_LL_PrepareReceive(CDC_OUT_EP, (uint8_t *)usb::packetbuffer, CDC_DATA_FS_OUT_PACKET_SIZE);
+  }
+  else
+  {
+    usb::packetbuffer = 0;
+    // mailbox is full, dont enable receive on endpoint again
+    usb::data_rx_off = 1;
+  }
+}
+
+/**
+  * @brief  USBD_CDC_DataOut
+  *         Data received on non-control Out endpoint
+  * @param  pdev: device instance
+  * @param  epnum: endpoint number
+  * @retval status
+  */
+void USBD_CDC_DataOut()
+{
+  OS_ASSERT(usb::packetbuffer != 0, ERR_NULL_POINTER);
+
+  uint16_t count = HAL_PCD_EP_GetRxCount(1);
+
+  if (usb::packetbuffer_rx_remaining == 0)
+  {
+    // this is a fresh packet, check if the packet is plausible
+    //mem->readUsbRpcHeader(usb::packetbuffer);
+    UsbRpc::Packet *ppacket = (UsbRpc::Packet *)usb::packetbuffer;
+    uint16_t expected_size = UsbRpc::Handler::plausible(*ppacket);
+    if (expected_size >= count)
+    {
+      if (expected_size > count)
+      {
+        //this packet didn't fit, set the receving buffer to second rx buffer
+        //mem->buffer_table[1].setRx(mem->buffer_cdc_out_1);
+        // enable receiver
+        USBD_LL_PrepareReceive(CDC_OUT_EP, (uint8_t *)(usb::packetbuffer + 16), CDC_DATA_FS_OUT_PACKET_SIZE);
+      }
+      // this is a nice package, read the payload
+      // mem->readUsbRpcPayload_0(usb::packetbuffer, count);
+      uint16_t remaining = expected_size - count;
+      if (remaining == 0)
+      {
+        // this packet fit into a single transmission, release it to the handler
+        mail_release();
+      }
+      else
+      {
+        OS_ASSERT(count == CDC_DATA_FS_OUT_PACKET_SIZE, ERR_FORBIDDEN);
+        // package didn't fit, so set the remaining and it's done, wait for second part
+        usb::packetbuffer_rx_remaining = remaining;
+      }
+    }
+    else
+    {
+      // the header is not plausible, add it to the queue anyway to report the error.
+      // error message will be generated by the rpc handler thread
+      mail_release();
+    }
+  }
+  else
+  {
+    // the package is already started and the receiving buffer was moved to buffer_cdc_out_1
+    // reset the buffer to cdc_0
+    // mem->buffer_table[1].setRx(mem->buffer_cdc_out_0);
+    OS_ASSERT(usb::packetbuffer_rx_remaining == count, ERR_FORBIDDEN);
+    usb::packetbuffer_rx_remaining = 0;
+    // copy over the write pointer, than release the packet to re-enable the receiver, if there is space
+    // after that, start to read from cdc_1 while cdc_0 can be written by the host already
+    //uint32_t *ptmp = usb::packetbuffer + 16;
+    mail_release();
+    // we can do it even thou the packet isn't fully written, because
+    // this is an interrupt handler and there will be no task switch until its end
+    //mem->readUsbRpcPayload_1(ptmp, count);
+  }
+}
+
+/**
+  * @brief  USBD_CDC_EP0_RxReady
+  *         Handle EP0 Rx Ready event
+  * @param  pdev: device instance
+  * @retval status
+  */
+uint8_t USBD_CDC_EP0_RxReady()
+{
+
+  if (usb_cdc_handle.CmdOpCode != 0xFFU)
+  {
+    CDC_Control_FS(usb_cdc_handle.CmdOpCode, (uint8_t *)usb_cdc_handle.data, (uint16_t)usb_cdc_handle.CmdLength);
+    usb_cdc_handle.CmdOpCode = 0xFFU;
+  }
+
+  return (uint8_t)USBD_OK;
+}
+
+/**
+  * @brief  USBD_CDC_GetFSCfgDesc
+  *         Return configuration descriptor
+  * @param  speed : current device speed
+  * @param  length : pointer data length
+  * @retval pointer to descriptor buffer
+  */
+uint8_t *USBD_CDC_GetFSCfgDesc(uint16_t *length)
+{
+  *length = (uint16_t)sizeof(USBD_CDC_CfgFSDesc);
+
+  return USBD_CDC_CfgFSDesc;
+}
+
+/**
+* @brief  DeviceQualifierDescriptor
+*         return Device Qualifier descriptor
+* @param  length : pointer data length
+* @retval pointer to descriptor buffer
+*/
+uint8_t *USBD_CDC_GetDeviceQualifierDescriptor(uint16_t *length)
+{
+  *length = (uint16_t)sizeof(USBD_CDC_DeviceQualifierDesc);
+
+  return USBD_CDC_DeviceQualifierDesc;
+}
+
+/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
 
 void UsbRpc::init()
 {
@@ -1290,22 +1641,27 @@ bool UsbRpc::write(const uint8_t *data, uint16_t size, uint32_t timeout)
   {
     usb::sig_tx_ready.wait();
   }
-  CDC_Transmit_FS(data, size);
+    /* Update the packet total length */
+  hUsbDeviceFS.ep_in[CDC_IN_EP & 0xFU].total_length = size;
+  /* Transmit next packet */
+  HAL_PCD_EP_Transmit(CDC_IN_EP, data, size);
   return true;
 }
 
 void UsbRpc::_enable_rx()
 {
-//  if (usb::mem->data_rx_off != 0 && usb::packetbuffer == 0)
-//  {
-//    if (Handler::_mailbox.try_reserve((Packet **)&usb::packetbuffer))
-//    {
-//      usb::mem->data_rx_off = 0;
-//      set_rx_stat(&USB->EP1R, usb::lowlevel::eValid);
-//    }
-//  }
+  if (usb::data_rx_off != 0 && usb::packetbuffer == 0)
+  {
+    if (Handler::_mailbox.try_reserve((Packet **)&usb::packetbuffer))
+    {
+      usb::data_rx_off = 0;
+      *usb::packetbuffer = 0; // make sure to completely wipe packetheader
+      // turn on the receiver again, we got space for messages
+      // enable receiver
+      USBD_LL_PrepareReceive(CDC_OUT_EP, (uint8_t *)usb::packetbuffer, CDC_DATA_FS_OUT_PACKET_SIZE);
+    }
+  }
 }
-
 
 extern "C"
 {

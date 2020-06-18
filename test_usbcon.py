@@ -11,20 +11,23 @@ ph = usb.PacketHandler("COM3")
 
 start = current_milli_time()
 
+
+
 def myhndl(msg):
     global start
-    end = current_milli_time()
-    print(f"### {end - start} millisec ###")
-    newlist = []
-    for duty, on in zip(msg.width, msg.t_on):
-        if duty > 0:
-            newlist.append(int(on / duty * 100))
-        
-    print(newlist)
-    start = end
+    #end = current_milli_time()
+    #print(f"### {end - start} millisec ###")
+    #newlist = []
+    #for duty, on in zip(msg.width, msg.t_on):
+    #    if duty > 0:
+    #        newlist.append(int(on / duty * 100))    
+    #print(newlist)
+    #start = end
+    dataRecList.append(list(msg.values))
 
-ph.addMessageHandler(usb.PulseReportMsg, myhndl)
+ph.addMessageHandler(usb.SetPotentiometerMsg, myhndl)
 
+msg = usb.SetPotentiometerMsg()
 ph.start()
 
 while True:
@@ -45,26 +48,28 @@ while True:
     #         mm.line = line
     #         ph.sendMessage(mm)
     # recv_datalist = []
-    # datalist = []
-    # data = [0] * 122
-    # for i in range(4096):
-    #     for i in range(122):
-    #         data[i] = random.randint(0, 255)
-    #     datalist.append(list(data))
+    datalist = []
+    dataRecList = []
+    data = [0] * 122
+    for i in range(512):
+        for i in range(122):
+            data[i] = random.randint(0, 255)
+        datalist.append(list(data))
 
-    # start_loop = current_milli_time()
-    # counter = 0
-    # for d in datalist:
-    #     counter += 1
-    #     if counter == 100:
-    #         sys.stdout.write('.')
-    #         sys.stdout.flush()
-    #         counter = 0
-    #     msg.values = d
-    #     #start = current_milli_time()
-    #     ph.sendMessage(msg)
-    #     #sleep(0.001)
-    # end_loop = current_milli_time()
+    print("starting to send")
+    start_loop = current_milli_time()
+    counter = 0
+    for d in datalist:
+        counter += 1
+        if counter == 100:
+            sys.stdout.write('.')
+            sys.stdout.flush()
+            counter = 0
+        msg.values = d
+        start = current_milli_time()
+        ph.sendMessage(msg)
+        #sleep(0.01)
+    end_loop = current_milli_time()
 
     # print(f"\n### {(end_loop - start_loop)} millisec ###")
 
@@ -77,13 +82,18 @@ while True:
     #         print("Data mismatch")
     # print(f"Min: {minv}\nMax: {maxv}")
 
-    bench_started = 1
-    start_loop = current_milli_time()
-    while bench_started:
-        sleep(0.01)
-    end_loop = current_milli_time()
+    #bench_started = 1
+    #start_loop = current_milli_time()
+    #while bench_started:
+    #    sleep(0.01)
+    #end_loop = current_milli_time()
 
     print(f"\n### {(end_loop - start_loop)} millisec ###")
+
+    sleep(1)
+    for rec, sec in zip(datalist, dataRecList):
+        if rec != sec:
+            print("Not equal list!")
     # minv = 1000000
     # maxv = 0
     # prev = 0
