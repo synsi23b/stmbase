@@ -1372,29 +1372,29 @@ namespace syn
   class Dma
   {
   public:
-    void init(uint16_t channel)
+    void init(uint16_t stream)
     {
 #ifdef STM32F103xB
-      --channel;
-      OS_ASSERT(channel < 7, ERR_BAD_INDEX);
+      --stream;
+      OS_ASSERT(stream < 7, ERR_BAD_INDEX);
       _pChannel = DMA1_Channel1 + channel;
 #endif
 #ifdef STM32F401xC
-      OS_ASSERT(channel < 16, ERR_BAD_INDEX);
-      _number = channel;
-      if(channel < 8)
+      OS_ASSERT(stream < 16, ERR_BAD_INDEX);
+      _number = stream;
+      if(stream < 8)
       {
-        _pStream = DMA1_Stream0 + channel;
+        _pStream = DMA1_Stream0 + stream;
       }
       else
       {
-        channel -= 8;
-        _pStream = DMA2_Stream0 + channel;
+        stream -= 8;
+        _pStream = DMA2_Stream0 + stream;
       }
 #endif
     }
 
-    // stop operation of the channel
+    // stop operation of the dma
     void stop()
     {
 #ifdef STM32F103xB
@@ -1405,6 +1405,8 @@ namespace syn
 #endif
     }
 
+    // the channel attribute is for stm32f401
+    // it refers to channel of the specific stream to use
     void start(uint32_t channel = 0)
     {
 #ifdef STM32F103xB
@@ -1433,6 +1435,7 @@ namespace syn
 #endif
 #ifdef STM32F401xC
       _pStream->CR = 0;
+      _pStream->FCR = 0;
       _pStream->NDTR = count;
       _pStream->PAR = (uint32_t)src;
       _pStream->M0AR = (uint32_t)dst;
@@ -1441,6 +1444,30 @@ namespace syn
       _pStream->CR = (msize << 13) | (psize << 11) | DMA_SxCR_MINC | DMA_SxCR_CIRC;
 #endif
     }
+
+#ifdef STM32F401xC
+    enum BurstSize {
+      Single_Transfer = 0,
+      Burst_of_4_beats = 1,
+      Burst_of_8_beats = 2,
+      Burst_of_16_beats = 3
+    };
+
+    enum FifoSize {
+      FIFO_1_4th = 0,
+      FIFO_HALF = 1,
+      FIFO_3_4th = 2,
+      FIFO_FULL = 3
+    };
+
+    // the fifo can contain up to 4 words (16 bytes)
+    // care has to be taken to only set possible values
+    void enableBurstMode(BurstSize memory, BurstSize peripheral, FifoSize size)
+    {
+      _pStream->CR |= (memory << 23) | (peripheral << 21);
+      _pStream->FCR = DMA_SxFCR_DMDIS | size;
+    }
+#endif
 
 #ifdef STM32F103xB
     static const uint16_t IRQ_STATUS_ERROR = 0x4;

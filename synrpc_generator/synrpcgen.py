@@ -189,8 +189,9 @@ class Variable:
                 'char' : ('char', 1, 's'), 'bool' : ('bool', 1, '?')
             }
 
-    def __init__(self, typename, varname):
+    def __init__(self, typename, varname, comments):
         self.origname = varname
+        self.comments = comments
         self.arraycount = 0
         self.name = ""
         if not re.match(Variable.typepattern, typename):
@@ -217,19 +218,20 @@ class Variable:
     
     def genCppVardef(self):
         if self.arraycount:
-            if self.typecpp != 'char':
-                return "  static const uint8_t {}_SIZE = {};\n  {} {}[{}_SIZE];\n".format(
-                    self.name.upper(), self.arraycount, self.typecpp, self.name, self.name.upper())
-            else:
-                var = """  static const uint8_t {uname}_SIZE = {size};
-  char {name}[{uname}_SIZE];
-  void write_{name}(const char* str){{
-    strncpy({name}, str, {uname}_SIZE - 1);
-    {name}[{uname}_SIZE - 1] = 0;
-  }}
-"""
-                return var.format(name=self.name, size=self.arraycount, uname=self.name.upper())
-        return "  {} {};\n".format(self.typecpp, self.name)
+            cppstr = f"  static const uint8_t {self.name.upper()}_SIZE = {self.arraycount};\n"
+            for c in self.comments:
+                cppstr += f"  //{c}\n"
+            cppstr += f"  {self.typecpp} {self.name}[{self.name.upper()}_SIZE];\n"
+            if self.typecpp == 'char':
+                cppstr += f"  void write_{self.name}(const char* str) {{\n"
+                cppstr += f"    strncpy({self.name}, str, {self.name.upper()}_SIZE - 1);\n"
+                cppstr += f"    {self.name}[{self.name.upper()}_SIZE - 1] = 0;\n  }}"
+        else:
+            cppstr = ""
+            for c in self.comments:
+                cppstr += f"  //{c}\n"
+            cppstr += f"  {self.typecpp} {self.name};\n"
+        return cppstr
 
     def genPyPackstr(self):
         return str(self.arraycount) + self.pypacks if self.arraycount else self.pypacks
@@ -300,15 +302,19 @@ class Message:
         self.vars = []
         shafunc = hashlib.sha1()
         with open(path + os.sep + filename, 'r') as f:
+            comments = []
             for index, line in enumerate(f.readlines()):
                 self.mesagedefinition += f"* {line}"
                 if line[0] == '#':
+                    comments.append(line.strip()[1:])
                     continue
                 line = line.strip()
+                # we calculate the sha-sum only over the varables, not the comments
                 shafunc.update(line.encode("utf-8"))
                 line = line.split()
                 try:
-                    self.vars.append(Variable(line[0], line[1]))
+                    self.vars.append(Variable(line[0], line[1], comments))
+                    comments = []
                 except Exception as e:
                     print("Error parsing Message {} on line {}".format(filename, index + 1))
                     print(e)

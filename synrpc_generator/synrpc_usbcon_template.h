@@ -66,11 +66,11 @@ namespace syn
   public:
     Handler();
     template <typename MsgType>
-    static void sendMessage(MsgType &msg)
+    static bool sendMessage(MsgType &msg, uint32_t timeout = 0)
     {{
       Packet *p = (Packet *)((uint8_t *)&msg);
       p->form(MsgType::_size, MsgType::_type, MsgType::_sha1);
-      syn::UsbRpc::write(p->rawData(), p->rawSize());
+      return syn::UsbRpc::write(p->rawData(), p->rawSize(), timeout);
     }}
 
     // test a packet for plausibility
