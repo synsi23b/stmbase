@@ -1053,13 +1053,13 @@ namespace syn
       if(m == in_pullup)
       {
         set();
-        m += 1;
+        m = in_pulldown;
       }
       else if(m == in_pulldown)
       {
         clear();
       }
-      uint16_t cfg = (uint16_t)m & 0xC | (uint16_t)s;
+      uint16_t cfg = ((uint16_t)m & 0xC) | (uint16_t)s;
       if (_pin < 8)
       {
         uint16_t p = (_pin) << 2;
@@ -1377,7 +1377,7 @@ namespace syn
 #ifdef STM32F103xB
       --stream;
       OS_ASSERT(stream < 7, ERR_BAD_INDEX);
-      _pChannel = DMA1_Channel1 + channel;
+      _pChannel = DMA1_Channel1 + stream;
 #endif
 #ifdef STM32F401xC
       OS_ASSERT(stream < 16, ERR_BAD_INDEX);
