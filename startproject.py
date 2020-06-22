@@ -15,7 +15,10 @@ def main():
     project_folder = submodule_folder.parent
     project_name = project_folder.name
     
-    os.system(f"cp -rf {submodule_folder}/copy_into_base/{args.chip}/. {project_folder}")
+    if os.name == "nt":
+        os.system(f"robocopy {submodule_folder}\\copy_into_base\\{args.chip} {project_folder} /E")
+    else:
+        os.system(f"cp -rvf {submodule_folder}/copy_into_base/{args.chip}/. {project_folder}")
     if args.bits == "STM8":
         pass
     elif args.bits == "STM32":
