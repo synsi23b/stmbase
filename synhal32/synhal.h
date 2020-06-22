@@ -1221,6 +1221,11 @@ namespace syn
       _led.mode(syn::Gpio::out_push_pull, syn::Gpio::MHz_2);
     }
 
+    Led(char port, uint8_t pin) : _led(port, pin)
+    {
+      _led.mode(syn::Gpio::out_push_pull, syn::Gpio::MHz_2);
+    }
+
     void on()
     {
       _led.clear();
@@ -1518,6 +1523,7 @@ namespace syn
         RCC->APB1ENR |= RCC_APB1ENR_TIM4EN;
         break;
 #ifdef STM32F401xC
+      case 5:
         _pTimer = TIM5;
         RCC->APB1ENR |= RCC_APB1ENR_TIM5EN;
         break;

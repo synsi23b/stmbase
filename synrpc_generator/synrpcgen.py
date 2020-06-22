@@ -177,7 +177,7 @@ def writePythonBridge(path, messages):
         f.write(content)
 
 class Variable:
-    typepattern = re.compile(r'\b((u?int(8|(16)|(32)))|(bool)|(char))\b')
+    typepattern = re.compile(r'\b((u?int(8|(16)|(32)|(64)))|(bool)|(float)|(double)|(char))\b')
     arraypattern = re.compile(r'(\w+)\[(\d+)\]')
 
     # this dictionary translates variable types from the message definiton to cpp and python struct
@@ -186,6 +186,11 @@ class Variable:
     typedict = {'int8' : ('int8_t', 1, 'b'), 'uint8' : ('uint8_t', 1, 'B'),
                 'int16' : ('int16_t', 2, 'h'), 'uint16' : ('uint16_t', 2, 'H'),
                 'int32' : ('int32_t', 4, 'l'), 'uint32' : ('uint32_t', 4, 'L'),
+                'int64' : ('int64_t', 4, 'q'), 'uint64' : ('uint64_t', 4, 'Q'),
+                # For the 'f' and 'd' conversion codes, the packed representation uses
+                # the IEEE 754 binary32 (for 'f') or binary64 (for 'd') format,
+                # regardless of the floating-point format used by the platform.
+                'float' : ('float', 4, 'f'), 'double' : ('double', 8, 'd'),
                 'char' : ('char', 1, 's'), 'bool' : ('bool', 1, '?')
             }
 
