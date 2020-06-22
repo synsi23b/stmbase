@@ -198,6 +198,7 @@ void Timer::enableInput(int8_t port, uint8_t pinnum, bool pulldown, bool pullup)
     a = Gpio::Timer_1_2;
   else
     a = Gpio::Timer_3_4_5;
+#ifdef STM32F103xB
   if(pulldown)
   {
     pin.mode(Gpio::in_pulldown, Gpio::Input, a);
@@ -210,6 +211,9 @@ void Timer::enableInput(int8_t port, uint8_t pinnum, bool pulldown, bool pullup)
   {
     pin.mode(Gpio::in_floating, Gpio::Input, a);
   }
+#else
+  pin.mode(Gpio::out_alt_push_pull, Gpio::MHz_10, a);
+#endif
 }
 
 volatile uint16_t *Timer::enableDmaUpdate(uint16_t base_reg, uint16_t burst_count)
