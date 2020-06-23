@@ -212,6 +212,8 @@ void Timer::enableInput(int8_t port, uint8_t pinnum, bool pulldown, bool pullup)
     pin.mode(Gpio::in_floating, Gpio::Input, a);
   }
 #else
+  pulldown = pulldown;
+  pullup = pullup;
   pin.mode(Gpio::out_alt_push_pull, Gpio::MHz_10, a);
 #endif
 }

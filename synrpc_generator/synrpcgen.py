@@ -26,7 +26,7 @@ def main():
         handlerpath = srcpath + os.sep + "synrpc_handlers.cpp"
         headerpath =  srcpath + os.sep + "synrpc_usbcon.h"
         evokerpath =  srcpath + os.sep + "synrpc_usbcon.cpp"
-        pybridgehere = wdir + os.sep + "synrpc_usbcon.py"
+        #pybridgehere = wdir + os.sep + "synrpc_usbcon.py"
         pybridgepath = basepath + os.sep + "synrpc_usbcon.py"
         files = next(os.walk(msgpath))[2]
         messages = OrderedDict()
@@ -40,7 +40,7 @@ def main():
         writeHandlerCpp(handlerpath, messages)
         writeHeaderCpp(headerpath, messages)
         writeEvokerCpp(evokerpath, messages)
-        writePythonBridge(pybridgehere, messages)
+        #writePythonBridge(pybridgehere, messages)
         writePythonBridge(pybridgepath, messages)
 
 def writeHandlerCpp(handlerpath, messages):
@@ -66,7 +66,7 @@ def writeHandlerCpp(handlerpath, messages):
  */
 """)
         f.write(userincludes)
-        for k, v in messages.items():
+        for v in messages.values():
             f.write(v.genCppHandlerStub())
 
 def getUserIncludes(lines):
@@ -113,7 +113,7 @@ def writeHeaderCpp(headerpath, messages):
     with open("synrpc_generator/synrpc_usbcon_template.h", 'r') as f:
         header = f.read().format(SYNRPC_USBCON_MAX_GEN=SYNRPC_GEN_MAX)
     header += "\nconst uint8_t MAX_HANDLER_TYPE = {};\n".format(len(messages))
-    for k, m in messages.items():
+    for m in messages.values():
         header += m.genCppHeader()
     header += "\n}\n\n"
     with open(headerpath, "w") as f:
@@ -122,15 +122,15 @@ def writeHeaderCpp(headerpath, messages):
 def writeEvokerCpp(evokerpath, messages):
     with open("synrpc_generator/synrpc_usbcon_template.cpp", 'r') as f:
         code = f.read()
-    for k, m in messages.items():
+    for m in messages.values():
         code += m.genCppConverter()
         code += m.genCppChecker()
     code += "\nconverter_t packetconverters[MAX_HANDLER_TYPE] = {\n"
-    for k, m in messages.items():
+    for m in messages.values():
         code += m.genCppConverterEntry()
     code += "};\n"
     code += "\nchecker_t packetcheckers[MAX_HANDLER_TYPE] = {\n"
-    for k, m in messages.items():
+    for m in messages.values():
         code += m.genCppCheckerEntry()
     code += "};\n"
     code +="""
@@ -167,10 +167,10 @@ uint16_t UsbRpc::Handler::plausible(const UsbRpc::Packet &p)
 def writePythonBridge(path, messages):
     with open("synrpc_generator/synrpc_usbcon_template.py", 'r') as f:
         content = f.read()
-    for k, m in messages.items():
+    for m in messages.values():
         content += m.genPyClass()
     content += "\n_msgGenerators = [\n    SynRpcError._unserialize,\n"
-    for k, m in messages.items():
+    for m in messages.values():
         content += m.genPyMsgGen()
     content += "]\n"
     with open(path, 'w') as f:

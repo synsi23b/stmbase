@@ -934,7 +934,7 @@ namespace syn
       uint32_t tickstart = milliseconds();
       /* Add a freq to guarantee minimum wait */
       ++millis;
-      while((milliseconds() - tickstart) < millis)
+      while ((milliseconds() - tickstart) < millis)
         ;
     }
 
@@ -972,9 +972,18 @@ namespace syn
   class Gpio
   {
   public:
+    Gpio()
+    {
+      _pPort = 0;
+    }
     // port shall be 'A' 'B' or 'C'
     // pin is a number beteween and including 0 and 15
     Gpio(int8_t port, uint8_t pin)
+    {
+      init(port, pin);
+    }
+
+    void init(int8_t port, uint8_t pin)
     {
       OS_ASSERT(pin < 16, ERR_BAD_INDEX);
       _port = port;
@@ -1046,16 +1055,16 @@ namespace syn
         OS_ASSERT(s != Input, ERR_FORBIDDEN);
       }
 #ifdef STM32F103xB
-      if(s == MHz_100)
+      if (s == MHz_100)
       {
         s = MHz_50;
       }
-      if(m == in_pullup)
+      if (m == in_pullup)
       {
         set();
         m = in_pulldown;
       }
-      else if(m == in_pulldown)
+      else if (m == in_pulldown)
       {
         clear();
       }
@@ -1076,17 +1085,17 @@ namespace syn
       _pPort->MODER &= ~(0x3 << (_pin * 2));
       _pPort->OSPEEDR &= ~(0x3 << (_pin * 2));
       _pPort->PUPDR &= ~(0x3 << (_pin * 2));
-      volatile uint32_t* pAfr;
+      volatile uint32_t *pAfr;
       uint32_t afr_shift;
-      if(_pin < 8)
+      if (_pin < 8)
       {
         pAfr = &_pPort->AFR[0];
-        afr_shift = _pin  * 4;
+        afr_shift = _pin * 4;
       }
       else
       {
         pAfr = &_pPort->AFR[1];
-        afr_shift = (_pin - 8)  * 4;
+        afr_shift = (_pin - 8) * 4;
       }
       *pAfr &= ~(0xF << afr_shift);
       switch (m)
@@ -1138,6 +1147,15 @@ namespace syn
 #else
 #error "Unknown chip!"
 #endif
+    }
+
+    void setWeakPullUpDown(bool pull_up, bool pull_down)
+    {
+      _pPort->PUPDR &= ~(0x3 << (_pin * 2));
+      if(pull_up)
+        _pPort->PUPDR |= (0x1 << (_pin * 2));
+      if(pull_down)
+        _pPort->PUPDR |= (0x2 << (_pin * 2));
     }
 
     bool read()
@@ -1387,7 +1405,7 @@ namespace syn
 #ifdef STM32F401xC
       OS_ASSERT(stream < 16, ERR_BAD_INDEX);
       _number = stream;
-      if(stream < 8)
+      if (stream < 8)
       {
         _pStream = DMA1_Stream0 + stream;
       }
@@ -1451,14 +1469,16 @@ namespace syn
     }
 
 #ifdef STM32F401xC
-    enum BurstSize {
+    enum BurstSize
+    {
       Single_Transfer = 0,
       Burst_of_4_beats = 1,
       Burst_of_8_beats = 2,
       Burst_of_16_beats = 3
     };
 
-    enum FifoSize {
+    enum FifoSize
+    {
       FIFO_1_4th = 0,
       FIFO_HALF = 1,
       FIFO_3_4th = 2,
@@ -1644,9 +1664,26 @@ namespace syn
     void stopForDebug();
 
   private:
-
     TIM_TypeDef *_pTimer;
     uint16_t _number;
+  };
+
+  class SpiMaster
+  {
+  public:
+    // port -> Spi Number 1, 2, 3
+    // frequency -> in MHz
+    // clock_polarity -> false = idle_low
+    // clock_phase -> false = capture on first edge, true = capture on second edge
+    // transfer_size -> false = 8bit, true 16bit
+    // hardware_slave_sel -> false = user takes care of nss pin
+    void init(uint16_t port, uint32_t frequency, bool clock_polarity, bool clock_phase, bool transfer_size, bool hardware_slave_sel);
+
+    bool busy_tx(const uint8_t *pbuffer, uint16_t size);
+    bool busy_tx(const uint16_t *pbuffer, uint16_t size);
+
+  private:
+    SPI_TypeDef *_pSpi;
   };
 
   class I2cMaster
