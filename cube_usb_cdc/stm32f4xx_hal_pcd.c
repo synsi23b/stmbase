@@ -1617,7 +1617,7 @@ HAL_StatusTypeDef HAL_PCD_EP_Transmit(uint8_t ep_addr, const uint8_t *pBuf, uint
   }
   else
   {
-    (void)USB_EPStartXfer(ep);
+    return USB_EPStartXfer(ep);
   }
 
   return HAL_OK;

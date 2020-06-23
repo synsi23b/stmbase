@@ -1644,8 +1644,16 @@ bool UsbRpc::write(const uint8_t *data, uint16_t size, uint32_t timeout)
     /* Update the packet total length */
   hUsbDeviceFS.ep_in[CDC_IN_EP & 0xFU].total_length = size;
   /* Transmit next packet */
-  HAL_PCD_EP_Transmit(CDC_IN_EP, data, size);
-  return true;
+  if(HAL_PCD_EP_Transmit(CDC_IN_EP, data, size) == HAL_OK)
+  {
+    return true;
+  }
+  // couldn't transmit the packet for some reason (tx buffer full? not initialized?)
+  if(hUsbDeviceFS.dev_state == USBD_STATE_CONFIGURED)
+  {
+    usb::sig_tx_ready.set();
+  }
+  return false;
 }
 
 void UsbRpc::_enable_rx()

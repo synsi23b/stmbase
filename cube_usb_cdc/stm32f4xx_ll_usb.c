@@ -642,6 +642,11 @@ HAL_StatusTypeDef USB_EPStartXfer(USB_OTG_EPTypeDef *ep)
     }
     else
     {
+      // make sure there is enough space in the tx buffer
+      if ((USBx_INEP(epnum)->DTXFSTS & USB_OTG_DTXFSTS_INEPTFSAV) < ((ep->xfer_len + 3) / 4))
+      {
+        return HAL_ERROR;
+      }
       /* Program the transfer size and packet count as follows:
       * xfersize = N * maxpacket + short_packet
       * pktcnt = N + (short_packet exist ? 1 : 0)
@@ -654,13 +659,7 @@ HAL_StatusTypeDef USB_EPStartXfer(USB_OTG_EPTypeDef *ep)
       USBx_INEP(epnum)->DIEPCTL |= (USB_OTG_DIEPCTL_CNAK | USB_OTG_DIEPCTL_EPENA);
       /* Enable the Tx FIFO Empty Interrupt for this EP */
       // USBx_DEVICE->DIEPEMPMSK |= 1UL << (ep->num & EP_ADDR_MSK);
-      // instead of interrupt, use the RX buffer, its huge
-#ifdef DEBUG
-      if ((USBx_INEP(epnum)->DTXFSTS & USB_OTG_DTXFSTS_INEPTFSAV) < ((ep->xfer_len + 3) / 4))
-      {
-        Error_Handler();
-      }
-#endif
+      // instead of interrupt, use the TX buffer, its huge
       USB_WritePacket(ep->xfer_buff, ep->num, (uint16_t)ep->xfer_len);
     }
   }
