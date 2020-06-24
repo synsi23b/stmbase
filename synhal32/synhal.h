@@ -1009,8 +1009,8 @@ namespace syn
     {
       in_analog = 0x0,
       in_floating = 0x4,
-      in_pullup = 0x7,
       in_pulldown = 0x8,
+      in_pullup = 0xC,
       out_push_pull = 0x1,
       out_open_drain = 0x5,
       out_alt_push_pull = 0x9,
@@ -1151,11 +1151,16 @@ namespace syn
 
     void setWeakPullUpDown(bool pull_up, bool pull_down)
     {
+#ifdef STM32F103xB
+      pull_up = pull_up;
+      pull_down = pull_down;
+#else
       _pPort->PUPDR &= ~(0x3 << (_pin * 2));
       if(pull_up)
         _pPort->PUPDR |= (0x1 << (_pin * 2));
       if(pull_down)
         _pPort->PUPDR |= (0x2 << (_pin * 2));
+#endif
     }
 
     bool read()
@@ -1603,7 +1608,7 @@ namespace syn
     {
       --channel;
       OS_ASSERT(channel < 4, ERR_BAD_INDEX);
-      uint16_t *reg = (uint16_t *)((&(_pTimer->CCR1)) + channel);
+      uint16_t *reg = (uint16_t *)(((uint32_t*)(&(_pTimer->CCR1))) + channel);
       *reg = value;
     }
 
@@ -1611,6 +1616,11 @@ namespace syn
     void setReload(uint16_t value)
     {
       _pTimer->ARR = value;
+    }
+
+    uint16_t getReload() const
+    {
+      return _pTimer->ARR;
     }
 
     // value is the time in microseconds

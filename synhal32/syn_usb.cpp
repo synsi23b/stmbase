@@ -10,13 +10,13 @@ namespace usb
   static Signal sig_tx_ready;
   // writepointer to currently reserved mail
   static uint32_t *packetbuffer;
-#ifdef STM32F103
+#ifdef STM32F103xB
 #else
   static uint16_t packetbuffer_rx_remaining;
   static uint8_t data_rx_off;
 }
 #endif
-#ifdef STM32F103
+#ifdef STM32F103xB
   static const uint32_t max_packet = 64;
   static const uint32_t max_descriptor = 68; // actually 67, but we need to round up
   static const uint32_t max_buffer_cdc = 128;
@@ -1043,11 +1043,9 @@ void UsbRpc::init()
   usb::mem->buffer_state[1].rx_remaining = 0; // fresh packet
   // enable gpio
   Gpio pin_dm('A', 11);
-  pin_dm.mode(Gpio::in_pullup_pulldown, Gpio::Input);
-  pin_dm.set(); // pull up
+  pin_dm.mode(Gpio::in_pullup);
   Gpio pin_dp('A', 12);
-  pin_dp.mode(Gpio::in_pullup_pulldown, Gpio::Input);
-  pin_dp.set(); // pull up
+  pin_dp.mode(Gpio::in_pullup);
   // reset the usb device
   USB->CNTR = USB_CNTR_FRES; // reset everything
   USB->CNTR = 0;

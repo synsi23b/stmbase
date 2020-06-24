@@ -83,13 +83,14 @@ namespace mtl
 
     for (idx = 0; idx < len; idx++)
     {
-      if (((value >> 28)) < 0xA)
+      uint32_t digit = value >> 28;
+      if (digit < 10)
       {
-        pbuf[2 * idx] = (value >> 28) + '0';
+        pbuf[2 * idx] = digit + '0';
       }
       else
       {
-        pbuf[2 * idx] = (value >> 28) + 'A' - 10;
+        pbuf[2 * idx] = digit + 'A' - 10;
       }
 
       value = value << 4;
