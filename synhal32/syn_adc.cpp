@@ -11,7 +11,7 @@ void Adc::init()
   ADC1->CR2 = 0;
   ADC1->CR2 = 0;
   ADC1->CR2 = ADC_CR2_ADON;
-  System::udelay(100);
+  syn::System::delay(1);
   // calibrate ADC
   ADC1->CR2 |= ADC_CR2_CAL;
   while (ADC1->CR2 & ADC_CR2_CAL)
@@ -30,7 +30,8 @@ void Adc::init()
   ADC1->CR1 = ADC_CR1_SCAN;
   ADC1->CR2 |= ADC_CR2_CONT | ADC_CR2_DMA;
   // setup DMA to write the data into static array in a repititive manner
-  Dma dma(1);
+  Dma dma;
+  dma.init(1);
   dma.cyclicP2M(&(ADC1->DR), _channels, ADC_CHANNEL_COUNT);
   dma.start();
   // start converting
