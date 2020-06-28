@@ -1199,9 +1199,9 @@ namespace syn
       uart3_tx_d8_rx_d9 = 0x0030,
       tim1_remap_part = 0x0040,
       tim1_remap_full = 0x00C0,
-      tim2_remap_part_1 = 0x0100,
-      tim2_remap_part_2 = 0x0200,
-      tim2_remap_full = 0x0300,
+      tim2_ch1_pa15_ch2_pb3 = 0x0100,
+      tim2_ch3_pb10_ch4_pb11 = 0x0200,
+      tim2_ch1_pa15_ch2_pb3_ch3_pb10_ch4_pb11 = 0x0300,
       tim3_remap_part = 0x0800,
       tim3_remap_full = 0x0C00,
       tim4_remap = 0x1000,
@@ -1218,7 +1218,7 @@ namespace syn
       swj_all_disable = 0x4000000
     };
 
-    void remap(Remap map)
+    static void remap(Remap map)
     {
 #ifdef STM32F103xB
       AFIO->MAPR |= (uint32_t)map;
@@ -1371,6 +1371,9 @@ namespace syn
     static void init();
 
     // set the pin to analog reading mode
+    // channel can be any number between and including 0 and 9
+    // 0 .. 7 unlocks pins of Port A 0 .. 7
+    // 8 & 9 unlocks pins 0 & 1 of Port B
     static void enable(uint16_t channel)
     {
       OS_ASSERT(channel < ADC_CHANNEL_COUNT, ERR_BAD_INDEX);
@@ -1602,6 +1605,15 @@ namespace syn
     // enables the corresponding pin to perfom pwm output
     // lower speed at the gpio is desierable for some reason (less jittery / stronger signal)
     void enablePwm(int8_t port, uint8_t pinnum, uint16_t channel, Gpio::Speed speed = Gpio::MHz_2);
+
+    // check if the pwm channel output is enabled
+    bool is_pwm_out(uint16_t channel)
+    {
+      --channel;
+      OS_ASSERT(channel < 4, ERR_BAD_INDEX);
+      channel *= 4;
+      return _pTimer->CCER & (1 << channel);
+    }
 
     // set the corresponding output compare register
     void setPwm(uint16_t channel, uint16_t value)
