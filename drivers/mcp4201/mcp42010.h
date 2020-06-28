@@ -37,12 +37,16 @@ class Mcp42010
     uint8_t command;
   };
 public:
-  void init(uint16_t spi_port)
+  // spi port is the spi device to use, for example, spi 1
+  // address flipped means changes the output pairs
+  // during setting, instead of index 0 setting poti 0, it will set poti 1 of device 0
+  // also, index 1 will set poti 0 of device 0
+  void init(uint16_t spi_port, bool address_flipped)
   {
     for(auto &d : _even)
-      d.init(0);
+      d.init(address_flipped ? 1 : 0);
     for(auto &d : _odd)
-      d.init(1);
+      d.init(address_flipped ? 0 : 1);
     _spi.init(spi_port, 5800000, false, false, true, true);
   }
 
