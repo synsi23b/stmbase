@@ -429,6 +429,7 @@ namespace usb
       remaining = remaining - bytes_transmitted;
       if (remaining)
       { // still data left to send, advance read pointer and go on sending
+        pbs->tx_remaining = remaining;
         mem->buffer_table[endpoint].advanceTx(remaining);
         set_tx_stat(ep, usb::lowlevel::eValid);
       }
@@ -849,7 +850,8 @@ void usb::rxCtrlEndpoint()
     uint16_t req_id = req->bmRequest & 0x1F;
     if (req_id < (sizeof(class_requesthandler) / sizeof(void *)))
     {
-      if (!class_requesthandler[req_id](*req))
+      auto handler = class_requesthandler[req_id];
+      if (!handler(*req))
         lowlevel::ctrlError();
     }
     else
