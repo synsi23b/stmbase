@@ -938,6 +938,11 @@ namespace syn
         ;
     }
 
+    static void udelay(uint16_t usec)
+    {
+      OS_Delayus(usec);
+    }
+
     // start operating system core and dont return
     static void spin()
     {

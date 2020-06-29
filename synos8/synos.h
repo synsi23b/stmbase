@@ -108,8 +108,9 @@ namespace syn
   private:
     void _init(timer_functor_t functor, uint8_t reload);
 
+#if (SYN_OS_TICK_HOOK_COUNT > 0)
     static SysTickHook _timerlist[SYN_OS_TICK_HOOK_COUNT];
-
+#endif
     uint8_t _next_exec_time;
     uint8_t _reload;
     timer_functor_t _functor;
@@ -446,6 +447,7 @@ namespace syn
     Kernel::_routinelist[Index]._init((void *)functor, (void *)arg, stack);
   }
 
+#if (SYN_OS_TICK_HOOK_COUNT > 0)
   template <uint8_t Index, uint16_t Reload_ms>
   inline void SysTickHook::init(SysTickHook::timer_functor_t functor)
   {
@@ -454,7 +456,8 @@ namespace syn
     static_assert((Reload_ms / SYN_SYSTICK_FREQ) < 256, "Timer reload needs to be less than 256 ticks");
     _timerlist[Index]._init(functor, Reload_ms / SYN_SYSTICK_FREQ);
   }
-
+#endif
+  
   inline uint8_t Semaphore::count() const
   {
     return _count;

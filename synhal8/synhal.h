@@ -279,6 +279,11 @@ namespace syn {
 
     Gpio(int8_t port, uint8_t pinnum)
     {
+      init(port, pinnum);
+    }
+
+    void init(int8_t port, uint8_t pinnum)
+    {
       if (port > 'F')
         port -= 32; // only use big letters
       switch (port) {
@@ -294,12 +299,12 @@ namespace syn {
       case 'D':
         pPort_ = (GPIO_TypeDef*)GPIOD_BaseAddress;
         break;
-      case 'E':
-        pPort_ = (GPIO_TypeDef*)GPIOE_BaseAddress;
-        break;
-      case 'F':
-        pPort_ = (GPIO_TypeDef*)GPIOF_BaseAddress;
-        break;
+      // case 'E':
+      //   pPort_ = (GPIO_TypeDef*)GPIOE_BaseAddress;
+      //   break;
+      // case 'F':
+      //   pPort_ = (GPIO_TypeDef*)GPIOF_BaseAddress;
+      //   break;
       default:
         while (true)
           ;

@@ -1,10 +1,11 @@
 #include "synos.h"
 
-extern "C" {
-  extern void archContextSwitch (syn::Routine* p_old, syn::Routine* p_new);
-  extern void synFirstThreadRestore(void(*idle_entry)(void), uint8_t** mainstack, syn::Routine* p_first);
-  extern void synRunFirstTime(syn::Routine* p_first);
-  extern void synRunOnMainStack(void* functor, uint8_t* mainstack);
+extern "C"
+{
+  extern void archContextSwitch(syn::Routine *p_old, syn::Routine *p_new);
+  extern void synFirstThreadRestore(void (*idle_entry)(void), uint8_t **mainstack, syn::Routine *p_first);
+  extern void synRunFirstTime(syn::Routine *p_first);
+  extern void synRunOnMainStack(void *functor, uint8_t *mainstack);
 }
 
 using namespace syn;
@@ -14,19 +15,19 @@ uint8_t Kernel::_current_ticks_left;
 uint8_t Kernel::_readycount;
 uint8_t Kernel::_isr_reschedule_request;
 
-static Routine* volatile _current_routine;
-static uint8_t* _mainstack;
+static Routine *volatile _current_routine;
+static uint8_t *_mainstack;
 
-Routine* Kernel::_fake_idle_routine()
+Routine *Kernel::_fake_idle_routine()
 {
-  return (Routine*)(((uint8_t*)_mainstack) - 1);
+  return (Routine *)(((uint8_t*)&_mainstack) - 1);
 }
 
-template<typename Functor>
+template <typename Functor>
 void Kernel::for_each_routine(Functor functor)
 {
-  Routine* pr = _routinelist;
-  while(pr != &_routinelist[SYN_OS_ROUTINE_COUNT])
+  Routine *pr = _routinelist;
+  while (pr != &_routinelist[SYN_OS_ROUTINE_COUNT])
   {
     functor(pr);
     ++pr;
@@ -40,10 +41,10 @@ void Routine::sleep(uint16_t timeout)
   Kernel::_contextYield(sleeping);
 }
 
-void Routine::_setupTimeout(uint16_t timeout, Routine** waitlist)
+void Routine::_setupTimeout(uint16_t timeout, Routine **waitlist)
 {
   _timeout = timeout + System::millis();
-  if(_timeout == 0)
+  if (_timeout == 0)
   {
     // protect from roll over bug will wait 1 milli longer, but no problem
     _timeout = 1;
@@ -63,11 +64,11 @@ Routine::TestTimoutExpired::TestTimoutExpired()
 
 void Routine::TestTimoutExpired::operator()(Routine *pr)
 {
-  if(pr->_state & sleeping)
+  if (pr->_state & sleeping)
   {
-    if(pr->_timeout == _millis)
+    if (pr->_timeout == _millis)
     {
-      if(Kernel::_removeWaitlist(pr->_waitlist, pr))
+      if (Kernel::_removeWaitlist(pr->_waitlist, pr))
       {
         // is expired
         pr->_timeout = 0;
@@ -87,7 +88,7 @@ void Routine::timeouttick()
 SysTickHook SysTickHook::_timerlist[SYN_OS_TICK_HOOK_COUNT];
 #endif
 
-void Routine::_init(void* functor, void* arg, uint8_t* stack)
+void Routine::_init(void *functor, void *arg, uint8_t *stack)
 {
   // add the functor and argument to the stack
   // they will be retrieved on first run by synFirstTime
@@ -124,15 +125,16 @@ void Routine::_init(void* functor, void* arg, uint8_t* stack)
   /**
    * (IAR) Set up initial values for ?b8 to ?b15.
   */
-  *stack-- = 0;    // ?b8
-  *stack-- = 0;    // ?b9
-  *stack-- = 0;    // ?b10
-  *stack-- = 0;    // ?b11
-  *stack-- = 0;    // ?b12
-  *stack-- = 0;    // ?b13
-  *stack-- = 0;    // ?b14
-  *stack-- = 0;    // ?b15
+  *stack-- = 0; // ?b8
+  *stack-- = 0; // ?b9
+  *stack-- = 0; // ?b10
+  *stack-- = 0; // ?b11
+  *stack-- = 0; // ?b12
+  *stack-- = 0; // ?b13
+  *stack-- = 0; // ?b14
+  *stack-- = 0; // ?b15
   _stackptr = stack;
+  ++Kernel::_readycount;
 }
 
 void Routine::yield()
@@ -163,7 +165,6 @@ void Routine::unblock()
   ++Kernel::_readycount; // increase ready count
 }
 
-
 #if (SYN_OS_TICK_HOOK_COUNT > 0)
 void SysTickHook::_init(SysTickHook::timer_functor_t functor, uint8_t reload)
 {
@@ -178,14 +179,14 @@ void SysTickHook::_checkAndExec()
   SysTickHook *ptim = _timerlist;
   do
   {
-    if(millis == ptim->_next_exec_time)
+    if (millis == ptim->_next_exec_time)
     {
       ptim->_next_exec_time = millis + ptim->_reload;
       assert(ptim->_functor != 0); // to many hooks cofigured in synhal_cfg
       ptim->_functor();
     }
     ++ptim;
-  } while(ptim != &_timerlist[SYN_OS_TICK_HOOK_COUNT]);
+  } while (ptim != &_timerlist[SYN_OS_TICK_HOOK_COUNT]);
 }
 #endif // (SYN_OS_TICK_HOOK_COUNT > 0)
 
@@ -212,7 +213,7 @@ void Semaphore::give_isr()
 void Semaphore::get()
 {
   Atomic a;
-  while(_count == 0)
+  while (_count == 0)
   {
     Kernel::_enterWaitlist(_waitlist, Routine::wait_semaphore);
   }
@@ -222,13 +223,13 @@ void Semaphore::get()
 bool Semaphore::get(uint16_t timeout)
 {
   Atomic a;
-  if(_count == 0)
+  if (_count == 0)
   {
     _current_routine->_setupTimeout(timeout, &_waitlist);
-    while(_count == 0)
+    while (_count == 0)
     {
       Kernel::_enterWaitlist(_waitlist, Routine::timeout_semaphore);
-      if(_current_routine->_timeout_is_expired())
+      if (_current_routine->_timeout_is_expired())
       {
         return false;
       }
@@ -241,7 +242,7 @@ bool Semaphore::get(uint16_t timeout)
 bool Semaphore::get_isr()
 {
   bool ret = false;
-  if(_count > 0)
+  if (_count > 0)
   {
     --_count;
     ret = true;
@@ -258,9 +259,9 @@ bool Semaphore::try_get()
 void Mutex::lock()
 {
   Atomic a;
-  while(_owner != _current_routine)
+  while (_owner != _current_routine)
   {
-    if(_owner == 0)
+    if (_owner == 0)
     {
       _owner = _current_routine;
     }
@@ -278,11 +279,11 @@ bool Mutex::lock(uint16_t timeout)
 {
   bool ret = false;
   Atomic a;
-  if(_owner == 0)
+  if (_owner == 0)
   {
     _owner = _current_routine;
   }
-  if(_owner == _current_routine)
+  if (_owner == _current_routine)
   {
     ++_count;
     // watch for mutex overlock
@@ -292,14 +293,14 @@ bool Mutex::lock(uint16_t timeout)
   else
   {
     _current_routine->_setupTimeout(timeout, &_waitlist);
-    while(_owner != _current_routine)
+    while (_owner != _current_routine)
     {
       Kernel::_enterWaitlist(_waitlist, Routine::timeout_mutex);
-      if(_current_routine->_timeout_is_expired())
+      if (_current_routine->_timeout_is_expired())
       {
         break;
       }
-      if(_owner == 0)
+      if (_owner == 0)
       {
         _owner = _current_routine;
         ++_count;
@@ -314,11 +315,11 @@ bool Mutex::try_lock()
 {
   Atomic a;
   bool ret = false;
-  if(_owner == 0)
+  if (_owner == 0)
   {
     _owner = _current_routine;
   }
-  if(_owner == _current_routine)
+  if (_owner == _current_routine)
   {
     ++_count;
     // watch for mutex overlock
@@ -333,7 +334,7 @@ void Mutex::unlock()
   Atomic a;
   assert(_owner == _current_routine);
   assert(_count != 0);
-  if(--_count == 0)
+  if (--_count == 0)
   {
     _owner = 0;
     Kernel::_unblockWaitlist(_waitlist);
@@ -384,7 +385,7 @@ bool Event::set_check(uint8_t value)
 uint8_t Event::wait()
 {
   Atomic a;
-  if(_value == 0)
+  if (_value == 0)
   {
     // not looping forever because if the event is set
     // any waiting routine will receive the value by the kernel
@@ -403,11 +404,11 @@ uint8_t Event::wait()
 uint8_t Event::wait(uint16_t timeout)
 {
   Atomic a;
-  if(_value == 0)
+  if (_value == 0)
   {
     _current_routine->_setupTimeout(timeout, &_waitlist);
     Kernel::_enterWaitlist(_waitlist, Routine::timeout_event);
-    if(_current_routine->_timeout_is_expired())
+    if (_current_routine->_timeout_is_expired())
     {
       _current_routine->_setEventValue(0);
     }
@@ -421,7 +422,7 @@ uint8_t Event::wait(uint16_t timeout)
 
 void Kernel::_unblockEventlist(Routine *&listhead, uint8_t value)
 {
-  if(listhead != 0)
+  if (listhead != 0)
   {
     Routine *prt = listhead;
     do
@@ -441,6 +442,7 @@ void Kernel::init()
 {
   // initialize clocks and peripherals
   System::init();
+  _readycount = 0;
 }
 
 void Kernel::spin()
@@ -452,15 +454,18 @@ void Kernel::spin()
 #else
   _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS / SYN_SYSTICK_FREQ;
 #endif
-  _readycount = SYN_OS_ROUTINE_COUNT; // all should be ready
+#ifdef DEBUG
+  while (_readycount != SYN_OS_ROUTINE_COUNT)
+    ; // routinecount has to exactly match the ammount of initialized routines
+#endif
   // setup the idle routine
   // substract some off stackpointer, else no return (we overwrite the return jump..)
   //((Routine*)&_mainstack)->_init((void*)&_idle, 0, &stack_address - 3);
   // clear the event flag to prevent spurious irq
-  TIM4->SR1 = 0; 
+  TIM4->SR1 = 0;
   // setup idle stack and start first thread
   synFirstThreadRestore(&_idle, &_mainstack, _routinelist);
-  while(true != false)
+  while (true != false)
     ;
 }
 
@@ -471,12 +476,12 @@ bool Kernel::is_idle()
 
 // transform stack point to point at the top
 // add known bytes if stack check is enabled
-uint8_t* Kernel::_base_stack_setup(uint8_t* stack, uint16_t size)
+uint8_t *Kernel::_base_stack_setup(uint8_t *stack, uint16_t size)
 {
-  uint8_t* stacktop = stack + (size - 1);
+  uint8_t *stacktop = stack + (size - 1);
 #ifdef SYN_OS_STACK_CHECK
   size -= 10;
-  while(size != 0)
+  while (size != 0)
   {
     *stack++ = 0xCD;
     --size;
@@ -488,13 +493,13 @@ uint8_t* Kernel::_base_stack_setup(uint8_t* stack, uint16_t size)
 void Kernel::_idle()
 {
   rim();
-  while(1)
+  while (1)
     syn_os_idle_hook();
 }
 
 void Kernel::exit_isr()
 {
-  if(_isr_reschedule_request & 0x80)
+  if (_isr_reschedule_request & 0x80)
   {
     // request 0x80 is set when an interrupt enables a routine
     // but since we don't practice eager preemption, this only
@@ -510,9 +515,9 @@ void Kernel::exit_isr()
   }
 }
 
-void Kernel::_enterWaitlist(Routine*& listhead, Routine::State blocking_reason)
+void Kernel::_enterWaitlist(Routine *&listhead, Routine::State blocking_reason)
 {
-  if(listhead == 0)
+  if (listhead == 0)
   {
     listhead = _current_routine;
     _current_routine->_next = 0;
@@ -520,7 +525,7 @@ void Kernel::_enterWaitlist(Routine*& listhead, Routine::State blocking_reason)
   else
   {
     Routine *tmp = listhead;
-    while(tmp->_next != 0)
+    while (tmp->_next != 0)
     {
       tmp = tmp->_next;
     }
@@ -530,9 +535,9 @@ void Kernel::_enterWaitlist(Routine*& listhead, Routine::State blocking_reason)
   _contextYield(blocking_reason);
 }
 
-void Kernel::_unblockWaitlist(Routine*& listhead)
+void Kernel::_unblockWaitlist(Routine *&listhead)
 {
-  if(listhead != 0)
+  if (listhead != 0)
   {
     Routine *prt = listhead;
     prt->unblock();
@@ -546,21 +551,21 @@ bool Kernel::_removeWaitlist(Routine **listhead, Routine *to_remove)
   bool ret = false;
   to_remove->unblock();
   // check if there is no list, maybe we don't have to rebuild it
-  if(listhead != 0)
+  if (listhead != 0)
   {
     Routine *pcur = *listhead;
-    if(pcur == to_remove)
+    if (pcur == to_remove)
     {
       // the element to remove is the first of the list, very easy
-      *listhead = to_remove-> _next;
+      *listhead = to_remove->_next;
       ret = true;
     }
     else
     {
-      while(pcur != 0)
+      while (pcur != 0)
       {
         // the element is not the first, and the list is not empty
-        if(pcur->_next == to_remove)
+        if (pcur->_next == to_remove)
         {
           pcur->_next = to_remove->_next;
           ret = true;
@@ -575,21 +580,21 @@ bool Kernel::_removeWaitlist(Routine **listhead, Routine *to_remove)
 
 void Kernel::_contextSwitch()
 {
-  if(_readycount != 0)
+  if (_readycount != 0)
   {
     // find the next runnable routine, is not current
     Routine *pold = _current_routine;
     // make sure we can switch out of the idle routine properly
-    if(_current_routine == _fake_idle_routine())
+    if (_current_routine == _fake_idle_routine())
       _current_routine = _routinelist - 1;
-    while(true)
+    while (true)
     {
       // get next routine, roll over if we hit the end
       // this also works of current is the idle routine
       // we are guaranteed to break, because runnable count is not zero
-      if(++_current_routine == &_routinelist[SYN_OS_ROUTINE_COUNT])
+      if (++_current_routine == &_routinelist[SYN_OS_ROUTINE_COUNT])
         _current_routine = _routinelist;
-      if(_current_routine->is_runnable())
+      if (_current_routine->is_runnable())
       {
 #ifndef SYN_OS_ROUTINE_RR_SLICE_MS
         _current_ticks_left = _current_routine->_rr_reload;
@@ -601,7 +606,7 @@ void Kernel::_contextSwitch()
       }
     }
   }
-  else if(_current_routine != _fake_idle_routine())
+  else if (_current_routine != _fake_idle_routine())
   {
     Routine *pold = _current_routine;
     _current_routine = _fake_idle_routine();
@@ -615,7 +620,7 @@ void Kernel::_contextSwitch()
 // paramter defines wether or not the routine can continue
 void Kernel::_contextYield(Routine::State blocking_reason)
 {
-  if(blocking_reason != 0)
+  if (blocking_reason != 0)
   {
     _current_routine->block(blocking_reason);
     _contextSwitch();
@@ -628,13 +633,13 @@ void Kernel::_contextYield(Routine::State blocking_reason)
 }
 
 // optimized context switch when we know some routine just got unblocked
-void Kernel::_contextUnblocked(Routine* unblocked)
+void Kernel::_contextUnblocked(Routine *unblocked)
 {
   // no aggressive preemption, we only switch the context when idle
-  if(is_idle())
+  if (is_idle())
   {
     _current_routine = unblocked;
-    if(_isr_reschedule_request == 0)
+    if (_isr_reschedule_request == 0)
     {
       // not an isr context, so switch right away
 #ifndef SYN_OS_ROUTINE_RR_SLICE_MS
@@ -658,7 +663,7 @@ void Kernel::_tickySwitch()
 #ifdef SYN_OS_ENABLE_TIMOUT_API
   Routine::timeouttick();
 #endif
-  if(_isr_reschedule_request & 0x80)
+  if (_isr_reschedule_request & 0x80)
   {
     // for some reason without this nop the compiler thinks its a cool
     // idea to clear the reschedule_request before even reading it.
@@ -676,16 +681,16 @@ void Kernel::_tickySwitch()
 #else
     _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS / SYN_SYSTICK_FREQ;
 #endif
-    
+
     archContextSwitch(_fake_idle_routine(), _current_routine);
   }
   else
   {
     --_isr_reschedule_request;
     --_current_ticks_left;
-    if(_current_ticks_left == 0)
+    if (_current_ticks_left == 0)
     {
-      if(_readycount == 1 && _current_routine->is_runnable())
+      if (_readycount == 1 && _current_routine->is_runnable())
       {
         // no switch needed, just refresh this routines tick count
 #ifndef SYN_OS_ROUTINE_RR_SLICE_MS
@@ -702,19 +707,16 @@ void Kernel::_tickySwitch()
   }
 }
 
-//INTERRUPT_HANDLER_TRAP(TRAP) {
-//  Kernel::_funkySwitch();
-//}
-
-INTERRUPT_HANDLER(TIMER4_OV, 23) {
+INTERRUPT_HANDLER(TIMER4_OV, 23)
+{
   Kernel::enter_isr();
   System::_systick_isr();
 #if (SYN_OS_TICK_HOOK_COUNT > 0)
 #ifdef SYN_OS_RUN_TIMER_ON_MAINSTACK
-  if(Kernel::is_idle())
+  if (Kernel::is_idle())
     SysTickHook::_checkAndExec();
   else
-    synRunOnMainStack((void*)&SysTickHook::_checkAndExec, _mainstack);
+    synRunOnMainStack((void *)&SysTickHook::_checkAndExec, _mainstack);
 #else
   SysTickHook::_checkAndExec();
 #endif
