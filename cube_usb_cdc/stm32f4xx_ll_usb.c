@@ -245,6 +245,7 @@ HAL_StatusTypeDef USB_SetCurrentMode(USB_OTG_ModeTypeDef mode)
   */
 HAL_StatusTypeDef USB_DevInit(USB_OTG_CfgTypeDef cfg)
 {
+  (void)cfg;
   HAL_StatusTypeDef ret = HAL_OK;
 
   uint32_t i;

@@ -18,7 +18,7 @@
       build_intermediate_directory="$(ProjectDir)/Output/$(Configuration)"
       build_output_directory="$(ProjectDir)/Output/$(Configuration)"
       c_additional_options="-Wall;-Wextra;-Wunused-variable;-Wuninitialized;-Wmissing-field-initializers;-Wundef;-ffunction-sections;-fdata-sections"
-      c_only_additional_options="-Wmissing-prototypes"
+      c_only_additional_options=""
       c_preprocessor_definitions="SYSVIEW_DEVICE_NAME=&quot;STM32F401CC&quot;;SYSVIEW_RAM_BASE=0x20000000;USE_RTT=1;STM32F401xC;__STM32F4xx_FAMILY;__STM32F401_SUBFAMILY;HSE_VALUE=25000000;__VFP_HARD__"
       c_user_include_directories="$(ProjectDir)/stmbase/embos/common;$(ProjectDir)/stmbase/embos/stm32f401ccu6;$(ProjectDir)/stmbase/synhal32;"
       debug_register_definition_file="$(ProjectDir)/stmbase/embos/stm32f401ccu6/STM32F401x_Registers.xml"

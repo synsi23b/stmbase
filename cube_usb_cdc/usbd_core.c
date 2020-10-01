@@ -135,6 +135,7 @@ USBD_StatusTypeDef USBD_SetClassConfig(uint8_t cfgidx)
 */
 USBD_StatusTypeDef USBD_ClrClassConfig(uint8_t cfgidx)
 {
+  (void)cfgidx;
   USBD_CDC_DeInit();
 
   return USBD_OK;
@@ -249,7 +250,6 @@ USBD_StatusTypeDef USBD_LL_DataOutStage(uint8_t epnum, uint8_t *pdata)
 USBD_StatusTypeDef USBD_LL_DataInStage(uint8_t epnum, uint8_t *pdata)
 {
   USBD_EndpointTypeDef *pep;
-  USBD_StatusTypeDef ret;
 
   if (epnum == 0U)
   {
