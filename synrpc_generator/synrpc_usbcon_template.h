@@ -4,7 +4,7 @@
 
 namespace syn
 {{
-  const uint8_t SYNRPC_USBCON_MAX = 122;
+  const uint8_t SYNRPC_USBCON_MAX = 127;
   const uint8_t SYNRPC_USBCON_GEN = {SYNRPC_USBCON_MAX_GEN};
 
   class UsbRpc::Packet
@@ -13,9 +13,10 @@ namespace syn
 
   public:
 
+    // returns the size of the payload
     uint16_t size() const
     {{
-      return _meta & 0xFF;
+      return (_meta & 0xFF) - 5;
     }}
 
     uint16_t type() const
@@ -28,9 +29,10 @@ namespace syn
       return _meta >> 16;
     }}
 
+    // returns the size of the entire message
     uint16_t rawSize() const
     {{
-      return size() + 5; // add 5 because of size + type + sha-1 + payload + rev_size
+      return (_meta & 0xFF);
     }}
 
     template <typename NewType>
@@ -46,19 +48,9 @@ namespace syn
     }}
 
   private:
-    void form(uint8_t size, uint8_t type, uint16_t sha1)
-    {{
-      _meta = (sha1 << 16) | (type << 8) | size; // little endian [size | type | sha-1 | payload | revsize]
-      _data[size] = SYNRPC_USBCON_MAX - uint16_t(size);
-    }}
-
-    const uint8_t *rawData() const
-    {{
-      return (const uint8_t *)&_meta;
-    }}
 
     uint32_t _meta; // 32bit for alignment
-    uint8_t _data[SYNRPC_USBCON_GEN + 1];
+    uint8_t _data[SYNRPC_USBCON_GEN - 4]; // subtract meta from max message
   }};
 
   class UsbRpc::Handler : public syn::Thread
@@ -69,8 +61,10 @@ namespace syn
     static bool sendMessage(MsgType &msg, uint32_t timeout = 0)
     {{
       Packet *p = (Packet *)((uint8_t *)&msg);
-      p->form(MsgType::_size, MsgType::_type, MsgType::_sha1);
-      return syn::UsbRpc::write(p->rawData(), p->rawSize(), timeout);
+      // little endian [size | type | sha-1 | payload | revsize]
+      p->_meta = (uint32_t(MsgType::_sha1) << 16) | (MsgType::_type << 8) | (MsgType::_size);
+      p->_data[MsgType::_size - 5] = SYNRPC_USBCON_MAX - uint16_t(MsgType::_size);
+      return syn::UsbRpc::write((const uint8_t *)p, MsgType::_size, timeout);
     }}
 
     // test a packet for plausibility
@@ -97,7 +91,7 @@ namespace syn
 
   struct SynRPCError
   {{
-    static const uint8_t _size = 27;
+    static const uint8_t _size = 32;
     static const uint8_t _type = 0;
     static const uint16_t _sha1 = 0xffff;
     uint32_t _packetstart;

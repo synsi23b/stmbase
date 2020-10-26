@@ -87,14 +87,28 @@ void SpiMaster::init(uint16_t port, uint32_t frequency, bool clock_polarity, boo
 
 bool SpiMaster::busy_tx(const uint8_t *pbuffer, uint16_t size)
 {
-  (void)pbuffer;
-  (void)size;
+  // check 8 bit data frame format
   OS_ASSERT((_pSpi->CR1 & SPI_CR1_DFF) == 0, ERR_FORBIDDEN);
-  return false;
+  if(_pSpi->SR & SPI_SR_BSY)
+    return false;
+  _pSpi->CR1 |= SPI_CR1_MSTR | SPI_CR1_SPE;
+  while(size > 0)
+  {
+    if(_pSpi->SR & SPI_SR_TXE)
+    {
+      _pSpi->DR = *pbuffer++;
+      --size;
+    }
+  }
+  while(_pSpi->SR & SPI_SR_BSY)
+    ;
+  _pSpi->CR1 &= ~SPI_CR1_SPE;
+  return true;
 }
 
 bool SpiMaster::busy_tx(const uint16_t *pbuffer, uint16_t size)
 {
+  // check 16 bit data frame format
   OS_ASSERT((_pSpi->CR1 & SPI_CR1_DFF) != 0, ERR_FORBIDDEN);
   if(_pSpi->SR & SPI_SR_BSY)
     return false;

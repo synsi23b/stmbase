@@ -1,13 +1,14 @@
 import struct, serial, threading
 from time import sleep
+import sys
 
 # transmitting over usb happens in packets of up to 64 byte
 # if we send exactly 64 bytes, the host is not
 # sure wether or not the transmission is finished.
 # it will than ask the again and we need to transmit a zero length packet
-# so by defining the max size at 122 and adding the packet descriptor of 5 bytes
-# we can finish any transmission in 2 steps and can optimize the device buffer easily
-SYNRPC_MAX_MSGSIZE = 122
+# so by defining the max size at 127 we can finish any transmission in 2 steps and can optimize the device buffer easily
+SYNRPC_MAX_MSGSIZE = 127
+
 
 class _Array(object):
     def __init__(self, parentlist, start, end):
@@ -41,6 +42,7 @@ class _Array(object):
     def __reversed__(self):
         return _Array._Iter(self._parent, self._start, self._end)
 
+
     class _Iter:
         def __init__(self, parent, start, stop):
             self._parent = parent
@@ -55,6 +57,9 @@ class _Array(object):
             else:
                 raise StopIteration()
 
+        next = __next__  # Python 2
+
+
     class _RevIter:
         def __init__(self, parent, start, stop):
             self._parent = parent
@@ -68,6 +73,9 @@ class _Array(object):
                 return self._parent[val]
             else:
                 raise StopIteration()
+
+        next = __next__  # Python 2
+
 
 class PacketHandler:
     """Receive and send SynRPCMessages using this handler.
@@ -91,8 +99,11 @@ while True:
     def __init__(self, comport):
         self._comport = comport
         self._serial = serial.Serial(comport)
-        self._handlers = { 0 : PacketHandler._errmsgHandler }
         self._running = False
+        if sys.version_info < (3, 0):
+            self._recv = PacketHandler._py2_recv
+        else:
+            self._recv = PacketHandler._py3_recv
         self._recthread = threading.Thread(target=self._receiver)
 
     def start(self):
@@ -105,7 +116,7 @@ while True:
         self._serial = None
 
     def addMessageHandler(self, MsgClass, handler):
-        self._handlers[MsgClass._type] = handler
+        _msgHandlers[MsgClass._type] = handler
 
     def sendMessage(self, message):
         self._serial.write(message._serialize())
@@ -120,61 +131,98 @@ while True:
                     continue
             else:
                 buffer += self._serial.read(inavail)
-            # check buffer 0 for expected packet size and if the buffer is big enough
-            plsize = buffer[0]
-            if len(buffer) >= plsize + 5:
-                # check if end of packet matches plsize
-                plsrev = buffer[plsize + 4]
-                if (SYNRPC_MAX_MSGSIZE - plsrev) == plsize:
-                    try: # valid packet sizes, check content
-                        #msgs = ''.join(buffer[:plsize + 5])
-                        msg = _generateMessage(buffer[1], buffer)
-                        if msg:
-                            try:
-                                buffer = buffer[msg._size + 5:]
-                                if msg._type in self._handlers:
-                                    self._handlers[msg._type](msg)
-                                else:
-                                    print(f"Warning -> Missing handler for message: {type(msg)}")
-                            except Exception as e:
-                                print(e)
-                    except ValueError as e:
-                        print(e)
-                        buffer.pop(0)
-                    except struct.error as e:
-                        print(e, f" - buffer actual length: {len(buffer)}")
-                else: # data missmatch, purge first byte and try again
+            buffer = self._recv(buffer)
+
+    @staticmethod
+    def _py2_recv(buffer):
+        # check buffer 0 for expected packet size and if the buffer is big enough
+        msgsize = ord(buffer[0])
+        if(msgsize < 6):
+            # if the indicated message size is below 6, there has to be an error.
+            # the meta data is at least 5 bytes and the payload is at least 1 byte.
+            buffer.pop(0)
+        elif len(buffer) >= msgsize:
+            # check if end of packet matches msgsize
+            msgsizerev = ord(buffer[msgsize - 1])
+            if (SYNRPC_MAX_MSGSIZE - msgsizerev) == msgsize:
+                msg = ''.join(buffer[:msgsize])
+                if _tryExecMessage(ord(buffer[1]), msg):
+                    buffer = buffer[msgsize:]
+                else:
                     buffer.pop(0)
-            else: # not enough data in yet, sleep a bit
-                # probably never happens because of lots and lots of queing in the os driver and all that
-                sleep(0.01)
-                pass
+            else: # data missmatch, purge first byte and try again
+                buffer.pop(0)
+        else: # not enough data in yet, sleep a bit
+            # probably never happens because of lots and lots of queing in the os driver and all that
+            sleep(0.01)
+        return buffer
+    
+    @staticmethod
+    def _py3_recv(buffer):
+        # check buffer 0 for expected packet size and if the buffer is big enough
+        msgsize = buffer[0]
+        if(msgsize < 6):
+            buffer.pop(0)
+        elif len(buffer) >= msgsize:
+            # check if end of packet matches msgsize
+            msgsizerev = buffer[msgsize - 1]
+            if (SYNRPC_MAX_MSGSIZE - msgsizerev) == msgsize:
+                msg = bytes(buffer[:msgsize])
+                if _tryExecMessage(buffer[1], msg):
+                    buffer = buffer[msgsize:]
+                else:
+                    buffer.pop(0)
+            else: # data missmatch, purge first byte and try again
+                buffer.pop(0)
+        else: # not enough data in yet, sleep a bit
+            # probably never happens because of lots and lots of queing in the os driver and all that
+            sleep(0.01)
+        return buffer
 
     @staticmethod
     def _errmsgHandler(synrpcerror):
         print(synrpcerror)
 
-def _generateMessage(msgtype, buffer):
-    if msgtype < len(_msgGenerators):
-        return _msgGenerators[msgtype](bytes(buffer))
-    return None
+
+_msgHandlers = { 0 : PacketHandler._errmsgHandler }
+
+
+def _tryExecMessage(msgtype, msg):
+    try:
+        msg = _msgGenerators[msgtype](msg)
+        if msg._type in _msgHandlers:
+            try:         
+                _msgHandlers[msg._type](msg)
+            except Exception as e:
+                print("Exception during handler: " + e)
+            return True
+        else:
+            print("Warning -> Missing handler for message: " + str(type(msg)))
+    except IndexError as e:
+        print("Unknown message type: " + str(msgtype))
+    except struct.error as e:
+        print(e, " - buffer actual length: " + str(len(buffer)))
+    except ValueError as e:
+        print("Exception during message generation: " + str(e))
+    return False
+
 
 class SynRpcError(object):
     _type = 0
-    _size = 27
-    _header = int('ffff', 16) << 16 | 0 << 8 | 27
-    _footer = SYNRPC_MAX_MSGSIZE - 27
+    _size = 32
+    _header = int('ffff', 16) << 16 | 0 << 8 | 32
+    _footer = SYNRPC_MAX_MSGSIZE - 32
     _packer = struct.Struct("<LB26sB")
 
     def __init__(self, buffer):
         data = SynRpcError._packer.unpack_from(buffer)
         if data[0] != SynRpcError._header:
-            raise ValueError("header missmatch after parsing of msg type SynRpcError")
+            raise ValueError("header missmatch for SynRpcError")
         self.errtype = data[1]
         self.errmsg = data[2]
 
     def __str__(self):
-        return "Type: {} Error: {}".format(self.errtype, self.errmsg)
+        return "Type: {} Error: {}".format(_msgNames[self.errtype], self.errmsg)
 
     @staticmethod
     def _unserialize(buffer):

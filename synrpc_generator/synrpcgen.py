@@ -8,10 +8,10 @@ from collections import OrderedDict
 # it will than ask the again and we need to transmit a zero length packet
 # so by defining the max size at 122 and adding the packet descriptor of 5 bytes
 # we can finish any transmission in 2 steps and can optimize the device buffer easily
-SYNRPC_MAX_MSGSIZE = 122
+SYNRPC_MAX_MSGSIZE = 127
 
-# check the maximum message size actually needed, minimum is error message
-SYNRPC_GEN_MAX = 27
+# check the maximum message size actually needed, minimum is error message (4 byte header + 27 byte data + footer) == 32 byte message
+SYNRPC_GEN_MAX = 32
 
 def main():
     parser = argparse.ArgumentParser(description='Generate synrpc messages')
@@ -19,14 +19,12 @@ def main():
     args = parser.parse_args()
 
     if args.bits == "STM32":
-        wdir = os.getcwd()
-        basepath = wdir + os.sep + ".."
+        basepath = os.getcwd()
         srcpath = basepath + os.sep + 'src'
         msgpath = basepath + os.sep + 'msg'
         handlerpath = srcpath + os.sep + "synrpc_handlers.cpp"
         headerpath =  srcpath + os.sep + "synrpc_usbcon.h"
         evokerpath =  srcpath + os.sep + "synrpc_usbcon.cpp"
-        #pybridgehere = wdir + os.sep + "synrpc_usbcon.py"
         pybridgepath = basepath + os.sep + "synrpc_usbcon.py"
         files = next(os.walk(msgpath))[2]
         messages = OrderedDict()
@@ -110,7 +108,7 @@ def getUserCode(lines, messages):
                 currcode = currcode + line + "\n"
 
 def writeHeaderCpp(headerpath, messages):
-    with open("synrpc_generator/synrpc_usbcon_template.h", 'r') as f:
+    with open("stmbase/synrpc_generator/synrpc_usbcon_template.h", 'r') as f:
         header = f.read().format(SYNRPC_USBCON_MAX_GEN=SYNRPC_GEN_MAX)
     header += "\nconst uint8_t MAX_HANDLER_TYPE = {};\n".format(len(messages))
     for m in messages.values():
@@ -120,7 +118,7 @@ def writeHeaderCpp(headerpath, messages):
         f.write(header)
 
 def writeEvokerCpp(evokerpath, messages):
-    with open("synrpc_generator/synrpc_usbcon_template.cpp", 'r') as f:
+    with open("stmbase/synrpc_generator/synrpc_usbcon_template.cpp", 'r') as f:
         code = f.read()
     for m in messages.values():
         code += m.genCppConverter()
@@ -137,10 +135,10 @@ def writeEvokerCpp(evokerpath, messages):
 const char* handlePacket(const UsbRpc::Packet& p){
   uint8_t type = p.type();
   if(type > MAX_HANDLER_TYPE){
-    return "Message type unknown, handler type to big";
+    return "msg type to big";
   }
   else if(type == 0){
-    return "Error Message type is ignored";
+    return "msg type is ignored";
   }
   type -= 1;
   return packetconverters[type](p);
@@ -165,13 +163,16 @@ uint16_t UsbRpc::Handler::plausible(const UsbRpc::Packet &p)
         f.write(code)
 
 def writePythonBridge(path, messages):
-    with open("synrpc_generator/synrpc_usbcon_template.py", 'r') as f:
+    with open("stmbase/synrpc_generator/synrpc_usbcon_template.py", 'r') as f:
         content = f.read()
     for m in messages.values():
         content += m.genPyClass()
     content += "\n_msgGenerators = [\n    SynRpcError._unserialize,\n"
     for m in messages.values():
         content += m.genPyMsgGen()
+    content += "]\n\n_msgNames = [\n    'SynRpcError',\n"
+    for m in messages.values():
+        content += m.genPyMsgName()
     content += "]\n"
     with open(path, 'w') as f:
         f.write(content)
@@ -329,8 +330,11 @@ class Message:
         for v in self.vars:
             self.size += v.size()
             self.pysize += v.pysize()
+        self.size += 5 # add meta data
         if self.size > SYNRPC_MAX_MSGSIZE:
             raise RuntimeError(f"Msg: {filename} -> is bigger than {SYNRPC_MAX_MSGSIZE} bytes.")
+        if self.size < 6:
+            raise RuntimeError(f"Msg: {filename} -> Contains no Variables?")
         SYNRPC_GEN_MAX = max(self.size, SYNRPC_GEN_MAX)
         self.type = Message.typecounter
         Message.typecounter += 1
@@ -421,7 +425,7 @@ Message fields:
         if buffer:
             self._data = {msgname}._packer.unpack_from(buffer)
             if self._data[0] != {msgname}._header:
-                raise ValueError("header missmatch after parsing of msg type {msgname}")
+                raise ValueError("header missmatch for {msgname}")
         else:
             self._data = [{msgname}._header] {pyinit} + [{msgname}._footer]
 
@@ -439,6 +443,9 @@ Message fields:
 
     def genPyMsgGen(self):
         return "    {}._unserialize,\n".format(self.msgname)
+
+    def genPyMsgName(self):
+        return "    '{}',\n".format(self.msgname)
 
 
 main()

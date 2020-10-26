@@ -6,7 +6,8 @@
                 "${workspaceFolder}/stmbase/synhal32/**",
                 "/stmbase/embos/common/**",
                 "/stmbase/embos/stm32f103c8/**",
-                "/usr/share/segger_embedded_studio_for_arm_4.52b/include/**"
+                "C:\\Program Files\\SEGGER\\SEGGER Embedded Studio for ARM 5.10b\\include\\**",
+                "/usr/share/segger_embedded_studio_for_arm_5.10b/include/**"
             ],
             "defines": [
                 "_DEBUG",
