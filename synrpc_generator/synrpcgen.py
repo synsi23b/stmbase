@@ -291,7 +291,7 @@ class Variable:
         return " + [0]"
 
     def genPyFieldDsc(self):
-        return f"{self.typecpp} {self.origname}\n"
+        return '\n'.join(self.comments) + f"\n{self.typecpp} {self.origname}\n"
 
 class Message:
     typecounter = 1 # type 0 reserved for error messages
@@ -412,6 +412,7 @@ const char* syn::{handlername}(const syn::{msgname}& msg){{
 class {msgname}(object):
     \"\"\"
 Message fields:
+
 {msgfields}
 \"\"\"
     _size = {msgsize}

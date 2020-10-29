@@ -1,5 +1,7 @@
-import struct, serial, threading
-from time import sleep
+import struct
+import threading
+import usb.core
+import array
 import sys
 
 # transmitting over usb happens in packets of up to 64 byte
@@ -57,7 +59,7 @@ class _Array(object):
             else:
                 raise StopIteration()
 
-        next = __next__  # Python 2
+        next = __next__  # Python 2 compatibility
 
 
     class _RevIter:
@@ -74,7 +76,7 @@ class _Array(object):
             else:
                 raise StopIteration()
 
-        next = __next__  # Python 2
+        next = __next__  # Python 2 compatibility
 
 
 class PacketHandler:
@@ -88,7 +90,7 @@ mymsg.data = [int('CC', 16)] * 10
 def barfoohhandler(msg):
     print hex(msg.bla), hex(msg.nignog), st
 
-ph = PacketHandler("COM6")
+ph = PacketHandler()
 ph.addMessageHandler(BarFooMsg, barfoohandler)
 ph.start()
 
@@ -96,10 +98,9 @@ while True:
     ph.sendMessage(mymsg)
     sleep(1)
 """
-    def __init__(self, comport):
-        self._comport = comport
-        self._serial = serial.Serial(comport)
+    def __init__(self):
         self._running = False
+        self._usbdev = None
         if sys.version_info < (3, 0):
             self._recv = PacketHandler._py2_recv
         else:
@@ -113,25 +114,39 @@ while True:
     def shutdown(self):
         self._running = False
         self._recthread.join(2.0)
-        self._serial = None
+        self._usbdev = None
 
     def addMessageHandler(self, MsgClass, handler):
         _msgHandlers[MsgClass._type] = handler
 
     def sendMessage(self, message):
-        self._serial.write(message._serialize())
+        ret = False
+        if self._usbdev:
+            msg = array.array('B', message._serialize())
+            ret = self._usbdev.write(0x80, msg, 100)
+            ret = (ret - 5) == message._size
+        return ret
 
     def _receiver(self):
         buffer = []
+        # find and reset the usb device
+        dev = usb.core.find(idVendor=0x0483, idProduct=0x5740)
+        if not dev:
+            print("Coudln't find SynRPC device")
+            self._running = False
+        else:
+            dev.reset()
+            if dev.is_kernel_driver_active(1):
+                dev.detach_kernel_driver(1)
+            dev.set_configuration()
+            self._usbdev = dev
         while self._running:
-            inavail = self._serial.in_waiting
-            if not inavail:
-                if not buffer: # empty
-                    sleep(0.01)
-                    continue
-            else:
-                buffer += self._serial.read(inavail)
-            buffer = self._recv(buffer)
+            # try to read up to 64 bytes with a 10 millisec timeout
+            arr = dev.read(0x81, 64, 10)
+            if arr:
+                buffer += arr.tostring()
+            if buffer:
+                buffer = self._recv(buffer)
 
     @staticmethod
     def _py2_recv(buffer):
@@ -152,9 +167,6 @@ while True:
                     buffer.pop(0)
             else: # data missmatch, purge first byte and try again
                 buffer.pop(0)
-        else: # not enough data in yet, sleep a bit
-            # probably never happens because of lots and lots of queing in the os driver and all that
-            sleep(0.01)
         return buffer
     
     @staticmethod
@@ -174,9 +186,6 @@ while True:
                     buffer.pop(0)
             else: # data missmatch, purge first byte and try again
                 buffer.pop(0)
-        else: # not enough data in yet, sleep a bit
-            # probably never happens because of lots and lots of queing in the os driver and all that
-            sleep(0.01)
         return buffer
 
     @staticmethod
@@ -194,7 +203,7 @@ def _tryExecMessage(msgtype, msg):
             try:         
                 _msgHandlers[msg._type](msg)
             except Exception as e:
-                print("Exception during handler: " + e)
+                print("Exception during handler: " + str(e))
             return True
         else:
             print("Warning -> Missing handler for message: " + str(type(msg)))
