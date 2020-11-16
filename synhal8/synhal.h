@@ -1815,6 +1815,14 @@ namespace syn {
     static volatile uint8_t sRxCount;
   };
 
+  // Basic usage: 
+  // 1. select appropriate init();
+  // 2. turnOn() / convert();
+  // 3. read() / read8() / read(channel);
+  // or just
+  // readSingle(channel);
+  // which will setup the pin, make one coversion and return the signal.
+  // blocks during conversion instead of leaving the ADC running in the background.
   class Adc {
   public:
     // enable the Adc
@@ -1887,6 +1895,8 @@ namespace syn {
     }
 
     // set the ADC to perform a single 10 bit conversion of the specified channel
+    // if the ADC is not already running, convert() has to be called once
+    // to start the conversations
     static void initSingle(uint8_t channel) {
       configurepin(channel);
       ADC1->CR3 = 0;
@@ -1896,7 +1906,9 @@ namespace syn {
     }
 
     // use 8 bit versions of ADC if thats enough precision
-    // different alignment in the data register
+    // different alignment in the data register.
+    // if the ADC is not already running, convert() has to be called once
+    // to start the conversations
     static void initSingle8(uint8_t channel) {
       configurepin(channel);
       ADC1->CR3 = 0;
@@ -1907,6 +1919,8 @@ namespace syn {
 
     // set the adc to perform a continous 10 bit precission conversion
     // can not be mixed with single conversions
+    // if the ADC is not already running, convert() has to be called once
+    // to start the conversations
     static void initContinuous(uint8_t channel) {
       configurepin(channel);
       ADC1->CR3 = 0;
@@ -1917,6 +1931,8 @@ namespace syn {
 
     // set the adc to perform a continous 8 bit precission conversion
     // can not be mixed with single conversions
+    // if the ADC is not already running, convert() has to be called once
+    // to start the conversations
     static void initContinuous8(uint8_t channel) {
       configurepin(channel);
       ADC1->CR3 = 0;
@@ -1927,6 +1943,8 @@ namespace syn {
 
     // measure all channels from 0 to channel. Any channel int he sequence can't
     // be used as an output pin. 10 bit precision
+    // if the ADC is not already running, convert() has to be called once
+    // to start the conversations
     static void initScan(uint8_t channel) {
       for (uint8_t ch = 2; ch <= channel; ++ch)
         configurepin(ch);
@@ -1938,13 +1956,18 @@ namespace syn {
 
     // measure all channels from 0 to channel. Any channel int he sequence can't
     // be used as an output pin. 8 bit precision
+    // if the ADC is not already running, convert() has to be called once
+    // to start the conversations
     static void initScan8(uint8_t channel) {
 #ifndef SYN_HAL_32_PIN_DEVICE
       for (uint8_t ch = 2; ch <= channel; ++ch)
+      {
 #else
       for (uint8_t ch = 0; ch <= channel; ++ch)
+      {
 #endif
         configurepin(ch);
+      }
       ADC1->CSR = channel;
       ADC1->CR3 = ADC1_CR3_DBUF;
       ADC1->CR2 = ADC1_CR2_SCAN;
