@@ -93,7 +93,7 @@ public:
 
   void writePicture(uint16_t width, uint16_t height, const char *data);
   void writeBlock(uint16_t width, uint16_t height, bool filled, bool adv_x = false);
-  // advances x pointer one line beyond the end of the car, keeps y pointer
+  // advances x pointer one line beyond the end of the char, keeps y pointer
   void writeChar(uint16_t width, uint16_t height, const uint8_t *data);
   // writes string and advances pointer behind it
   void writeString(const std::string &text, const Fontinfo_t &info, bool fillLine = false);

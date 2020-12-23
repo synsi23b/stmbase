@@ -273,8 +273,8 @@ namespace syn {
   public:
     Gpio()
     {
-      pPort_ = (GPIO_TypeDef*)GPIOF_BaseAddress;
-      pinmask_ = 0;
+      //pPort_ = (GPIO_TypeDef*)GPIOF_BaseAddress;
+      //pinmask_ = 0;
     }
 
     Gpio(int8_t port, uint8_t pinnum)
@@ -871,12 +871,12 @@ namespace syn {
       // Radio Controll Device conforming PWM signal with 50 Hz
       // trimmed for highest possible resolution
       void rcpwm() {
-        // divide pclk by 8 -> 2MHz
+        // divide pclk by 15 -> 1MHz
         prescaler_high = 0;
-        prescaler_low = 7;
-        // reload at 40.000 -> 50 Hz
-        reload_high = 0x9C;
-        reload_low = 0x40;
+        prescaler_low = 15;
+        // reload at 20.000 -> 50 Hz
+        reload_high = 0x4E;
+        reload_low = 0x20;
       }
       // arduino like pwm, around 500Hz and duty cycle 0 to 255 (see analogWrite) 
       void arduinopwm() {
@@ -972,11 +972,11 @@ namespace syn {
     }
 
     // set a pwm duty cycle for the specified channel.
-    // channel can be any value between 1 to 3
-    // to comply with rc pwm minimum value for 1ms pulsewidth should be 2000
-    // and maximum pulsewidth of 2ms should be 4000 giving a resolution of 2000
-    // in arduino pwm mode the minimum is 0 and the maximum is 255. Setting more
-    // is ok.
+    // channel can be any value between 1 to 4
+    // to comply with rc pwm 
+    // minimum pulsewidth: 1ms should be at 1000 
+    // maximum pulsewidth: 2ms should be at 2000 giving a resolution of 1000 steps
+    // arduino pwm: the minimum is 0 and the maximum is 255.
     static void setPWM(uint16_t duty, uint8_t channel) {
       channel -= 1;
       //*((&TIM1->CCR1H) + channel * 2) = duty >> 8;
@@ -1042,11 +1042,11 @@ namespace syn {
       // Radio Controll Device conforming PWM signal with 50 Hz
       // trimmed for highest possible resolution
       void rcpwm() {
-        // divide pclk by 2^3 (8) -> 2MHz
-        prescaler = 3;
-        // reload at 40.000 -> 50 Hz
-        reload_high = 0x9C;
-        reload_low = 0x40;
+        // divide pclk by 2^4 (16) -> 1MHz
+        prescaler = 4;
+        // reload at 20.000 -> 50 Hz
+        reload_high = 0x4E;
+        reload_low = 0x20;
       }
 
       // arduino like pwm, around 500Hz and duty cycle 0 to 255 (see analogWrite) 
@@ -1117,10 +1117,10 @@ namespace syn {
 
     // set a pwm duty cycle for the specified channel.
     // channel can be any value between 1 to 3
-    // to comply with rc pwm minimum value for 1ms pulsewidth should be 2000
-    // and maximum pulsewidth of 2ms should be 4000 giving a resolution of 2000
-    // in arduino pwm mode the minimum is 0 and the maximum is 255. Setting more
-    // is ok.
+    // to comply with rc pwm 
+    // minimum pulsewidth: 1ms should be at 1000 
+    // maximum pulsewidth: 2ms should be at 2000 giving a resolution of 1000 steps
+    // arduino pwm: the minimum is 0 and the maximum is 255.
     static void setPWM(uint16_t duty, uint8_t channel) {
       channel -= 1;
       //*((&TIM1->CCR1H) + channel * 2) = duty >> 8;
