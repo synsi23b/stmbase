@@ -14,13 +14,13 @@ Routine Kernel::_routinelist[SYN_OS_ROUTINE_COUNT];
 uint8_t Kernel::_current_ticks_left;
 uint8_t Kernel::_readycount;
 uint8_t Kernel::_isr_reschedule_request;
+uint8_t *Kernel::_mainstack;
 
 static Routine *volatile _current_routine;
-static uint8_t *_mainstack;
 
 Routine *Kernel::_fake_idle_routine()
 {
-  return (Routine *)(((uint8_t*)&_mainstack) - 1);
+  return (Routine *)(((uint8_t *)&_mainstack) - 1);
 }
 
 template <typename Functor>
@@ -46,7 +46,10 @@ void Routine::_setupTimeout(uint16_t timeout, Routine **waitlist)
   _timeout = timeout + System::millis();
   if (_timeout == 0)
   {
-    // protect from roll over bug will wait 1 milli longer, but no problem
+    // protect from roll over bug will wait 1 milli longer, but no problem.
+    // because this is not a function to be used to exactly time anything.
+    // it's not real time function, since it's co-routines.
+    // All it does is say "sleep for a minimum of X milliseconds / os-ticks"
     _timeout = 1;
   }
   _waitlist = waitlist;
@@ -443,6 +446,8 @@ void Kernel::init()
   // initialize clocks and peripherals
   System::init();
   _readycount = 0;
+  // use this variable to initialize co routines
+  _mainstack = (uint8_t *)(0x3FF - SYN_OS_MAIN_STACK_SIZE);
 }
 
 void Kernel::spin()
@@ -465,6 +470,7 @@ void Kernel::spin()
   TIM4->SR1 = 0;
   // setup idle stack and start first thread
   synFirstThreadRestore(&_idle, &_mainstack, _routinelist);
+  // will not return, but hint it to the compiler, too
   while (true != false)
     ;
 }
@@ -476,14 +482,15 @@ bool Kernel::is_idle()
 
 // transform stack point to point at the top
 // add known bytes if stack check is enabled
-uint8_t *Kernel::_base_stack_setup(uint8_t *stack, uint16_t size)
+uint8_t *Kernel::_base_stack_setup(uint16_t size)
 {
-  uint8_t *stacktop = stack + (size - 1);
+  uint8_t *stacktop = _mainstack;
+  _mainstack -= size;
 #ifdef SYN_OS_STACK_CHECK
-  size -= 10;
+  uint8_t *stackbot = _mainstack + 1;
   while (size != 0)
   {
-    *stack++ = 0xCD;
+    *stackbot++ = 0xCD;
     --size;
   }
 #endif

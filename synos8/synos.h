@@ -41,13 +41,29 @@ namespace syn
       sleeping = 0x80
     } State_t;
 
+    // the stm8s has a stack roll over limit at the address 0x01FF.
+    // if pushing the stack past that limit, it will reset to 0x03FF.
+    // to avoid this, the routine stacks get allocated just before the main stack.
+    // care has to be taken to avoid the dangerous address.
+    // for example if the main stack is 64 bytes, 512 - 64 bytes can be allocated in the range 0x1FF .. 0x3BF
+    // there will be a warning when a stack crosses this line. which might be neccessary to allow more than
+    // 512byte total for stack if that is needed.
+    // the main stack maximum can be configured in the synos cfg file
+    //
+    // the template arguments Index and rr_millis select the specific points
+    // Index shall be counting from 0 up to SYN_OS_ROUTINE_COUNT - 1
+    // rr_millis is in milliseconds regardless of the selected tick frequency (1000 or 500 Hz)
+    //
+    // the argument will be turned interpreted as a pointer, great for feeding raw 16bit numbers to the functor
+    // but also a bit dangerous. so be careful not to supply invalid addressess
     template <uint8_t Index, uint16_t rr_millis, typename Functor_t, typename Argument_t>
-    static void init(Functor_t functor, Argument_t arg, uint8_t *stack, uint16_t stacksize);
+    static void init(Functor_t functor, Argument_t arg, uint16_t stacksize);
 
     // leave execution context if other routinbe is runnable
     static void yield();
     // block routine for specified time in ticks, not milliseconds
-    // requieres enabling of timeout api
+    // requieres enabling of timeout api and relies on the cooperation of other routines
+    // will just block this routine from running AT LEAST the specified timeout
     static void sleep(uint16_t timeout);
     // wether or not this routine is runnable
     bool is_runnable() const;
@@ -61,6 +77,7 @@ namespace syn
     void _setEventValue(uint8_t value);
     void _setupTimeout(uint16_t timeout, Routine **waitlist);
     bool _timeout_is_expired() const;
+
   private:
     void _init(void *functor, void *arg, uint8_t *stack);
 
@@ -85,6 +102,7 @@ namespace syn
     public:
       TestTimoutExpired();
       void operator()(Routine *pr);
+
     private:
       uint16_t _millis;
     };
@@ -222,7 +240,7 @@ namespace syn
     static void _tickySwitch();
 
   private:
-    template<typename Functor>
+    template <typename Functor>
     static void for_each_routine(Functor functor);
     // general purpose context switch that always scedules next runnable, or idle
     // however, next runnable could also be the same routine.
@@ -233,9 +251,9 @@ namespace syn
     // optimized function to call when we already know something unblocked
     static void _contextUnblocked(Routine *unblocked);
 
-    static uint8_t *_base_stack_setup(uint8_t *stack, uint16_t size);
+    static uint8_t *_base_stack_setup(uint16_t size);
     static void _idle();
-    static Routine* _fake_idle_routine();
+    static Routine *_fake_idle_routine();
 
     // put current Routine into the list, reshedule. Not allowed by ISR
     static void _enterWaitlist(Routine *&listhead, Routine::State blocking_reason);
@@ -251,6 +269,7 @@ namespace syn
     static uint8_t _current_ticks_left;
     static uint8_t _readycount;
     static uint8_t _isr_reschedule_request;
+    static uint8_t *_mainstack;
   };
 
   template <typename Mail_t, uint8_t Size>
@@ -433,11 +452,16 @@ namespace syn
   };
 
   template <uint8_t Index, uint16_t rr_millis, typename Functor_t, typename Argument_t>
-  inline void Routine::init(Functor_t functor, Argument_t arg, uint8_t *stack, uint16_t stacksize)
+  inline void Routine::init(Functor_t functor, Argument_t arg, uint16_t stacksize)
   {
     // Routine Index out of bounds! Increase the ammount specified in the config
     static_assert(Index < SYN_OS_ROUTINE_COUNT, "Routine Index out of bounds! Increase the ammount specified in the config");
-    stack = Kernel::_base_stack_setup(stack, stacksize);
+#ifdef DEBUG
+    // stack is crossing stackpointer roll over address !!!
+    while(uint16_t(Kernel::_mainstack - stacksize) < 0x1FF)
+      ;
+#endif
+    uint8_t *stack = Kernel::_base_stack_setup(stacksize);
 #ifndef SYN_OS_ROUTINE_RR_SLICE_MS
     static_assert((rr_millis / SYN_SYSTICK_FREQ) > 0, "Round robin reload needs at least Reload of 1");
     static_assert((rr_millis / SYN_SYSTICK_FREQ) < 256, "ROund robin reload needs to be less than 256");
@@ -457,7 +481,7 @@ namespace syn
     _timerlist[Index]._init(functor, Reload_ms / SYN_SYSTICK_FREQ);
   }
 #endif
-  
+
   inline uint8_t Semaphore::count() const
   {
     return _count;
