@@ -74,6 +74,11 @@ void Routine::_setupTimeout(uint16_t timeout_ms, Routine **waitlist)
 
 bool Routine::_timeout_is_expired() const
 {
+#ifdef SYN_OS_MEASURE_SYSTICK
+  // this always gets called after a timeoutable action
+  // so set the _measure pin high to make sure we can see the event on the line
+  _measure_pin.set();
+#endif
   return _timeout == 0;
 }
 
