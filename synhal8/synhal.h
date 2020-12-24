@@ -595,6 +595,9 @@ namespace syn {
     static void _systick_isr() {
       TIM4->SR1 = 0; // clear irq flag
       ++sMillis;
+#if (SYN_SYSTICK_FREQ == 2)
+      ++sMillis;
+#endif
     }
   private:
     static void systick_init() {

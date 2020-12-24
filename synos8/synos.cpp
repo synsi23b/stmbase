@@ -18,6 +18,10 @@ uint8_t *Kernel::_mainstack;
 
 static Routine *volatile _current_routine;
 
+#ifdef SYN_OS_MEASURE_INTERNALS
+static syn::Gpio _measure_pin;
+#endif
+
 Routine *Kernel::_fake_idle_routine()
 {
   return (Routine *)(((uint8_t *)&_mainstack) - 1);
@@ -34,23 +38,36 @@ void Kernel::for_each_routine(Functor functor)
   }
 }
 
-#ifdef SYN_OS_ENABLE_TIMOUT_API
+#ifdef SYN_OS_ENABLE_TIMEOUT_API
 void Routine::sleep(uint16_t timeout)
 {
+  Atomic a; // have to protect the call to _setupTimeout
   _current_routine->_setupTimeout(timeout, 0);
   Kernel::_contextYield(sleeping);
+#ifdef SYN_OS_MEASURE_SYSTICK
+  _measure_pin.set();
+#endif
 }
 
-void Routine::_setupTimeout(uint16_t timeout, Routine **waitlist)
+void Routine::_setupTimeout(uint16_t timeout_ms, Routine **waitlist)
 {
-  _timeout = timeout + System::millis();
+  if(timeout_ms < SYN_SYSTICK_FREQ)
+  {
+    timeout_ms = SYN_SYSTICK_FREQ;
+  }
+#if (SYN_SYSTICK_FREQ == 2)
+  // since we test the timneout by equality for speed, we have to make sure only
+  // even numbers are used, since millis is incremented by 2, not 1
+  // so clear the leas significant bit
+  timeout_ms = timeout_ms & 0xFFFE;
+#endif
+  _timeout = timeout_ms + System::millis();
   if (_timeout == 0)
   {
-    // protect from roll over bug will wait 1 milli longer, but no problem.
-    // because this is not a function to be used to exactly time anything.
-    // it's not real time function, since it's co-routines.
-    // All it does is say "sleep for a minimum of X milliseconds / os-ticks"
-    _timeout = 1;
+    // protect from roll over problem.
+    // a timeout value of 0 has a different interpretition.
+    // t signales to the routine that the action it did timed out.
+    _timeout = SYN_SYSTICK_FREQ;
   }
   _waitlist = waitlist;
 }
@@ -60,22 +77,28 @@ bool Routine::_timeout_is_expired() const
   return _timeout == 0;
 }
 
+// functor constructor -> store current millis.
+// we execute this in the systick itself, but the system Millis is volatile.
+// store a copy just to improve the compilers handling of that (maybe)
 Routine::TestTimoutExpired::TestTimoutExpired()
 {
-  _millis = System::millis();
+  _current_millis = System::millis();
 }
 
 void Routine::TestTimoutExpired::operator()(Routine *pr)
 {
-  if (pr->_state & sleeping)
+  if (pr->_state & timeout)
   {
-    if (pr->_timeout == _millis)
+    if (pr->_timeout == _current_millis)
     {
+      // unblocks the routine
       if (Kernel::_removeWaitlist(pr->_waitlist, pr))
       {
-        // is expired
+        // is expired, set to zero to notify user code
         pr->_timeout = 0;
       }
+      // unblock the routines context, wether sleeping or waiting
+      Kernel::_contextUnblocked(pr);
     }
   }
 }
@@ -223,6 +246,7 @@ void Semaphore::get()
   --_count;
 }
 
+#ifdef SYN_OS_ENABLE_TIMEOUT_API
 bool Semaphore::get(uint16_t timeout)
 {
   Atomic a;
@@ -241,6 +265,7 @@ bool Semaphore::get(uint16_t timeout)
   --_count;
   return true;
 }
+#endif
 
 bool Semaphore::get_isr()
 {
@@ -278,6 +303,7 @@ void Mutex::lock()
   assert(_count != 0);
 }
 
+#ifdef SYN_OS_ENABLE_TIMEOUT_API
 bool Mutex::lock(uint16_t timeout)
 {
   bool ret = false;
@@ -313,6 +339,7 @@ bool Mutex::lock(uint16_t timeout)
   }
   return ret;
 }
+#endif
 
 bool Mutex::try_lock()
 {
@@ -401,9 +428,11 @@ uint8_t Event::wait()
   return _current_routine->lastEvent();
 }
 
+
 // wait for the event to be set and return its value
 // doesn't clear the event value
 // returns 0 if timeout
+#ifdef SYN_OS_ENABLE_TIMEOUT_API
 uint8_t Event::wait(uint16_t timeout)
 {
   Atomic a;
@@ -422,6 +451,7 @@ uint8_t Event::wait(uint16_t timeout)
   }
   return _current_routine->lastEvent();
 }
+#endif
 
 void Kernel::_unblockEventlist(Routine *&listhead, uint8_t value)
 {
@@ -445,6 +475,11 @@ void Kernel::init()
 {
   // initialize clocks and peripherals
   System::init();
+#ifdef SYN_OS_MEASURE_INTERNALS
+  _measure_pin.init('A', 1);
+  _measure_pin.mode(true, true);
+  _measure_pin.set();
+#endif
   _readycount = 0;
   // use this variable to initialize co routines
   _mainstack = (uint8_t *)(0x3FF - SYN_OS_MAIN_STACK_SIZE);
@@ -488,9 +523,10 @@ uint8_t *Kernel::_base_stack_setup(uint16_t size)
   _mainstack -= size;
 #ifdef SYN_OS_STACK_CHECK
   uint8_t *stackbot = _mainstack + 1;
+  uint8_t initval = 0xC0 + _readycount;
   while (size != 0)
   {
-    *stackbot++ = 0xCD;
+    *stackbot++ = initval;
     --size;
   }
 #endif
@@ -555,6 +591,7 @@ void Kernel::_unblockWaitlist(Routine *&listhead)
 
 bool Kernel::_removeWaitlist(Routine **listhead, Routine *to_remove)
 {
+  // set the return value to true if the routine timed out during whatever it waited for
   bool ret = false;
   to_remove->unblock();
   // check if there is no list, maybe we don't have to rebuild it
@@ -667,7 +704,7 @@ void Kernel::_contextUnblocked(Routine *unblocked)
 
 void Kernel::_tickySwitch()
 {
-#ifdef SYN_OS_ENABLE_TIMOUT_API
+#ifdef SYN_OS_ENABLE_TIMEOUT_API
   Routine::timeouttick();
 #endif
   if (_isr_reschedule_request & 0x80)
@@ -716,6 +753,9 @@ void Kernel::_tickySwitch()
 
 INTERRUPT_HANDLER(TIMER4_OV, 23)
 {
+#ifdef SYN_OS_MEASURE_SYSTICK
+  _measure_pin.clear();
+#endif
   Kernel::enter_isr();
   System::_systick_isr();
 #if (SYN_OS_TICK_HOOK_COUNT > 0)
@@ -729,4 +769,7 @@ INTERRUPT_HANDLER(TIMER4_OV, 23)
 #endif
 #endif
   Kernel::_tickySwitch();
+#ifdef SYN_OS_MEASURE_SYSTICK
+  _measure_pin.set();
+#endif
 }

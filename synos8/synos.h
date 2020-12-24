@@ -18,7 +18,6 @@ namespace syn
     {
       __set_interrupt_state(_state);
     }
-
   private:
     __istate_t _state;
   };
@@ -38,7 +37,8 @@ namespace syn
       timeout_semaphore = 0x81,
       timeout_mutex = 0x82,
       timeout_event = 0x84,
-      sleeping = 0x80
+      sleeping = 0x88,
+      timeout = 0x80
     } State_t;
 
     // the stm8s has a stack roll over limit at the address 0x01FF.
@@ -61,10 +61,10 @@ namespace syn
 
     // leave execution context if other routinbe is runnable
     static void yield();
-    // block routine for specified time in ticks, not milliseconds
+    // block routine for specified time in milliseconds
     // requieres enabling of timeout api and relies on the cooperation of other routines
     // will just block this routine from running AT LEAST the specified timeout
-    static void sleep(uint16_t timeout);
+    static void sleep(uint16_t milliseconds);
     // wether or not this routine is runnable
     bool is_runnable() const;
 
@@ -75,7 +75,7 @@ namespace syn
 
     // "private" functions, dont want to friend every class, shouldn't be called by application
     void _setEventValue(uint8_t value);
-    void _setupTimeout(uint16_t timeout, Routine **waitlist);
+    void _setupTimeout(uint16_t timeout_ms, Routine **waitlist);
     bool _timeout_is_expired() const;
 
   private:
@@ -87,13 +87,16 @@ namespace syn
     State_t _state;
     uint8_t *_stackptr;
 #ifndef SYN_OS_ROUTINE_RR_SLICE_MS
+    // if every routine can have a specific round robin value instead of the global one
     uint8_t _rr_reload;
 #endif
+    // linked list for waiting on Semaphores, Mutex, etc..
     Routine *_next;
 #ifdef SYN_OS_USE_EVENTS
+    // the value of the event when this routine got unblocked
     uint8_t _eventval;
 #endif
-#ifdef SYN_OS_ENABLE_TIMOUT_API
+#ifdef SYN_OS_ENABLE_TIMEOUT_API
 
     static void timeouttick();
 
@@ -104,10 +107,13 @@ namespace syn
       void operator()(Routine *pr);
 
     private:
-      uint16_t _millis;
+      uint16_t _current_millis;
     };
 
+    // the system millis value to wait for
     uint16_t _timeout;
+    // the timeoutable list to be removed from in case timout is reached
+    // zero if the routine is just sleeping and not for example locking a mutex with timeout
     Routine **_waitlist;
 #endif
   };
@@ -463,8 +469,8 @@ namespace syn
 #endif
     uint8_t *stack = Kernel::_base_stack_setup(stacksize);
 #ifndef SYN_OS_ROUTINE_RR_SLICE_MS
-    static_assert((rr_millis / SYN_SYSTICK_FREQ) > 0, "Round robin reload needs at least Reload of 1");
-    static_assert((rr_millis / SYN_SYSTICK_FREQ) < 256, "ROund robin reload needs to be less than 256");
+    static_assert((rr_millis / SYN_SYSTICK_FREQ) >= SYN_SYSTICK_FREQ, "Round robin reload needs at least SYN_SYSTICK_FREQ");
+    static_assert((rr_millis / SYN_SYSTICK_FREQ) < 256, "Round robin reload needs to be less than 256");
     Kernel::_routinelist[Index]._rr_reload = rr_millis / SYN_SYSTICK_FREQ;
 #endif
     Kernel::_routinelist[Index]._state = runnable;
