@@ -1,6 +1,8 @@
 #pragma once
 
+#ifdef STM8S103
 #include "../synhal8/synhal.h"
+#endif
 
 class TM1638
 {
