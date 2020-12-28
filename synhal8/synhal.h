@@ -16,10 +16,8 @@ namespace syn
     *b2 = tmp;
   }
 
-  // block for x milliseconds using an estimation.
-  void busy_delay(uint16_t millis);
-  // block for x microseconds using an estimation.
-  void busy_udelay(uint16_t micros);
+  // block for the specified ammount using an estimation
+  void udelay(uint16_t micros);
 
   class GpioBase
   {
@@ -259,7 +257,7 @@ namespace syn
         {
           ++count;
         }
-        busy_udelay(4);
+        udelay(4);
       }
       if (count > 190)
       {
@@ -428,7 +426,7 @@ namespace syn
         {
           ++count;
         }
-        busy_udelay(4);
+        udelay(4);
       }
       if (count > 190)
       {
@@ -683,12 +681,7 @@ namespace syn
     }
 
     // block for the specidifed ammount of millis using systick
-    static void delay(uint16_t millis)
-    {
-      uint16_t end = millis + sMillis;
-      while ((end - sMillis) <= millis)
-        ;
-    }
+    static void delay(uint16_t millis);
 
     // Systick ISR, don't call manually
     static void _systick_isr()
@@ -1020,55 +1013,38 @@ namespace syn
   class Timer1
   {
   public:
-    // a config structure that holds the time base generation values for a timer
-    // methods to be initialized with some standard values depending on the use
-    // of the timer
-    struct Timercfg
+    // Radio Controll Device conforming PWM signal with 50 Hz
+    // to provide 1000 steps between 1ms and 2ms signal length
+    static void init_rcpwm()
     {
-      // Radio Controll Device conforming PWM signal with 50 Hz
-      // trimmed for highest possible resolution
-      void rcpwm()
-      {
-        // divide pclk by 15 -> 1MHz
-        prescaler_high = 0;
-        prescaler_low = 15;
-        // reload at 20.000 -> 50 Hz
-        reload_high = 0x4E;
-        reload_low = 0x20;
-      }
-      // arduino like pwm, around 500Hz and duty cycle 0 to 255 (see analogWrite)
-      void arduinopwm()
-      {
-        // divide by 128 to get roughly an update at 125KHz
-        prescaler_high = 0;
-        prescaler_low = 127;
-        // reload at 255 -> ~490Hz
-        reload_high = 0;
-        reload_low = 0xFE;
-      }
+      // divide pclk by 2^4 (16) -> 1MHz
+      TIM1->PSCRH = 0;
+      TIM1->PSCRL = 15;
+      // reload at 20.000 -> 50 Hz
+      TIM1->ARRH = 0x4E;
+      TIM1->ARRL = 0x20;
+      TIM1->CR1 = TIM1_CR1_CEN;
+    }
 
-      // enable channel 1 and 2 mapped to encoder interface
-      void encoder()
-      {
-        prescaler_high = 0;
-        prescaler_low = 0;
-        reload_low = 0xFF;
-        reload_high = 0xFF;
-      }
-
-      uint8_t prescaler_high;
-      uint8_t prescaler_low;
-      uint8_t reload_high;
-      uint8_t reload_low;
-    };
-
-    // initialize the timebase according to the cfg value
-    static void init(const Timercfg &cfg)
+    // arduino like pwm, around 500Hz and duty cycle 0 to 255 (see analogWrite)
+    static void init_arduinopwm()
     {
-      TIM1->PSCRH = cfg.prescaler_high;
-      TIM1->PSCRL = cfg.prescaler_low;
-      TIM1->ARRH = cfg.reload_high;
-      TIM1->ARRL = cfg.reload_low;
+      // divide by 128 to get roughly an update at 125KHz
+      TIM1->PSCRH = 0;
+      TIM1->PSCRL = 127;
+      // reload at 255 -> ~490Hz
+      TIM1->ARRH = 0;
+      TIM1->ARRL = 0xFE;
+      TIM1->CR1 = TIM1_CR1_CEN;
+    }
+
+    // enable channel 1 and 2 mapped to encoder interface
+    static void init_encoder()
+    {
+      TIM1->PSCRH = 0;
+      TIM1->PSCRL = 0;
+      TIM1->ARRH = 0xFF;
+      TIM1->ARRL = 0xFF;
       TIM1->CR1 = TIM1_CR1_CEN;
     }
 
@@ -1211,42 +1187,27 @@ namespace syn
   class Timer2
   {
   public:
-    // a config structure that holds the time base generation values for a timer
-    // methods to be initialized with some standard values depending on the use
-    // of the timer
-    struct Timercfg
-    {
-      // Radio Controll Device conforming PWM signal with 50 Hz
-      // trimmed for highest possible resolution
-      void rcpwm()
-      {
-        // divide pclk by 2^4 (16) -> 1MHz
-        prescaler = 4;
-        // reload at 20.000 -> 50 Hz
-        reload_high = 0x4E;
-        reload_low = 0x20;
-      }
 
-      // arduino like pwm, around 500Hz and duty cycle 0 to 255 (see analogWrite)
-      void arduinopwm()
-      {
-        // divide by 128 to get roughly an update at 125KHz
-        prescaler = 7;
-        // reload at 255 -> ~490Hz
-        reload_high = 0;
-        reload_low = 0xFE;
-      }
-      uint8_t prescaler;
-      uint8_t reload_high;
-      uint8_t reload_low;
-    };
-
-    // initialize the timebase according to the cfg value
-    static void init(const Timercfg &cfg)
+    // Radio Controll Device conforming PWM signal with 50 Hz
+    // to provide 1000 steps between 1ms and 2ms signal length
+    static void init_rcpwm()
     {
-      TIM2->PSCR = cfg.prescaler;
-      TIM2->ARRH = cfg.reload_high;
-      TIM2->ARRL = cfg.reload_low;
+      // divide pclk by 2^4 (16) -> 1MHz
+      TIM2->PSCR = 4;
+      // reload at 20.000 -> 50 Hz
+      TIM2->ARRH = 0x4E;
+      TIM2->ARRL = 0x20;
+      TIM2->CR1 = TIM2_CR1_CEN;
+    }
+
+    // arduino like pwm, around 500Hz and duty cycle 0 to 255 (see analogWrite)
+    static void init_arduinopwm()
+    {
+      // divide by 128 to get roughly an update at 125KHz
+      TIM2->PSCR = 7;
+      // reload at 255 -> ~490Hz
+      TIM2->ARRH = 0;
+      TIM2->ARRL = 0xFE;
       TIM2->CR1 = TIM2_CR1_CEN;
     }
 

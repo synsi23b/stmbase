@@ -2,22 +2,9 @@
 
 volatile uint16_t syn::System::sMillis = 0;
 
-// block for x milliseconds using an estimation.
-void syn::busy_delay(uint16_t millis)
-{
-  while (millis)
-  {
-    for (uint16_t i = 3200; i != 0; --i)
-    {
-      // 1 cylce takes 62,5 nanosec -> about 5 cycles per loop -> ~3200 loops for 1ms
-      nop();
-    }
-    --millis;
-  }
-}
 
-// block for x microseconds using an estimation.
-void syn::busy_udelay(uint16_t micros)
+// block for the specidifed ammount of microseconds using a busy loop
+void syn::udelay(uint16_t micros)
 {
   for (; micros != 0; --micros)
   {
@@ -39,6 +26,14 @@ void syn::busy_udelay(uint16_t micros)
 
 using namespace syn;
 
+// block for the specidifed ammount of millis using systick
+void System::delay(uint16_t millis)
+{
+  uint16_t end = millis + sMillis;
+  while ((end - sMillis) <= millis)
+    ;
+}
+
 INTERRUPT_HANDLER(AWU_ISR, 1)
 {
   // read csr to clear interrupt occured bit
@@ -50,8 +45,6 @@ INTERRUPT_HANDLER(AWU_ISR, 1)
 
 void SpiNC::read(uint8_t *data, uint8_t count)
 {
-  // dummy read rx to make sure RXNE is clear
-  uint8_t dummy = SPI->DR;
   // keep on writing until reaching the frame count
   while (count != 0)
   {
@@ -86,12 +79,12 @@ void SpiNC::write(const uint8_t *data, uint8_t count)
   // wait for the transactions to be finished
   while (SPI->SR & SPI_SR_BSY)
     ;
+  // dummy read rx to make sure RXNE is clear
+  uint8_t dummy = SPI->DR;
 }
 
 void SpiNC::transceive(uint8_t *data, uint8_t count)
 {
-  // dummy read rx to make sure RXNE is clear
-  uint8_t dummy = SPI->DR;
   // keep on writing until reaching the frame count
   while (count != 0)
   {
@@ -113,7 +106,7 @@ uint8_t SpiNC::transceive1(uint8_t data)
   while (!(SPI->SR & SPI_SR_TXE))
     ;
   SPI->DR = data;
-  while (SPI->SR & SPI_SR_BSY)
+  while (!(SPI->SR & SPI_SR_RXNE))
     ;
   return SPI->DR;
 }
@@ -131,7 +124,8 @@ void SpiNC::transceive2(uint8_t *data)
   while (!(SPI->SR & SPI_SR_TXE))
     ;
   SPI->DR = *data;
-  while (SPI->SR & SPI_SR_BSY)
+  // wait for receiver to be not empty and read the data
+  while (!(SPI->SR & SPI_SR_RXNE))
     ;
   *data = SPI->DR;
 }
