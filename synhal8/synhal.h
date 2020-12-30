@@ -1322,22 +1322,15 @@ namespace syn
         portc.clear(1 << 5);
     }
 
-    // read count bytes into the data buffer
-    static void read(uint8_t *data, uint8_t count);
-
-    // write count bytes from the data buffer
-    static void write(const uint8_t *data, uint8_t count);
+    // write count bytes from the constant data buffer, but discard incoming data
+    // before the data buffer is written, a command byte is injected into the stream
+    static void write_command(uint8_t command, const uint8_t *data, uint8_t count);
 
     // write count bytes of the buffer and read back
     // the same ammount back into the buffer
     static void transceive(uint8_t *data, uint8_t count);
-
     // read and write 1 byte
     static uint8_t transceive1(uint8_t data);
-    // read and write 2 bytes
-    static void transceive2(uint8_t *data);
-    // write 2 bytes, but read only the second byte
-    static void transceive2_01(uint8_t *data);
   };
 
   template <typename ChipSelect_t>
@@ -1365,27 +1358,16 @@ namespace syn
       csel.set();
     }
 
-    // read sizeof(datatype) * count bytes into the data buffer
-    template <typename T>
-    static void read(T *data, uint8_t count = 1)
-    {
-      count = count * sizeof(T);
-      ChipSelect_t csel;
-      csel.clear();
-      SpiNC::read(data, count);
-      csel.set();
-    }
-
     // write sizeof(datatype) * count bytes from the data buffer
-    template <typename T>
-    static void write(const T *data, uint8_t count = 1)
-    {
-      count = count * sizeof(T);
-      ChipSelect_t csel;
-      csel.clear();
-      SpiNC::write(data, count);
-      csel.set();
-    }
+    // template <typename T>
+    // static void write(const T *data, uint8_t count = 1)
+    // {
+    //   count = count * sizeof(T);
+    //   ChipSelect_t csel;
+    //   csel.clear();
+    //   SpiNC::write(data, count);
+    //   csel.set();
+    // }
 
     // write sizeof(datatype) * count bytes of the buffer and read back
     // the same ammount back into the buffer

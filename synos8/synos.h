@@ -117,6 +117,14 @@ namespace syn
     Routine **_waitlist;
 #endif
   };
+  
+  // block current routine for specified time in milliseconds
+  // requieres enabling of timeout api and relies on the cooperation of other routines
+  // will just block this routine from running AT LEAST the specified timeout
+  inline void sleep(uint16_t milliseconds)
+  {
+    syn::Routine::sleep(milliseconds);
+  }
 
   class SysTickHook
   {

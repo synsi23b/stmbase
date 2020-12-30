@@ -5,20 +5,23 @@
 class RF24
 {
 public:
-  // setup all config registers and assign this modules receiving address (5 byte)
+  // setup all config registers and assign this modules receiving address (4 byte)
   // in case of STM8s uses port A1 for csn and A2 for ce
   // returns true if the setup appears to be successfull
   bool init(const char *this_address, syn::SpiNC::eBaudrate speed = syn::SpiNC::MHz8);
 
   void set_destination(const char *address);
 
-  bool write(uint8_t *data, uint8_t count);
+  bool write(const uint8_t *data, uint8_t count);
 
-  bool set_ack_payload(uint8_t *data, uint8_t count);
+  bool write_ack_payload(const uint8_t *data, uint8_t count);
 
   void listen();
   void stop_listen();
 
+  // try to read the RX FIFO, returns number of bytes read, up to 32.
+  // the buffer should support that ammount of data.
+  // returns 0 and doesn't alter the buffer if there was no data available
   uint8_t read(uint8_t *buffer);
 
 private:

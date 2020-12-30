@@ -43,40 +43,25 @@ INTERRUPT_HANDLER(AWU_ISR, 1)
 
 #ifdef SYN_HAL_SPI
 
-void SpiNC::read(uint8_t *data, uint8_t count)
-{
-  // keep on writing until reaching the frame count
-  while (count != 0)
-  {
-    // only write if transmitter is empty
-    if (SPI->SR & SPI_SR_TXE)
-    {
-      SPI->DR = 0x00;
-      --count;
-      // wait for receiver to be not empty and read the data
-      while (!(SPI->SR & SPI_SR_RXNE))
-        ;
-      *(uint8_t *)data++ = SPI->DR;
-    }
-  }
-}
+// no need to check for TXE, because always make sure to leave
+// the device gracefully and read to run when re-entering the method.
+// it also means, it needs to be mutexed. But that should be obvious
 
-void SpiNC::write(const uint8_t *data, uint8_t count)
+void SpiNC::write_command(uint8_t command, const uint8_t *data, uint8_t count)
 {
+  SPI->DR = command;
   // keep on writing until reaching the frame count
   while (count != 0)
   {
-    // only write if transmitter is empty
-    if (SPI->SR & SPI_SR_TXE)
-    {
-      SPI->DR = *(uint8_t *)data++;
-      --count;
-    }
+    while (!(SPI->SR & SPI_SR_TXE))
+      ;
+    SPI->DR = *data++;
+    --count;
   }
-  // wait till the last written byte is inside the shift register
-  while (!(SPI->SR & SPI_SR_TXE))
-    ;
   // wait for the transactions to be finished
+  // this flag can be late to be set by 2 cpu cycles after writing the DR
+  // so lets hope that incrementing data, decremtening count and comapring takes
+  // longer than getting to the load of that status register
   while (SPI->SR & SPI_SR_BSY)
     ;
   // dummy read rx to make sure RXNE is clear
@@ -88,61 +73,27 @@ void SpiNC::transceive(uint8_t *data, uint8_t count)
   // keep on writing until reaching the frame count
   while (count != 0)
   {
-    // only write if transmitter is empty
-    if (SPI->SR & SPI_SR_TXE)
-    {
-      SPI->DR = *data;
-      --count;
-      while (!(SPI->SR & SPI_SR_RXNE))
-        ;
-      // read the answer byte and save it
-      *(uint8_t *)data++ = SPI->DR;
-    }
+    SPI->DR = *data;
+    --count;
+    while (!(SPI->SR & SPI_SR_RXNE))
+      ;
+    // read the answer byte and save it
+    *data++ = SPI->DR;
+    // saves 8 bytes of PROGMEM, but is 28 slower at 8MHz SPI
+    // uint8_t tmp = transceive1(*data);
+    // *data++ = tmp;
+    // --count;
   }
 }
 
 uint8_t SpiNC::transceive1(uint8_t data)
 {
-  while (!(SPI->SR & SPI_SR_TXE))
-    ;
   SPI->DR = data;
   while (!(SPI->SR & SPI_SR_RXNE))
     ;
   return SPI->DR;
 }
 
-// write and read 2 bytes
-void SpiNC::transceive2(uint8_t *data)
-{
-  while (!(SPI->SR & SPI_SR_TXE))
-    ;
-  SPI->DR = *data;
-  // wait for receiver to be not empty and read the data
-  while (!(SPI->SR & SPI_SR_RXNE))
-    ;
-  *data++ = SPI->DR;
-  while (!(SPI->SR & SPI_SR_TXE))
-    ;
-  SPI->DR = *data;
-  // wait for receiver to be not empty and read the data
-  while (!(SPI->SR & SPI_SR_RXNE))
-    ;
-  *data = SPI->DR;
-}
-
-// write 2 bytes but only read back the last received
-void SpiNC::transceive2_01(uint8_t *data)
-{
-  while (!(SPI->SR & SPI_SR_TXE))
-    ;
-  SPI->DR = *data++;
-  while (!(SPI->SR & SPI_SR_TXE))
-    ;
-  SPI->DR = *data;
-  while (SPI->SR & SPI_SR_BSY)
-    ;
-  *data = SPI->DR;
-}
 #endif
 
 #ifdef SYN_HAL_UART

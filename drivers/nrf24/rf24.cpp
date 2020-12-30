@@ -21,15 +21,15 @@ bool RF24::init(const char *this_address, syn::SpiNC::eBaudrate speed)
   // WARNING: Delay is based on P-variant whereby non-P *may* require different timing.
   syn::System::delay(5);
   // setup this modules receiving address and address length
-  _write_register(RX_ADDR_P1, (const uint8_t *)this_address, 3);
-  _write_register(SETUP_AW, 1); // 3 bytes
-  // set retranstmit retry delay to 0.75 millisecond and 10 retries
-  _write_register(SETUP_RETR, 0x2A);
+  _write_register(RX_ADDR_P1, (const uint8_t *)this_address, 4);
+  _write_register(SETUP_AW, 2); // 4 bytes
+  // set retranstmit retry delay to 1 millisecond and 10 retries
+  _write_register(SETUP_RETR, 0x3A);
   // set datarate 1Mbps full power
   _write_register(RF_SETUP, 0x07);
   // set feature dynamic payloads
-  _write_register(FEATURE, 0x04);
-  _write_register(DYNPD, 0x3F); // dynamic payload all pipes
+  _write_register(FEATURE, 0x06); // 0x02 -> ack payload 0x04-> dyn payloads
+  _write_register(DYNPD, 0x3F);   // dynamic payload all pipes
 
   // enable receiving on pipe 0 and 1
   _write_register(EN_RXADDR, 0x03);
@@ -52,7 +52,7 @@ bool RF24::init(const char *this_address, syn::SpiNC::eBaudrate speed)
   // after powering up, wait for device to stabilize
   // github says it can take up to 5ms, datasheet says 1.5ms
   // but there are a lot of clones out there apparently, that rather sucks.
-  syn::System::delay(3);
+  syn::sleep(5);
 
   // return true if powerup and 16bit crc
   return _read_register(NRF_CONFIG) == 0x0E;
@@ -61,23 +61,23 @@ bool RF24::init(const char *this_address, syn::SpiNC::eBaudrate speed)
 void RF24::set_destination(const char *address)
 {
   // write tx and pipe 0 address for enabling auto-ack
-  _write_register(RX_ADDR_P0, (const uint8_t *)address, 3);
-  _write_register(TX_ADDR, (const uint8_t *)address, 3);
+  _write_register(RX_ADDR_P0, (const uint8_t *)address, 4);
+  _write_register(TX_ADDR, (const uint8_t *)address, 4);
 }
 
-bool RF24::write(uint8_t *data, uint8_t count)
+bool RF24::write(const uint8_t *data, uint8_t count)
 {
   _write_register(W_TX_PAYLOAD, data, count);
   _ce.set();
   uint8_t status = 0;
   while (!(status & 0x30))
   {
-    syn::Routine::sleep(1);
+    syn::sleep(1);
     status = _write_command(RF24_NOP);
   }
   _ce.clear();
 
-  // clear all status bits before leaving this routine
+  // clear all relevant status bits before leaving this routine
   _write_register(NRF_STATUS, 0x30);
 
   if (status & 0x10)
@@ -89,7 +89,7 @@ bool RF24::write(uint8_t *data, uint8_t count)
   return true;
 }
 
-bool RF24::set_ack_payload(uint8_t *data, uint8_t count)
+bool RF24::write_ack_payload(const uint8_t *data, uint8_t count)
 {
   bool ret = false;
   return ret;
@@ -111,10 +111,10 @@ void RF24::stop_listen()
 {
   _ce.clear();
   // delay because of some shenaningans were people send before the device is ready??
-  // TODO: check if this is really neccesary!
+  // its the time it takes to switch from receiver to stanby mode. Maybe also the clones need it
   syn::udelay(130);
-  // only flush tx if ack payloads are enabled
-  //_write_command(FLUSH_TX);
+  // if ack payloads are enabled, flush tx, too. Flushing anytime is also ok. It doesn't take long.
+  _write_command(FLUSH_TX);
   // clear the prim rx bit from the config
   _write_register(NRF_CONFIG, 0x0E);
   // re-enable listening only on pipe 0 to make acually hear ACKs
@@ -123,8 +123,27 @@ void RF24::stop_listen()
 
 uint8_t RF24::read(uint8_t *buffer)
 {
-  uint8_t count = 0;
-
+  _csel.clear();
+  uint8_t bytes[2] = {R_RX_PL_WID, 0x00};
+  syn::SpiNC::transceive(bytes, 2);
+  _csel.set();
+  uint8_t pipe = (bytes[0] >> 1) & 0x07;
+  if (pipe > 5)
+  {
+    // no data ready in RX FIFO
+    return 0;
+  }
+  // data ready
+  uint8_t count = bytes[1];
+  //while (count == 0)
+  //  ;
+  // read the payload
+  _csel.clear();
+  syn::SpiNC::transceive1(R_RX_PAYLOAD);
+  syn::SpiNC::transceive(buffer, count);
+  _csel.set();
+  // clear RX_FIFO IRQ event flag
+  _write_register(NRF_STATUS, 0x40);
   return count;
 }
 
@@ -141,15 +160,14 @@ void RF24::_write_register(uint8_t address, uint8_t data)
   // set write register bit in register address
   uint8_t bytes[2] = {W_REGISTER | address, data};
   _csel.clear();
-  syn::SpiNC::write(bytes, 2);
+  syn::SpiNC::transceive(bytes, 2);
   _csel.set();
 }
 
 void RF24::_write_register(uint8_t address, const uint8_t *data, uint8_t count)
 {
   _csel.clear();
-  syn::SpiNC::transceive1(W_REGISTER | address);
-  syn::SpiNC::write(data, count);
+  syn::SpiNC::write_command(W_REGISTER | address, data, count);
   _csel.set();
 }
 
@@ -158,7 +176,7 @@ uint8_t RF24::_read_register(uint8_t address)
   // set write register bit in register address
   uint8_t bytes[2] = {R_REGISTER | address, 0x00};
   _csel.clear();
-  syn::SpiNC::transceive2_01(bytes);
+  syn::SpiNC::transceive(bytes, 2);
   _csel.set();
   return bytes[1];
 }
