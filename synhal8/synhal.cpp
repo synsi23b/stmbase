@@ -2,7 +2,6 @@
 
 volatile uint16_t syn::System::sMillis = 0;
 
-
 // block for the specidifed ammount of microseconds using a busy loop
 void syn::udelay(uint16_t micros)
 {
@@ -26,6 +25,93 @@ void syn::udelay(uint16_t micros)
 
 using namespace syn;
 
+void GpioBase::pushpull(uint8_t *port_base, uint8_t mask)
+{
+  // _pPort->DDR |= _pinmask;
+  // _pPort->CR1 |= _pinmask;
+  // _pPort->CR2 |= _pinmask;
+  port_base += 2; // advance to DDR
+  *port_base++ |= mask;
+  *port_base++ |= mask;
+  *port_base |= mask;
+}
+
+void Gpio::pushpull()
+{
+  // _pPort->DDR |= _pinmask;
+  // _pPort->CR1 |= _pinmask;
+  // _pPort->CR2 |= _pinmask;
+  GpioBase::pushpull((uint8_t *)_pPort, _pinmask);
+}
+
+void GpioBase::opendrain(uint8_t *port_base, uint8_t mask)
+{
+  // _pPort->DDR |= _pinmask;
+  // _pPort->CR1 &= ~_pinmask;
+  // _pPort->CR2 |= _pinmask;
+  // DDR -> CR1 -> CR2
+  port_base += 2; // advance to DDR
+  *port_base |= mask;
+  port_base += 2; // advance to CR2
+  *port_base |= mask;
+  --port_base; // decrease to CR1
+  mask = ~mask;
+  *port_base &= mask;
+}
+
+void Gpio::opendrain()
+{
+  // out_opendrain, max speed
+  // _pPort->DDR |= _pinmask;
+  // _pPort->CR1 &= ~_pinmask;
+  // _pPort->CR2 |= _pinmask;
+  GpioBase::opendrain((uint8_t *)_pPort, _pinmask);
+}
+
+void GpioBase::input_pullup(uint8_t *port_base, uint8_t mask)
+{
+  // _pPort->DDR &= ~_pinmask;
+  // _pPort->CR1 |= _pinmask;
+  // _pPort->CR2 &= ~_pinmask;
+  // DDR -> CR1 -> CR2
+  port_base += 3; // advance to CR1
+  *port_base |= mask;
+  mask = ~mask;
+  --port_base; // decrease to DDR
+  *port_base &= mask;
+  port_base += 2; // increase to CR2
+  *port_base &= mask;
+}
+
+void Gpio::input_pullup()
+{
+  // _pPort->DDR &= ~_pinmask;
+  // _pPort->CR1 |= _pinmask;
+  // _pPort->CR2 &= ~_pinmask;
+  GpioBase::input_pullup((uint8_t *)_pPort, _pinmask);
+}
+
+void GpioBase::floating(uint8_t *port_base, uint8_t mask)
+{
+  // _pPort->DDR &= ~_pinmask;
+  // _pPort->CR1 &= ~_pinmask;
+  // _pPort->CR2 &= ~_pinmask;
+  mask = ~mask;
+  // DDR -> CR1 -> CR2
+  port_base += 2; // advance pointer to DDR register
+  *port_base++ &= mask;
+  *port_base++ &= mask;
+  *port_base &= mask;
+}
+
+void Gpio::floating()
+{
+  // _pPort->DDR &= ~_pinmask;
+  // _pPort->CR1 &= ~_pinmask;
+  // _pPort->CR2 &= ~_pinmask;
+  GpioBase::floating((uint8_t *)_pPort, _pinmask);
+}
+
 // block for the specidifed ammount of millis using systick
 void System::delay(uint16_t millis)
 {
@@ -34,12 +120,14 @@ void System::delay(uint16_t millis)
     ;
 }
 
+#ifdef SYN_HAL_AUTO_WAKEUP_UNIT
 INTERRUPT_HANDLER(AWU_ISR, 1)
 {
   // read csr to clear interrupt occured bit
   uint8_t val = AWU->CSR;
   Autowakeup::stopsleep();
 }
+#endif
 
 #ifdef SYN_HAL_SPI
 
@@ -79,7 +167,7 @@ void SpiNC::transceive(uint8_t *data, uint8_t count)
       ;
     // read the answer byte and save it
     *data++ = SPI->DR;
-    // saves 8 bytes of PROGMEM, but is 28 slower at 8MHz SPI
+    // saves 8 bytes of PROGMEM, but is 28% slower at 8MHz SPI
     // uint8_t tmp = transceive1(*data);
     // *data++ = tmp;
     // --count;

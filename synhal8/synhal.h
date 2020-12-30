@@ -22,6 +22,20 @@ namespace syn
   class GpioBase
   {
   public:
+    static GPIO_TypeDef *get_port_address(char port)
+    {
+#ifdef DEBUG
+      while (port < 'A' || port > 'D')
+        ;
+#endif
+      return (GPIO_TypeDef *)(GPIOA_BaseAddress + ((port - 'A') * 0x05));
+    }
+
+    static void pushpull(uint8_t *config_register_base, uint8_t mask);
+    static void opendrain(uint8_t *config_register_base, uint8_t mask);
+    static void input_pullup(uint8_t *config_register_base, uint8_t mask);
+    static void floating(uint8_t *config_register_base, uint8_t mask);
+
     enum eExtiLevel
     {
       Exti_level_low = 0,
@@ -77,352 +91,73 @@ namespace syn
     }
   };
 
-  template <uint16_t BaseAddress>
-  class Port
-  {
-  public:
-    // set the direction and behavior of a pin. Allways uses maximum
-    // speed possible on the pin in output mode. Pins that don't support
-    // high speed will just ignore that setting
-    void mode(uint8_t pin, bool output, bool pushpull_pullup)
-    {
-      if (output)
-      {
-        if (pushpull_pullup)
-        {
-          // out_pushpull, max speed
-          ((GPIO_TypeDef *)BaseAddress)->DDR |= (1 << pin);
-          ((GPIO_TypeDef *)BaseAddress)->CR1 |= (1 << pin);
-          ((GPIO_TypeDef *)BaseAddress)->CR2 |= (1 << pin);
-        }
-        else
-        {
-          // out_opendrain, max speed
-          ((GPIO_TypeDef *)BaseAddress)->DDR |= (1 << pin);
-          ((GPIO_TypeDef *)BaseAddress)->CR1 &= ~(1 << pin);
-          ((GPIO_TypeDef *)BaseAddress)->CR2 |= (1 << pin);
-        }
-      }
-      else
-      {
-        ((GPIO_TypeDef *)BaseAddress)->CR2 &= ~(1 << pin);
-        if (pushpull_pullup)
-        {
-          // in_pullup
-          ((GPIO_TypeDef *)BaseAddress)->DDR &= ~(1 << pin);
-          ((GPIO_TypeDef *)BaseAddress)->CR1 |= (1 << pin);
-        }
-        else
-        {
-          // in_float
-          ((GPIO_TypeDef *)BaseAddress)->DDR &= ~(1 << pin);
-          ((GPIO_TypeDef *)BaseAddress)->CR1 &= ~(1 << pin);
-        }
-      }
-    }
-
-    // set the entire port to the value specified
-    // only works for pins configured as output
-    void write(uint8_t value)
-    {
-      ((GPIO_TypeDef *)BaseAddress)->ODR = value;
-    }
-
-    // read all the pins of the port
-    uint8_t read()
-    {
-      return ((GPIO_TypeDef *)BaseAddress)->IDR;
-    }
-
-    // 1 - pin is set to high, 0 no effect
-    // only works for pins configured as output
-    void set(uint8_t mask)
-    {
-      ((GPIO_TypeDef *)BaseAddress)->ODR |= mask;
-    }
-
-    // 1 - pin is cleared to low, 0 no effect
-    // only works for pins configured as output
-    void clear(uint8_t mask)
-    {
-      ((GPIO_TypeDef *)BaseAddress)->ODR &= ~mask;
-    }
-
-    // get the Base Address of the port
-    uint16_t baseAddress()
-    {
-      return BaseAddress;
-    }
-  };
-
-  template <uint16_t BaseAddress, uint8_t PinNr>
-  class Pin
-  {
-  public:
-    // see class Port
-    void mode(bool output, bool pushpull_pullup)
-    {
-      Port<BaseAddress> port;
-      port.mode(PinNr, output, pushpull_pullup);
-    }
-
-    // Read the value of the Pin
-    bool read()
-    {
-      Port<BaseAddress> port;
-      return port.read() & (1 << PinNr);
-    }
-
-    // set the Pin to high in output mode
-    // should have no effect for input pins
-    void set()
-    {
-      Port<BaseAddress> port;
-      port.set(1 << PinNr);
-    }
-
-    // clear the Pin to low in output mode
-    // should have no effect for input pins
-    void clear()
-    {
-      Port<BaseAddress> port;
-      port.clear(1 << PinNr);
-    }
-
-    // get the Base Address of the port of the pin
-    uint16_t baseAddress()
-    {
-      return BaseAddress;
-    }
-
-    // get the Nr of the pin
-    uint8_t pinNr()
-    {
-      return PinNr;
-    }
-  };
-
-  template <uint16_t BaseAddress, uint8_t PinNr>
-  class DebouncedPin
-  {
-  public:
-    // see class Port
-    void mode(bool output, bool pushpull_pullup)
-    {
-      Port<BaseAddress> port;
-      port.mode(PinNr, output, pushpull_pullup);
-    }
-
-    // Read the value of the Pin
-    bool read()
-    {
-      Port<BaseAddress> port;
-      return port.read() & (1 << PinNr);
-    }
-
-    // set the Pin to high in output mode
-    // should have no effect for input pins
-    void set()
-    {
-      Port<BaseAddress> port;
-      port.set(1 << PinNr);
-    }
-
-    // clear the Pin to low in output mode
-    // should have no effect for input pins
-    void clear()
-    {
-      Port<BaseAddress> port;
-      port.clear(1 << PinNr);
-    }
-
-    // get the Base Address of the port of the pin
-    uint16_t baseAddress()
-    {
-      return BaseAddress;
-    }
-
-    // get the Nr of the pin
-    uint8_t pinNr()
-    {
-      return PinNr;
-    }
-
-    void initDebounce()
-    {
-      uint8_t count = 0;
-      for (uint8_t i = 0; i < 255; ++i)
-      {
-        if (read())
-        {
-          ++count;
-        }
-        udelay(4);
-      }
-      if (count > 190)
-      {
-        debounce_ = 0xA0; // set debounce to highest
-      }
-      else
-      {
-        debounce_ = 0; // or to lowest
-      }
-    }
-
-    void setDebounce(bool value)
-    { // set debounce start valaue to high or low
-      if (value)
-        debounce_ = 0xA0;
-      else
-        debounce_ = 0;
-    }
-
-    bool debounced()
-    {
-      int8_t value = (int8_t)(debounce_ & 0x7F); // dont read debounce bit
-      if (read())
-      {
-        if (++value >= 0x20)
-        {
-          debounce_ = 0x80 | 0x20;
-          return true;
-        }
-      }
-      else
-      {
-        if (--value <= 0)
-        {
-          debounce_ = 0;
-          return false;
-        }
-      }
-      if (debounce_ & 0x80)
-      {
-        debounce_ = 0x80 | value;
-        return true;
-      }
-      else
-      {
-        debounce_ = value;
-        return false;
-      }
-    }
-
-  private:
-    uint8_t debounce_;
-  };
-
   class Gpio
   {
   public:
     Gpio()
     {
-      //pPort_ = (GPIO_TypeDef*)GPIOF_BaseAddress;
-      //pinmask_ = 0;
     }
 
-    Gpio(int8_t port, uint8_t pinnum)
+    Gpio(char port, uint8_t pinnum)
     {
       init(port, pinnum);
     }
 
-    void init(int8_t port, uint8_t pinnum)
+    void init(char port, uint8_t pinnum)
     {
-      if (port > 'F')
-        port -= 32; // only use big letters
-      switch (port)
-      {
-      case 'A':
-        pPort_ = (GPIO_TypeDef *)GPIOA_BaseAddress;
-        break;
-      case 'B':
-        pPort_ = (GPIO_TypeDef *)GPIOB_BaseAddress;
-        break;
-      case 'C':
-        pPort_ = (GPIO_TypeDef *)GPIOC_BaseAddress;
-        break;
-      case 'D':
-        pPort_ = (GPIO_TypeDef *)GPIOD_BaseAddress;
-        break;
-      // case 'E':
-      //   pPort_ = (GPIO_TypeDef*)GPIOE_BaseAddress;
-      //   break;
-      // case 'F':
-      //   pPort_ = (GPIO_TypeDef*)GPIOF_BaseAddress;
-      //   break;
-      default:
-        while (true)
-          ;
-      }
-      while (pinnum > 7)
-        ;
-      pinmask_ = 1 << pinnum;
+      _pPort = GpioBase::get_port_address(port);
+      _pinmask = 1 << pinnum;
     }
 
-    // set the direction and behavior of a pin. Allways uses maximum
-    // speed possible on the pin in output mode. Pins that don't support
-    // high speed will just ignore that setting
-    void mode(bool output, bool pushpull_pullup)
+    void init_multi(char port, uint8_t pinmask)
     {
-      if (output)
-      {
-        if (pushpull_pullup)
-        {
-          // out_pushpull, max speed
-          pPort_->DDR |= pinmask_;
-          pPort_->CR1 |= pinmask_;
-          pPort_->CR2 |= pinmask_;
-        }
-        else
-        {
-          // out_opendrain, max speed
-          pPort_->DDR |= pinmask_;
-          pPort_->CR1 &= ~pinmask_;
-          pPort_->CR2 |= pinmask_;
-        }
-      }
-      else
-      {
-        pPort_->CR2 &= ~pinmask_;
-        if (pushpull_pullup)
-        {
-          // in_pullup
-          pPort_->DDR &= ~pinmask_;
-          pPort_->CR1 |= pinmask_;
-        }
-        else
-        {
-          // in_float
-          pPort_->DDR &= ~pinmask_;
-          pPort_->CR1 &= ~pinmask_;
-        }
-      }
+      _pPort = GpioBase::get_port_address(port);
+      _pinmask = pinmask;
     }
 
-    // set the entire port to the value specified
-    // only works for pins configured as output
+    void change_pin_mask(uint8_t new_mask)
+    {
+      _pinmask = new_mask;
+    }
+
+    void change_pin_mask_by_number(uint8_t new_pinnum)
+    {
+      _pinmask = 1 << new_pinnum;
+    }
+
+    void pushpull();
+    void opendrain();
+    void input_pullup();
+    void floating();
+
     void set()
     {
-      pPort_->ODR |= pinmask_;
+      _pPort->ODR |= _pinmask;
     }
 
     void clear()
     {
-      pPort_->ODR &= ~pinmask_;
+      _pPort->ODR &= ~_pinmask;
     }
 
-    // read all the pins of the port
     bool read()
     {
-      return pPort_->IDR & pinmask_;
+      return _pPort->IDR & _pinmask;
     }
 
+  private:
+    GPIO_TypeDef *_pPort;
+    uint8_t _pinmask;
+  };
+
+  class DebouncedGpio
+  {
     void initDebounce()
     {
       uint8_t count = 0;
       for (uint8_t i = 0; i < 255; ++i)
       {
-        if (read())
+        if (_pin.read())
         {
           ++count;
         }
@@ -430,30 +165,30 @@ namespace syn
       }
       if (count > 190)
       {
-        debounce_ = 0xA0; // set debounce to highest
+        _debounce = 0xA0; // set debounce to highest
       }
       else
       {
-        debounce_ = 0; // or to lowest
+        _debounce = 0; // or to lowest
       }
     }
 
     void setDebounce(bool value)
     { // set debounce start valaue to high or low
       if (value)
-        debounce_ = 0xA0;
+        _debounce = 0xA0;
       else
-        debounce_ = 0;
+        _debounce = 0;
     }
 
     bool debounced()
     {
-      int8_t value = (int8_t)(debounce_ & 0x7F); // dont read debounce bit
-      if (read())
+      int8_t value = (int8_t)(_debounce & 0x7F); // dont read debounce bit
+      if (_pin.read())
       {
         if (++value >= 0x20)
         {
-          debounce_ = 0x80 | 0x20;
+          _debounce = 0x80 | 0x20;
           return true;
         }
       }
@@ -461,26 +196,25 @@ namespace syn
       {
         if (--value <= 0)
         {
-          debounce_ = 0;
+          _debounce = 0;
           return false;
         }
       }
-      if (debounce_ & 0x80)
+      if (_debounce & 0x80)
       {
-        debounce_ = 0x80 | value;
+        _debounce = 0x80 | value;
         return true;
       }
       else
       {
-        debounce_ = value;
+        _debounce = value;
         return false;
       }
     }
 
   private:
-    GPIO_TypeDef *pPort_;
-    uint8_t pinmask_;
-    uint8_t debounce_;
+    Gpio _pin;
+    uint8_t _debounce;
   };
 
   // 640 byte internal eeprom
@@ -647,8 +381,9 @@ namespace syn
         ;
       if (source != Off)
       {
+        Gpio ccopin;
 #ifndef SYN_HAL_32_PIN_DEVICE
-        Pin<GPIOC_BaseAddress, 4> ccopin;
+        ccopin.init('C', 4);
 #else
         Gpio ccopin;
         if (alternate() & (1 << 5))
@@ -656,7 +391,7 @@ namespace syn
         else
           ccopin = Gpio('C', 4);
 #endif
-        ccopin.mode(true, true);
+        ccopin.pushpull();
         CLK->CCOR = source;
       }
     }
@@ -746,21 +481,19 @@ namespace syn
   // when there is action on the i2c bus thou
   class Led
   {
-    typedef Pin<GPIOB_BaseAddress, 5> Pin_t;
-
   public:
     // configure the pin the LED is connected to
     static void init()
     {
-      Pin_t p;
-      p.mode(true, false);
+      Gpio p('B', 5);
+      p.opendrain();
     }
 
     // turn the LED on or off
     // without specifing a the parameter, the led will be turned on
     static void set(bool poweron = true)
     {
-      Pin_t p;
+      Gpio p('B', 5);
       if (poweron)
         p.clear();
       else
@@ -770,14 +503,14 @@ namespace syn
     // turn the LED off
     static void clear()
     {
-      Pin_t p;
+      Gpio p('B', 5);
       p.set();
     }
 
     // switch the LED on or off depending on current state
     static void toggle()
     {
-      Pin_t p;
+      Gpio p('B', 5);
       set(p.read());
     }
   };
@@ -794,6 +527,10 @@ namespace syn
     // timeout is reached
     static void sleep(uint16_t millis)
     {
+#ifndef SYN_HAL_AUTO_WAKEUP_UNIT
+      // need to enable the AWU to actually use it..
+      return;
+#else
       uint8_t awutb, aprdiv;
       if (millis <= 2)
       {
@@ -882,6 +619,7 @@ namespace syn
         }
         System::enterDeepSleep();
       }
+#endif
     }
 
     // abort the current autowakeup
@@ -918,8 +656,9 @@ namespace syn
         break;
       }
       BEEP->CSR = cfg;
-      Pin<GPIOD_BaseAddress, 4> pin;
-      pin.mode(true, true);
+      Gpio tmp_pin;
+      tmp_pin.init('D', 4);
+      tmp_pin.pushpull();
     }
 
     // enable the sound
@@ -1056,7 +795,7 @@ namespace syn
     static void enablePWM(uint8_t channelmask)
     {
       TIM1->BKR = TIM1_BKR_MOE | TIM1_BKR_AOE;
-      Port<GPIOC_BaseAddress> portc;
+      Gpio temp_pin('C', 6);
       if (channelmask & 0x01)
       {
         // enable PWM Mode 1 with preload
@@ -1065,11 +804,15 @@ namespace syn
         TIM1->CCR1H = 0;
         TIM1->CCR1L = 0;
 #ifndef SYN_HAL_32_PIN_DEVICE
-        if (System::alternate() & (1 << 0))
-          portc.mode(6, true, true);
+        if (!System::alternate() & (1 << 0))
+        {
+          while (true)
+            ;
+        }
 #else
-        portc.mode(1, true, true);
+        temp_pin.change_pin_mask(0x01);
 #endif
+        temp_pin.pushpull();
       }
       if (channelmask & 0x02)
       {
@@ -1080,10 +823,16 @@ namespace syn
         TIM1->CCR2L = 0;
 #ifndef SYN_HAL_32_PIN_DEVICE
         if (System::alternate() & (1 << 0))
-          portc.mode(7, true, true);
+        {
+          temp_pin.init('C', 7);
+        }
+        else
+          while (true)
+            ;
 #else
-        portc.mode(2, true, true);
+        temp_pin.change_pin_mask(0x02);
 #endif
+        temp_pin.pushpull();
       }
       if (channelmask & 0x04)
       {
@@ -1092,7 +841,8 @@ namespace syn
         TIM1->CCER2 |= TIM1_CCER2_CC3E;
         TIM1->CCR3H = 0;
         TIM1->CCR3L = 0;
-        portc.mode(3, true, true);
+        temp_pin.init('C', 3);
+        temp_pin.pushpull();
       }
       if (channelmask & 0x08)
       {
@@ -1102,12 +852,19 @@ namespace syn
         TIM1->CCR4H = 0;
         TIM1->CCR4L = 0;
 #ifndef SYN_HAL_32_PIN_DEVICE
-        portc.mode(4, true, true);
+        temp_pin.init('C', 4);
+        temp_pin.pushpull();
 #else
         if (System::alternate() & (1 << 6))
-          Pin<GPIOD_BaseAddress, 7>().mode(true, true);
+        {
+          temp_pin.init('D', 7);
+          temp_pin.pushpull();
+        }
         else
-          portc.mode(4, true, true);
+        {
+          temp_pin.init('C', 4);
+          temp_pin.pushpull();
+        }
 #endif
       }
       TIM1->EGR |= TIM1_EGR_UG;
@@ -1137,14 +894,18 @@ namespace syn
 #ifndef SYN_HAL_32_PIN_DEVICE
       if (System::alternate() & (1 << 0))
       {
-        Port<GPIOC_BaseAddress> port;
-        port.mode(6, false, true);
-        port.mode(7, false, true);
+        Gpio temp_pin;
+        temp_pin.init('C', 6);
+        temp_pin.input_pullup();
+        temp_pin.init('C', 7);
+        temp_pin.input_pullup();
       }
 #else
-      Port<GPIOC_BaseAddress> port;
-      port.mode(1, false, true);
-      port.mode(2, false, true);
+      Gpio temp_pin;
+      temp_pin.init('C', 1);
+      temp_pin.input_pullup();
+      temp_pin.init('C', 2);
+      temp_pin.input_pullup();
 #endif
       TIM1->CCMR1 = 0xF1; // T1 -> input t1fp1, max filter
       TIM1->CCMR2 = 0xF1; // T2 -> input t2fp2, max filter
@@ -1187,7 +948,6 @@ namespace syn
   class Timer2
   {
   public:
-
     // Radio Controll Device conforming PWM signal with 50 Hz
     // to provide 1000 steps between 1ms and 2ms signal length
     static void init_rcpwm()
@@ -1217,6 +977,7 @@ namespace syn
     // bit 2 -> channel 3
     static void enablePWM(uint8_t channelmask)
     {
+      Gpio temp_pin;
       if (channelmask & 0x01)
       {
         // enable PWM Mode 1 with preload
@@ -1227,11 +988,18 @@ namespace syn
         TIM2->CCR1L = 0;
 #ifndef SYN_HAL_32_PIN_DEVICE
         if (System::alternate() & (1 << 0))
-          Pin<GPIOC_BaseAddress, 5>().mode(true, true);
+        {
+          temp_pin.init('C', 5);
+          temp_pin.pushpull();
+        }
         else
-          Pin<GPIOD_BaseAddress, 4>().mode(true, true);
+        {
+          temp_pin.init('D', 4);
+          temp_pin.pushpull();
+        }
 #else
-        Pin<GPIOD_BaseAddress, 4>().mode(true, true);
+        temp_pin.init('D', 4);
+        temp_pin.pushpull();
 #endif
       }
       if (channelmask & 0x02)
@@ -1242,7 +1010,8 @@ namespace syn
         TIM2->CCER1 |= TIM2_CCER1_CC2E;
         TIM2->CCR2H = 0;
         TIM2->CCR2L = 0;
-        Pin<GPIOD_BaseAddress, 3>().mode(true, true);
+        temp_pin.init('D', 3);
+        temp_pin.pushpull();
       }
       if (channelmask & 0x04)
       {
@@ -1253,9 +1022,15 @@ namespace syn
         TIM2->CCR3H = 0;
         TIM2->CCR3L = 0;
         if (System::alternate() & (1 << 1))
-          Pin<GPIOD_BaseAddress, 2>().mode(true, true);
+        {
+          temp_pin.init('D', 2);
+          temp_pin.pushpull();
+        }
         else
-          Pin<GPIOA_BaseAddress, 3>().mode(true, true);
+        {
+          temp_pin.init('A', 3);
+          temp_pin.pushpull();
+        }
       }
       TIM2->EGR |= TIM2_EGR_UG;
     }
@@ -1311,15 +1086,19 @@ namespace syn
       if (lsbfirst)
         cr1 |= SPI_CR1_LSBFIRST;
       SPI->CR1 = cr1 | SPI_CR1_SPE;
-      Port<GPIOC_BaseAddress> portc;
-      portc.mode(5, true, true);   // SCK
-      portc.mode(6, true, true);   // MOSI
-      portc.mode(7, false, false); // MISO
+      Gpio temp_pin;
+      temp_pin.init('C', 4);
+      temp_pin.pushpull();
+      Gpio pins;
+      pins.init_multi('C', 0x60); // pin 5, 6 SCK / MOSI
+      pins.pushpull();
       // set CLK idle according to cpol
       if (cpol)
-        portc.set(1 << 5);
+        pins.set();
       else
-        portc.clear(1 << 5);
+        pins.clear();
+      pins.change_pin_mask_by_number(7);
+      pins.floating();
     }
 
     // write count bytes from the constant data buffer, but discard incoming data
@@ -1466,10 +1245,10 @@ namespace syn
     {
       // reset the device because glitches at startup
       I2C->CR2 = I2C_CR2_SWRST;
-      Port<GPIOB_BaseAddress> portb;
-      portb.mode(4, true, false); // scl output open drain
-      portb.mode(5, true, false); // sda output open drain
-      portb.set(0x30);
+      Gpio pins;
+      pins.init_multi('B', 0x30);
+      pins.opendrain();
+      pins.set();
       I2C->CR2 = 0;
       I2C->FREQR = 16; // 16 MHz
       if (fastmode)
@@ -1847,9 +1626,10 @@ namespace syn
     // when leaving the parameters blank it is set to the common 8N1
     static void init(eBaudrate bd, eStopbits sb = sb1, eParity pr = none)
     {
-      Port<GPIOD_BaseAddress> portd;
-      portd.mode(5, true, true);   // tx fast output push pull
-      portd.mode(6, false, false); // rx input opendrain
+      Gpio pin('D', 5);
+      pin.pushpull();
+      pin.change_pin_mask_by_number(6);
+      pin.opendrain();
       switch (bd)
       {
       case bd2400:
@@ -2245,36 +2025,36 @@ namespace syn
     static void configurepin(uint8_t channel)
     {
 #ifndef SYN_HAL_32_PIN_DEVICE
-      Port<GPIOD_BaseAddress> portd;
+      Gpio pin;
       switch (channel)
       {
       case 2:
       {
-        Pin<GPIOC_BaseAddress, 4> pin;
-        pin.mode(false, false);
+        pin.init('C', 4);
         ADC1->TDRL |= (1 << 2);
       }
       break;
       case 3:
-        portd.mode(2, false, false);
+        pin.init('D', 2);
         ADC1->TDRL |= (1 << 3);
         break;
       case 4:
-        portd.mode(3, false, false);
+        pin.init('D', 3);
         ADC1->TDRL |= (1 << 4);
         break;
       case 5:
-        portd.mode(5, false, false);
+        pin.init('D', 5);
         ADC1->TDRL |= (1 << 5);
         break;
       case 6:
-        portd.mode(6, false, false);
+        pin.init('D', 6);
         ADC1->TDRL |= (1 << 6);
         break;
       }
+      pin.floating();
 #else
-      Port<GPIOB_BaseAddress> portb;
-      portb.mode(channel, false, false);
+      Gpio pin('B', channel);
+      pin.floating();
       ADC1->TDRL |= (1 << channel);
 #endif
     }
