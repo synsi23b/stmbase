@@ -1,3 +1,5 @@
+#pragma once
+
 #ifdef STM8S103
 #include "../synos8/synos.h"
 #endif
