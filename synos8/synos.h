@@ -358,13 +358,13 @@ namespace syn
 
     bool reserve_isr(Mail_t **mail)
     {
-      assert(write_dirty == false);
+      //assert(write_dirty == false);
       bool ret = false;
-      if (_sig_write.get_isr())
+      if (!_write_dirty && _sig_write.get_isr())
       {
         *mail = _pwrite;
         ret = true;
-        assert(write_dirty = true);
+        _write_dirty = true;
       }
       return ret;
     }
@@ -377,18 +377,21 @@ namespace syn
 
     void reserve(Mail_t **mail)
     {
-      assert(write_dirty == false);
+      while (_write_dirty)
+        ;
+      //assert(_write_dirty == false);
       _sig_write.get();
-      assert(write_dirty = true);
+      _write_dirty = true;
       *mail = _pwrite;
     }
 
     void release_isr()
     {
-      assert(write_dirty == true);
+      assert(_write_dirty == true);
       if (++_pwrite == &_mails[Size])
         _pwrite = _mails;
-      assert((write_dirty = false) == false);
+      _write_dirty = false;
+      //assert((write_dirty = false) == false);
       _sig_read.give_isr();
     }
 
@@ -457,11 +460,12 @@ namespace syn
 
     Mail_t *_pread;
     Mail_t *_pwrite;
+    bool _write_dirty;
     Semaphore _sig_read;
     Semaphore _sig_write;
     Mail_t _mails[Size];
 #ifdef DEBUG
-    bool read_dirty, write_dirty;
+    bool read_dirty;
 #endif
   };
 
