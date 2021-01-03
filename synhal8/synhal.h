@@ -130,6 +130,18 @@ namespace syn
     void input_pullup();
     void floating();
 
+    // used to quickly toggle between pushpull<->input or opendrain<->floating
+    // very special use cases when bitbanging, check datasheets!
+    void clear_direction_bit()
+    {
+      _pPort->DDR &= ~_pinmask;
+    }
+
+    void set_direction_bit()
+    {
+      _pPort->DDR |= _pinmask;
+    }
+
     void set()
     {
       _pPort->ODR |= _pinmask;
