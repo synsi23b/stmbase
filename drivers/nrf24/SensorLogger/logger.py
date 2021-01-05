@@ -1,11 +1,11 @@
 from logger_base import start_listen
 from datetime import datetime
-from mongo import insert_message, insert_key_value, insert_task_status, insert_temperature_value, insert_radio_state
+from mongo import insert_message, insert_key_value, insert_task_status, insert_temperature_value, update_radio_state
 import struct
 
 int_16_packer = struct.Struct(">h")
 uint_16_packer = struct.Struct(">H")
-uint_32_packer = struct.Struct(">I")
+#uint_32_packer = struct.Struct(">I")
 
 def request_address(node, payload):
     pass
@@ -15,17 +15,7 @@ def request_time(node, payload):
     pass
 
 
-def radio_state(node, payload):
-    success = uint_32_packer.unpack(payload[:4])[0]
-    failure = uint_32_packer.unpack(payload[4:8])[0]
-    total = success + failure
-    percent = 0.00
-    if total > 0:
-        percent = float(success) / float(total)
-    insert_radio_state(node, success, failure, percent) 
-
-
-def log_key_value(node, payload):
+def _unpack_key_value(payload):
     msg = str(payload, encoding='utf-8')
     values = {}
     try:
@@ -39,13 +29,32 @@ def log_key_value(node, payload):
                         msg = remainder[i:]
                         break
                 if value is None:
+                    # if value is None, this int was the final token of the stream
                     value = int(remainder)
+                    msg = ""
             else:
-                value, msg = remainder.split('\6', 1)
+                # it's a string, split at "End of Text"
+                value, msg = remainder.split('\3', 1)
             values[key] = value
     except Exception as e:
         #print(e)
         pass
+    return values
+
+
+def radio_state(node, payload):
+    values = _unpack_key_value(payload)
+    success = values['s']
+    failure = values['f']
+    total = success + failure
+    percent = 0.00
+    if total > 0:
+        percent = float(success) / float(total)
+    update_radio_state(node, success, failure, percent)
+
+
+def log_key_value(node, payload):
+    values = _unpack_key_value(payload)
     if values:
         insert_key_value(node, values)
 
@@ -57,15 +66,15 @@ def _msg(severity, node, payload):
 
 
 def message_info(node, payload):
-    _msg("Info", node, payload)
+    _msg("info", node, payload)
 
 
 def message_warning(node, payload):
-    _msg("Warning", node, payload)
+    _msg("warning", node, payload)
 
 
 def message_error(node, payload):
-    _msg("Error", node, payload)
+    _msg("error", node, payload)
 
 
 def _task(state, node, payload):
@@ -75,6 +84,8 @@ def _task(state, node, payload):
     if(state == 'completed'):
         # the task completed successfull if we reach 100 percent, else it's consodered failed
         insert_task_status(state, node, description, remaining, percent, percent < 100)
+    elif(state == 'canceled'):
+        insert_task_status(state, node, description, remaining, percent, True)
     else:
         insert_task_status(state, node, description, remaining, percent, False)
 
@@ -91,29 +102,34 @@ def task_completed(node, payload):
     _task('completed', node, payload)
 
 
+def task_canceled(node, payload):
+    _task('canceled', node, payload)
+
+
 def temperature_value(node, payload):
-    termometer = str(payload[:16], encoding='utf-8')
+    thermometer = str(payload[:16], encoding='utf-8')
     temperature = int_16_packer.unpack(payload[16:])[0]
     temperature = temperature * 0.0625
-    insert_temperature_value(node, termometer, temperature)
+    insert_temperature_value(node, thermometer, temperature)
 
 
 protocols = {
     0x00: request_address,
     0x01: request_time,
-    0x1F: radio_state,
-    0x20: log_key_value,
-    0x21: message_info,
-    0x22: message_warning,
-    0x23: message_error,
-    0x26: task_started,
-    0x37: task_progress,
-    0x38: task_completed,
-    0x3A: temperature_value
+    0x20: radio_state,
+    0x21: log_key_value,
+    0x22: message_info,
+    0x23: message_warning,
+    0x24: message_error,
+    0x25: task_started,
+    0x26: task_progress,
+    0x27: task_completed,
+    0x28: task_canceled,
+    0x29: temperature_value
 }
 
 node_last_receive_time = None
 
 
 # doesn't return
-start_listen("LOGR", protocols)
+start_listen("LG01", protocols)

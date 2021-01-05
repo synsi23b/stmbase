@@ -1,14 +1,14 @@
 #include "rf24node.h"
 #include <stdio.h>
-#include <string.h>
+//#include <string.h>
 
 RF24Node::Mailbox_t RF24Node::_inbox;
 //const char *RF24Node::_this_node_address;
 RF24 RF24Node::_radio;
 
 // count the amount of successfull and failed messages
-uint32_t RF24Node::_success_counter = 0;
-uint32_t RF24Node::_failure_counter = 0;
+uint16_t RF24Node::_success_counter = 0;
+uint16_t RF24Node::_failure_counter = 0;
 
 #ifdef STM8S
 template <typename T>
@@ -25,9 +25,17 @@ void _store_big_endian_16(uint8_t *dest, T value)
 }
 #endif
 
-void RF24Node::Message::init(const char *receiver_address, RF24Node::Protocol protocol)
+// void RF24Node::Message::_init(const char *receiver_address, RF24Node::Protocol protocol)
+// {
+//   //memcpy(_address, receiver_address, 4);
+//   _fold_address(receiver_address);
+//   _protocol = protocol;
+//   _mode = 0;
+// }
+
+void RF24Node::Message::_init(uint16_t folded_receiver_address, RF24Node::Protocol protocol)
 {
-  memcpy(_address, receiver_address, 4);
+  _address = folded_receiver_address;
   _protocol = protocol;
   _mode = 0;
 }
@@ -64,10 +72,32 @@ void RF24Node::Message::log_i16(const char *key, int16_t value)
 #endif
 }
 
+// void RF24Node::Message::log_u32(const char *key, uint32_t value)
+// {
+//   char *res = _log_key(key);
+//   int num = sprintf(res, "%u", value);
+//   _mode += num;
+// #ifdef DEBUG
+//   while (_mode > RF24_NODE_PAYLOAD_SIZE)
+//     ;
+// #endif
+// }
+
+// void RF24Node::Message::log_i32(const char *key, int32_t value)
+// {
+//   char *res = _log_key(key);
+//   int num = sprintf(res, "%d", value);
+//   _mode += num;
+// #ifdef DEBUG
+//   while (_mode > RF24_NODE_PAYLOAD_SIZE)
+//     ;
+// #endif
+// }
+
 void RF24Node::Message::log_str(const char *key, const char *string)
 {
   char *res = _log_key(key);
-  int num = sprintf(res, "%s\6", string);
+  int num = sprintf(res, "%s\3", string);
   _mode += num;
 #ifdef DEBUG
   while (_mode > RF24_NODE_PAYLOAD_SIZE)
@@ -75,10 +105,18 @@ void RF24Node::Message::log_str(const char *key, const char *string)
 #endif
 }
 
+// void RF24Node::Message::log_mongo(const char *mapstring)
+// {
+//   char *res = _log_key(key);
+//   int num = sprintf(res, "%s\3", string);
+//   _mode += num;
+// }
+
 char *RF24Node::Message::_log_key(const char *key)
 {
 #ifdef DEBUG
-  while (_protocol != log_key_value)
+  Protocol proto = _protocol;
+  while (proto != log_key_value && proto != radio_state)
     ;
 #endif
   int num = sprintf((char *)_payload + _mode, "%s:", key);
@@ -105,7 +143,7 @@ void RF24Node::Message::task(const char *description, uint16_t remaining_seconds
 {
 #ifdef DEBUG
   Protocol proto = _protocol;
-  while (proto != message_info && proto != message_warning && proto != message_error)
+  while (proto != task_started && proto != task_progress && proto != task_completed && proto != task_canceled)
     ;
 #endif
   _payload[0] = progress_percent;
@@ -124,7 +162,6 @@ void RF24Node::Message::temperature(const uint8_t *thermometer_id, int16_t value
   while (_protocol != temperature_value)
     ;
 #endif
-  //const uint16_t *temp_id = (const uint16_t *)thermometer_id;
   char *buff;
   for (uint8_t i = 0; i < 8; ++i)
   {
@@ -140,20 +177,32 @@ void RF24Node::Message::temperature(const uint8_t *thermometer_id, int16_t value
   _mode = 18;
 }
 
-void RF24Node::Message::_radio_state(uint16_t *pointer_to_int32x2)
-{
-#ifdef DEBUG
-  while (_protocol != radio_state)
-    ;
-#endif
-  uint8_t *buff = _payload;
-  for (uint8_t i = 0; i < 4; ++i)
-  {
-    _store_big_endian_16(buff, *pointer_to_int32x2++);
-    buff += 2;
-  }
-  _mode = 8;
-}
+// void RF24Node::Message::_radio_state(uint16_t *pointer_to_int32x2)
+// {
+// #ifdef DEBUG
+//   while (_protocol != radio_state)
+//     ;
+// #endif
+//   uint8_t *buff = _payload;
+//   for (uint8_t i = 0; i < 4; ++i)
+//   {
+//     _store_big_endian_16(buff, *pointer_to_int32x2++);
+//     buff += 2;
+//   }
+//   _mode = 8;
+// }
+
+// void RF24Node::Message::_fold_address(const char *address)
+// {
+//   // first 2 bytes are supposed to be capital chars, compress into single byte
+//   uint8_t tmp = (address[0] - '@') << 4;
+//   tmp |= (address[1] - '@');
+//   _address = tmp;
+//   // last 2 bytes are a number between 0 and 99
+//   tmp = (address[2] - '0') * 10;
+//   tmp += (address[3] - '0');
+//   _number = tmp;
+// }
 
 RF24Node::LinkMode RF24Node::Message::_get_mode() const
 {
@@ -163,7 +212,7 @@ RF24Node::LinkMode RF24Node::Message::_get_mode() const
 uint8_t RF24Node::Message::_get_payload_count() const
 {
   // address + protocoll + count bytes of mode
-  return (_mode & 0x1F) + 5;
+  return (_mode & 0x1F) + 3;
 }
 
 void RF24Node::Message::_set_packet_id(uint8_t id)
@@ -179,16 +228,37 @@ void RF24Node::Message::send(RF24Node::LinkMode mode)
   RF24Node::_inbox.release();
 }
 
-RF24Node::Message *RF24Node::try_reserve()
+void RF24Node::Message::unfold_address(uint16_t address, uint8_t *buffer)
+{
+  buffer += 3;
+  uint8_t tmp = address & 0x3F;
+  *buffer-- = (tmp % 10) + '0';
+  *buffer-- = (tmp / 10) + '0';
+  address >>= 6;
+  tmp = (address & 0x1F) + 'A';
+  *buffer-- = tmp;
+  address >>= 5;
+  tmp = address + 'A';
+  *buffer = tmp;
+}
+
+RF24Node::Message *RF24Node::try_reserve(uint16_t folded_receiver_address, Protocol protocol)
 {
   Message *pres = 0;
   _inbox.try_reserve(&pres);
+  if (pres)
+  {
+    pres->_init(folded_receiver_address, protocol);
+  }
   return pres;
 }
 
-void RF24Node::message_handler_routine(const char *this_node_address)
+void RF24Node::message_handler_routine(uint16_t this_node_address)
 {
-  _radio.init(this_node_address);
+  uint8_t adrbuffer[4];
+  Message::unfold_address(this_node_address, adrbuffer);
+
+  _radio.init((const char *)adrbuffer);
 
   Message *mail_to_send = 0;
   uint8_t retry_count = 0;
@@ -211,7 +281,7 @@ void RF24Node::message_handler_routine(const char *this_node_address)
           continue;
         }
       }
-      if (_radio.write((uint8_t *)mail_to_send->_address, mail_to_send->_get_payload_count()))
+      if (_radio.write((uint8_t *)(&mail_to_send->_address), mail_to_send->_get_payload_count()))
       {
         _inbox.purge();   // release message back to pool
         mail_to_send = 0; // make sure to grab a new message
@@ -225,13 +295,15 @@ void RF24Node::message_handler_routine(const char *this_node_address)
     else if (_inbox.try_peek(&mail_to_send))
     {
       // setup message addresses
-      _radio.set_destination(mail_to_send->_address);
-      memcpy(mail_to_send->_address, this_node_address, 4);
+      Message::unfold_address(mail_to_send->_address, adrbuffer);
+      _radio.set_destination((const char *)adrbuffer);
+      //memcpy(mail_to_send->_address, this_node_address, 4);
+      mail_to_send->_address = this_node_address;
       mail_to_send->_set_packet_id(packet_id_counter);
       // 8 bit packet id counter rolls over to 0 packet id in 4 rounds
       packet_id_counter += 0x40;
       // try to send the message
-      bool success = _radio.write((uint8_t *)mail_to_send->_address, mail_to_send->_get_payload_count());
+      bool success = _radio.write((uint8_t *)(&mail_to_send->_address), mail_to_send->_get_payload_count());
       if (!success)
       {
         ++_failure_counter;
@@ -245,7 +317,16 @@ void RF24Node::message_handler_routine(const char *this_node_address)
       }
       else
       {
-        ++_success_counter;
+        if ((mail_to_send->_protocol & RF24_NODE_PROTOCOLL_MASK) == radio_state)
+        {
+          // success in sending our radio state, reset the counters
+          _success_counter = 0;
+          _failure_counter = 0;
+        }
+        else
+        {
+          ++_success_counter;
+        }        
       }
       // successfull send or unreliable message gets here
       // also get here if we reached the end of a retry counter
@@ -258,11 +339,12 @@ void RF24Node::message_handler_routine(const char *this_node_address)
       // 20 minutes / 137 millliseconds ~ 8759 iterations
       if (sleep_counter > 8759)
       {
-        mail_to_send = try_reserve();
+        mail_to_send = try_reserve(RF24_NODE_LOGGER, radio_state);
         if (mail_to_send)
         {
-          mail_to_send->init("LOGR", radio_state);
-          mail_to_send->_radio_state((uint16_t *)&_success_counter);
+          //mail_to_send->_radio_state((uint16_t *)&_success_counter);
+          mail_to_send->log_u16("s", _success_counter);
+          mail_to_send->log_u16("f", _failure_counter);
           mail_to_send->send();
           mail_to_send = 0;
           sleep_counter = 0;

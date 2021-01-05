@@ -3,25 +3,33 @@
 #include "rf24.h"
 
 #define RF24_NODE_MAILBOX_COUNT 8
-#define RF24_NODE_PAYLOAD_SIZE 27
+#define RF24_NODE_PAYLOAD_SIZE 29
+
+// put in 2 chars (A..Z) and a number (0..63), get a folded 4 byte address
+#define RF24_NODE_FOLD_ADDR(a, b, x) (((a - 'A') << 11) | ((b - 'A') << 6) | (x))
+
+#define RF24_NODE_LOGGER RF24_NODE_FOLD_ADDR('L', 'G', 1)
 
 class RF24Node
 {
 public:
+#define RF24_NODE_PROTOCOLL_MASK 0x3F
   enum Protocol
   {
-    // upper 2 bits are packet id to detect multiple received
     request_address = 0x00,
     request_time = 0x01,
-    radio_state = 0x1F,
-    log_key_value = 0x20,
-    message_info = 0x21,
-    message_warning = 0x22,
-    message_error = 0x23,
-    task_started = 0x26,
-    task_progress = 0x37,
-    task_completed = 0x38,
-    temperature_value = 0x3A,
+    radio_state = 0x20,
+    log_key_value = 0x21,
+    message_info = 0x22,
+    message_warning = 0x23,
+    message_error = 0x24,
+    task_started = 0x25,
+    task_progress = 0x26,
+    task_completed = 0x27,
+    task_canceled = 0x28,
+    temperature_value = 0x29,
+    // 0x3F is maximum!
+    // upper 2 bits are packet id to detect multiple received
   };
 
   enum LinkMode
@@ -48,16 +56,17 @@ public:
     friend class RF24Node;
 
   public:
-    void init(const char *receiver_address, RF24Node::Protocol protocol);
-
     // These functions are for the log_key_value protocol
     void log_u8(const char *key, uint8_t value);
     void log_i8(const char *key, int8_t value);
     void log_u16(const char *key, uint16_t value);
     void log_i16(const char *key, int16_t value);
+    // void log_u32(const char *key, uint32_t value);
+    // void log_i32(const char *key, int32_t value);
     // Log 0 terminated strings.
     // The strings shouldn't start with a - or a number, as they will be than identified as integers
-    // The character \6 (Acknowlege) is used as a termination character and therefore forbidden
+    // The character \3 (ETX End of Text) is used as a termination character and therefore forbidden
+    // however there is no check of usage of this character, so do whatever you want, lol!
     void log_str(const char *key, const char *string);
 
     // send strings with different kind of log level
@@ -77,10 +86,17 @@ public:
     // i.e. if the value is 3556 -> 35.56 degrees
     void temperature(const uint8_t *thermometer_id, int16_t value);
 
+    // send the completed message to the receiver
+    // linkmode can select amount of attempts to send the message again
+    // or send it forever, which would be the only mode to be called "reliable"
+    // but it can choke the Node message buffer, if the destination is not reachable
     void send(RF24Node::LinkMode mode = unreliable);
 
+    // buffer needs to be 4 byte
+    static void unfold_address(uint16_t address, uint8_t *buffer);
+
   private:
-    void _radio_state(uint16_t *pointer_to_int32x2);
+    void _init(uint16_t folded_receiver_address, RF24Node::Protocol protocol);
     char *_log_key(const char *key);
 
     RF24Node::LinkMode _get_mode() const;
@@ -91,7 +107,7 @@ public:
     uint8_t _mode;
     // hold receiver address, gets set by the node
     // to it's own address before sending
-    char _address[4];
+    uint16_t _address;
     RF24Node::Protocol _protocol;
     // adjust size by one for trailing zero
     uint8_t _payload[RF24_NODE_PAYLOAD_SIZE + 1];
@@ -102,9 +118,9 @@ public:
   // reserve a Message to fill with data
   // call message send method to try and send it
   // returns 0 if the message pool is full already
-  static Message *try_reserve();
+  static Message *try_reserve(uint16_t folded_receiver_address, Protocol protocol);
 
-  static void message_handler_routine(const char *this_node_address);
+  static void message_handler_routine(uint16_t this_node_address);
 
 private:
   static Mailbox_t _inbox;
@@ -112,6 +128,6 @@ private:
   static RF24 _radio;
   // addresses past this line are included in the radio state message
   // currently that is only the success and failure counter
-  static uint32_t _success_counter;
-  static uint32_t _failure_counter;
+  static uint16_t _success_counter;
+  static uint16_t _failure_counter;
 };

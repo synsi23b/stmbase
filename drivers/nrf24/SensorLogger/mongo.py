@@ -30,66 +30,75 @@ def get_db():
     return _db
 
 
-def insert_radio_state(node, success, failure, percent):
+def update_radio_state(node, success, failure, percent):
+    mfilter = {
+        'node': node
+    }
+    mupdate = {
+        '$currentDate': {'radio_status_stamp': True},
+        '$set': {'percent': percent},
+        '$inc': {
+            'packet_send_success': success,
+            'packet_send_failure': failure
+        }
+    }
     db = get_db()
-    res = db.radio_state.insert_one(
-        {
-            'stamp': datetime.utcnow(),
-            'node': node,
-            'success': success,
-            'failure': failure,
-            'percent': percent
-        })
+    res = db.radios.update_one(mfilter, mupdate, upsert=True)
     if not res.acknowledged:
-        print("Error: Mongo DB not acknowledgeing insert!")
+        print("Error: Mongo DB not acknowledgeing radio state update!")
+        print(mupdate)
 
 
 def insert_message(severity, node, message):
     db = get_db()
-    res = db.message.insert_one(
-        {
-            'stamp': datetime.utcnow(),
-            'severity': severity,
-            'node': node,
-            'message': message
-        })
+    data = {
+        'stamp': datetime.utcnow(),
+        'severity': severity,
+        'node': node,
+        'message': message
+    }
+    res = db.messages.insert_one(data)
     if not res.acknowledged:
-        print("Error: Mongo DB not acknowledgeing insert!")
+        print("Error: Mongo DB not acknowledgeing message insert!")
+        print(data)
 
 
 def insert_key_value(node, values):
     values['node'] = node
     values['stamp'] = datetime.utcnow()
     db = get_db()
-    res = db.log.insert_one(values)
+    res = db.logs.insert_one(values)
     if not res.acknowledged:
-        print("Error: Mongo DB not acknowledgeing insert!")
-    
+        print("Error: Mongo DB not acknowledgeing log insert!")
+        print(values)
+
 
 def insert_task_status(status, node, description, time_remaining, percent, failed):
     db = get_db()
-    res = db.task.insert_one(
-        {
-            'stamp': datetime.utcnow(),
-            'state': status,
-            'node': node,
-            'description': description,
-            'seconds': time_remaining,
-            'percent': percent,
-            'failed': failed
-        })
+    data = {
+        'stamp': datetime.utcnow(),
+        'state': status,
+        'node': node,
+        'description': description,
+        'seconds': time_remaining,
+        'percent': percent,
+        'failed': failed
+    }
+    res = db.tasks.insert_one(data)
     if not res.acknowledged:
-        print("Error: Mongo DB not acknowledgeing insert!")
+        print("Error: Mongo DB not acknowledgeing task insert!")
+        print(data)
 
 
 def insert_temperature_value(node, thermometer, temperature):
     db = get_db()
-    res = db.temperature.insert_one(
-        {
-            'stamp': datetime.utcnow(),
-            'node': node,
-            'addr': thermometer,
-            'temp': temperature
-        })
+    data = {
+        'stamp': datetime.utcnow(),
+        'node': node,
+        'addr': thermometer,
+        'temp': temperature
+    }
+    res = db.temperatures.insert_one(data)
     if not res.acknowledged:
-        print("Error: Mongo DB not acknowledgeing insert!")
+        print("Error: Mongo DB not acknowledgeing temperature insert!")
+        print(data)

@@ -377,6 +377,7 @@ namespace syn
 
     void reserve(Mail_t **mail)
     {
+      // not putting it behind Debug, as another routine might undirty this
       while (_write_dirty)
         ;
       //assert(_write_dirty == false);
@@ -387,7 +388,11 @@ namespace syn
 
     void release_isr()
     {
-      assert(_write_dirty == true);
+      //assert(_write_dirty == true);
+#ifdef DEBUG
+      while (_write_dirty == false)
+        ;
+#endif
       if (++_pwrite == &_mails[Size])
         _pwrite = _mails;
       _write_dirty = false;
@@ -403,11 +408,18 @@ namespace syn
 
     bool peek_isr(Mail_t **mail)
     {
-      assert(read_dirty == false);
+      //assert(read_dirty == false);
+#ifdef DEBUG
+      while (_read_dirty)
+        ;
+#endif
       bool ret = false;
       if (_sig_read.get_isr())
       {
-        assert(read_dirty = true);
+        //assert(read_dirty = true);
+#ifdef DEBUG
+        _read_dirty = true;
+#endif
         *mail = _pread;
         ret = true;
       }
@@ -422,18 +434,32 @@ namespace syn
 
     void peek(Mail_t **mail)
     {
-      assert(read_dirty == false);
+      //assert(read_dirty == false);
+#ifdef DEBUG
+      while (_read_dirty)
+        ;
+#endif
       _sig_read.get();
-      assert(read_dirty = true);
+      //assert(read_dirty = true);
+#ifdef DEBUG
+      _read_dirty = true;
+#endif
       *mail = _pread;
     }
 
     void purge_isr()
     {
-      assert(read_dirty == true);
+      //assert(read_dirty == true);
+#ifdef DEBUG
+      while (!_read_dirty)
+        ;
+#endif
       if (++_pread == &_mails[Size])
         _pread = _mails;
-      assert((read_dirty = false) == false);
+        //assert((read_dirty = false) == false);
+#ifdef DEBUG
+      _read_dirty = false;
+#endif
       _sig_write.give_isr();
     }
 
@@ -465,7 +491,7 @@ namespace syn
     Semaphore _sig_write;
     Mail_t _mails[Size];
 #ifdef DEBUG
-    bool read_dirty;
+    bool _read_dirty;
 #endif
   };
 
@@ -577,7 +603,11 @@ namespace syn
 
   inline void Kernel::enter_isr()
   {
-    assert(_isr_reschedule_request == 0);
+#ifdef DEBUG
+    //assert(_isr_reschedule_request == 0);
+    while (_isr_reschedule_request)
+      ;
+#endif
     _isr_reschedule_request = 1;
   }
 

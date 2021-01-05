@@ -3,6 +3,9 @@
 import time
 from RF24 import *
 #import RPi.GPIO as GPIO
+import struct
+
+uint_16_packer = struct.Struct(">H")
 
 radio = RF24(25, 0, 5000000)
 
@@ -31,6 +34,18 @@ def start_listen(this_node_address, message_callbacks):
         time.sleep(0.1)
 
 
+def _unfold_address(raw_payload):
+    folded_adr = uint_16_packer.unpack(raw_payload)[0]
+    number = folded_adr & 0x3F
+    folded_adr >>= 6
+    second_char = (folded_adr & 0x1F) + ord('A')
+    folded_adr >>= 5
+    first_char = folded_adr + ord('A')
+    if number < 10:
+        return f"{chr(first_char)}{chr(second_char)}0{number}"
+    else:
+        return f"{chr(first_char)}{chr(second_char)}{number}"
+
 def _read_all_data(message_callbacks):
     global counter_recv_total
     if radio.available():
@@ -38,14 +53,14 @@ def _read_all_data(message_callbacks):
             counter_recv_total += 1
             length = radio.getDynamicPayloadSize()
             raw_payload = radio.read(length)
-            if length < 5:
+            if length < 3:
                 print("Error: Payload less than 5 bytes. length is to small, skipping")
                 continue
-            node_address = str(raw_payload[:4], encoding='utf-8')
-            protocol = int(raw_payload[4])
+            node_address = _unfold_address(raw_payload[:2])
+            protocol = int(raw_payload[2])
             packet_id = protocol & 0xC0
             protocol = protocol & 0x3F
-            payload = raw_payload[5:]
+            payload = raw_payload[3:]
             protocol_sorter(message_callbacks, node_address, packet_id, protocol, payload)
 
 
