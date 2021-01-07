@@ -2,9 +2,11 @@
 #include <stdio.h>
 //#include <string.h>
 
-RF24Node::Mailbox_t RF24Node::_inbox;
+RF24Node::Mailbox_t RF24Node::_outbox;
 //const char *RF24Node::_this_node_address;
 RF24 RF24Node::_radio;
+
+uint8_t RF24Node::_inbuffer[32];
 
 // count the amount of successfull and failed messages
 uint16_t RF24Node::_success_counter = 0;
@@ -225,7 +227,7 @@ void RF24Node::Message::send(RF24Node::LinkMode mode)
   // set mode on how to handle message
   _mode |= mode;
   // release message to inbox, will be send by msg handler
-  RF24Node::_inbox.release();
+  RF24Node::_outbox.release();
 }
 
 void RF24Node::Message::unfold_address(uint16_t address, uint8_t *buffer)
@@ -245,7 +247,7 @@ void RF24Node::Message::unfold_address(uint16_t address, uint8_t *buffer)
 RF24Node::Message *RF24Node::try_reserve(uint16_t folded_receiver_address, Protocol protocol)
 {
   Message *pres = 0;
-  _inbox.try_reserve(&pres);
+  _outbox.try_reserve(&pres);
   if (pres)
   {
     pres->_init(folded_receiver_address, protocol);
@@ -253,12 +255,19 @@ RF24Node::Message *RF24Node::try_reserve(uint16_t folded_receiver_address, Proto
   return pres;
 }
 
-void RF24Node::message_handler_routine(uint16_t this_node_address)
+void RF24Node::message_handler_routine(Config *config)
 {
   uint8_t adrbuffer[4];
+  uint16_t this_node_address = config->this_node_address;
+  void (*indata_handler)(uint8_t *) = config->indata_handler;
   Message::unfold_address(this_node_address, adrbuffer);
   bool init_success = _radio.init((const char *)adrbuffer);
-  
+
+  if (indata_handler != 0)
+  {
+    _radio.listen();
+  }
+
 #ifdef DEBUG
   while(!init_success)
     ;
@@ -270,7 +279,13 @@ void RF24Node::message_handler_routine(uint16_t this_node_address)
   uint16_t sleep_counter = 0;
   while (true != false)
   {
-    syn::sleep(137);
+    if (indata_handler != 0)
+    {
+    }
+    else
+    {
+      syn::sleep(137);
+    }
     ++sleep_counter;
     if (mail_to_send != 0)
     {
@@ -280,14 +295,14 @@ void RF24Node::message_handler_routine(uint16_t this_node_address)
         if (retry_count == 0)
         {
           // our retries are over, purge the message
-          _inbox.purge();   // release message back to pool
+          _outbox.purge();  // release message back to pool
           mail_to_send = 0; // make sure to grab a new message
           continue;
         }
       }
       if (_radio.write((uint8_t *)(&mail_to_send->_address), mail_to_send->_get_payload_count()))
       {
-        _inbox.purge();   // release message back to pool
+        _outbox.purge();  // release message back to pool
         mail_to_send = 0; // make sure to grab a new message
         ++_success_counter;
       }
@@ -296,7 +311,7 @@ void RF24Node::message_handler_routine(uint16_t this_node_address)
         ++_failure_counter;
       }
     }
-    else if (_inbox.try_peek(&mail_to_send))
+    else if (_outbox.try_peek(&mail_to_send))
     {
       // setup message addresses
       Message::unfold_address(mail_to_send->_address, adrbuffer);
@@ -334,7 +349,7 @@ void RF24Node::message_handler_routine(uint16_t this_node_address)
       }
       // successfull send or unreliable message gets here
       // also get here if we reached the end of a retry counter
-      _inbox.purge();   // release message back to pool
+      _outbox.purge();  // release message back to pool
       mail_to_send = 0; // make sure to grab a new message
     }
     else

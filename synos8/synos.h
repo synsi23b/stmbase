@@ -268,10 +268,11 @@ namespace syn
     static bool _removeWaitlist(Routine **listhead, Routine *to_remove);
 
     static Routine _routinelist[SYN_OS_ROUTINE_COUNT];
+#if (SYN_OS_ROUTINE_RR_SLICE_MS != 0)
     static uint8_t _current_ticks_left;
+#endif
     static uint8_t _readycount;
     static uint8_t _isr_reschedule_request;
-    //static uint8_t *_mainstack;
   };
 
   template <typename Mail_t, uint8_t Size>

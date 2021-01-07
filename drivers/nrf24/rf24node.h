@@ -113,6 +113,13 @@ public:
     uint8_t _payload[RF24_NODE_PAYLOAD_SIZE + 1];
   };
 
+  class Config
+  {
+  public:
+    uint16_t this_node_address;
+    void (*indata_handler)(uint8_t *payload);
+  };
+
   typedef syn::MailBox<Message, RF24_NODE_MAILBOX_COUNT> Mailbox_t;
 
   // reserve a Message to fill with data
@@ -120,12 +127,13 @@ public:
   // returns 0 if the message pool is full already
   static Message *try_reserve(uint16_t folded_receiver_address, Protocol protocol);
 
-  static void message_handler_routine(uint16_t this_node_address);
+  static void message_handler_routine(Config *config);
 
 private:
-  static Mailbox_t _inbox;
+  static Mailbox_t _outbox;
   //static const char *_this_node_address;
   static RF24 _radio;
+  static uint8_t RF24Node::_inbuffer[32];
   // addresses past this line are included in the radio state message
   // currently that is only the success and failure counter
   static uint16_t _success_counter;

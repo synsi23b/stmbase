@@ -11,7 +11,9 @@ extern "C"
 using namespace syn;
 
 Routine Kernel::_routinelist[SYN_OS_ROUTINE_COUNT];
+#if (SYN_OS_ROUTINE_RR_SLICE_MS != 0)
 uint8_t Kernel::_current_ticks_left;
+#endif
 uint8_t Kernel::_readycount;
 uint8_t Kernel::_isr_reschedule_request;
 uint8_t *_mainstack;
@@ -513,9 +515,7 @@ void Kernel::spin()
 {
   // reset current count, got counted up by adding routines
   _current_routine = _routinelist;
-#ifndef SYN_OS_ROUTINE_RR_SLICE_MS
-  _current_ticks_left = _current_routine->_rr_reload;
-#else
+#if (SYN_OS_ROUTINE_RR_SLICE_MS != 0)
   _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS / SYN_SYSTICK_FREQ;
 #endif
 #ifdef DEBUG
@@ -573,9 +573,7 @@ void Kernel::exit_isr()
     // happens when we are currently idle. and only happens once
     // _current_routine already points to the new routine, so just
     // reschedule (delayed) the whole purpose of this is to not interrupt an isr
-#ifndef SYN_OS_ROUTINE_RR_SLICE_MS
-    _current_ticks_left = _current_routine->_rr_reload;
-#else
+#if (SYN_OS_ROUTINE_RR_SLICE_MS != 0)
     _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS / SYN_SYSTICK_FREQ;
 #endif
     archContextSwitch(_fake_idle_routine(), _current_routine);
@@ -664,9 +662,7 @@ void Kernel::_contextSwitch()
         _current_routine = _routinelist;
       if (_current_routine->is_runnable())
       {
-#ifndef SYN_OS_ROUTINE_RR_SLICE_MS
-        _current_ticks_left = _current_routine->_rr_reload;
-#else
+#if (SYN_OS_ROUTINE_RR_SLICE_MS != 0)
         _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS / SYN_SYSTICK_FREQ;
 #endif
         archContextSwitch(pold, _current_routine);
@@ -710,9 +706,7 @@ void Kernel::_contextUnblocked(Routine *unblocked)
     if (_isr_reschedule_request == 0)
     {
       // not an isr context, so switch right away
-#ifndef SYN_OS_ROUTINE_RR_SLICE_MS
-      _current_ticks_left = _current_routine->_rr_reload;
-#else
+#if (SYN_OS_ROUTINE_RR_SLICE_MS != 0)
       _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS / SYN_SYSTICK_FREQ;
 #endif
       archContextSwitch(_fake_idle_routine(), _current_routine);
@@ -744,9 +738,7 @@ void Kernel::_tickySwitch()
     // happens when we are currently idle. and only happens once
     // _current_routine already points to the new routine, so just
     // reschedule (delayed) the whole purpose of this is to not interrupt an isr
-#ifndef SYN_OS_ROUTINE_RR_SLICE_MS
-    _current_ticks_left = _current_routine->_rr_reload;
-#else
+#if (SYN_OS_ROUTINE_RR_SLICE_MS != 0)
     _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS / SYN_SYSTICK_FREQ;
 #endif
 
@@ -755,23 +747,21 @@ void Kernel::_tickySwitch()
   else
   {
     --_isr_reschedule_request;
+#if (SYN_OS_ROUTINE_RR_SLICE_MS != 0)
     --_current_ticks_left;
     if (_current_ticks_left == 0)
     {
       if (_readycount == 1 && _current_routine->is_runnable())
       {
         // no switch needed, just refresh this routines tick count
-#ifndef SYN_OS_ROUTINE_RR_SLICE_MS
-        _current_ticks_left = _current_routine->_rr_reload;
-#else
         _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS / SYN_SYSTICK_FREQ;
-#endif
       }
       else
       {
         _contextSwitch();
       }
     }
+#endif
   }
 }
 

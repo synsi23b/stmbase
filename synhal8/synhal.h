@@ -465,24 +465,20 @@ namespace syn
   class DeadlineTimer
   {
   public:
-    DeadlineTimer(uint16_t millis)
-    {
-      millis_ = millis;
-    }
-
+    // reset needs to be called to prime the timer before comapring
     void reset()
     {
-      end_ = millis_ - System::millis();
+      _reset_time = System::millis();
     }
 
-    bool expired() const
+    bool expired(uint16_t compare_value) const
     {
-      return (end_ - System::millis()) <= millis_;
+      // http://www.thetaeng.com/designIdeas/TimerWrap.html
+      return (System::millis() - _reset_time) >= compare_value;
     }
 
   private:
-    uint16_t millis_;
-    uint16_t end_;
+    uint16_t _reset_time;
   };
 
 #ifndef SYN_HAL_32_PIN_DEVICE
