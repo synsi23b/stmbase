@@ -257,8 +257,12 @@ void RF24Node::message_handler_routine(uint16_t this_node_address)
 {
   uint8_t adrbuffer[4];
   Message::unfold_address(this_node_address, adrbuffer);
-
-  _radio.init((const char *)adrbuffer);
+  bool init_success = _radio.init((const char *)adrbuffer);
+  
+#ifdef DEBUG
+  while(!init_success)
+    ;
+#endif
 
   Message *mail_to_send = 0;
   uint8_t retry_count = 0;

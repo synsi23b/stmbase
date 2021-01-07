@@ -6,7 +6,7 @@
 bool RF24::init(const char *this_address, syn::SpiNC::eBaudrate speed)
 {
   syn::SpiNC::init(speed, false, false);
-  _csel.init('A', 3);
+  _csel.init('A', 1);
   _csel.pushpull();
   _csel.set();
   _ce.init('A', 2);

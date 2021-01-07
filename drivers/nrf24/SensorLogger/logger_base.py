@@ -14,9 +14,14 @@ counter_send_total = 0
 
 nodes_last_id = {}
 node_duplicate_counter = {}
+verbosity = False
+callbacks = {}
 
-
-def start_listen(this_node_address, message_callbacks):
+def start_listen(this_node_address, message_callbacks, verbose):
+    global verbosity
+    global callbacks
+    callbacks = message_callbacks
+    verbosity = verbose
     radio.begin()
     radio.setPALevel(RF24_PA_MAX)
     radio.setAddressWidth(4)
@@ -30,7 +35,7 @@ def start_listen(this_node_address, message_callbacks):
     radio.startListening()
 
     while True:
-        _read_all_data(message_callbacks)
+        _read_all_data()
         time.sleep(0.1)
 
 
@@ -46,11 +51,12 @@ def _unfold_address(raw_payload):
     else:
         return f"{chr(first_char)}{chr(second_char)}{number}"
 
-def _read_all_data(message_callbacks):
+def _read_all_data():
     global counter_recv_total
     if radio.available():
         while radio.available():
             counter_recv_total += 1
+            #print(counter_recv_total)
             length = radio.getDynamicPayloadSize()
             raw_payload = radio.read(length)
             if length < 3:
@@ -61,17 +67,18 @@ def _read_all_data(message_callbacks):
             packet_id = protocol & 0xC0
             protocol = protocol & 0x3F
             payload = raw_payload[3:]
-            protocol_sorter(message_callbacks, node_address, packet_id, protocol, payload)
+            protocol_sorter(node_address, packet_id, protocol, payload)
 
 
-def protocol_sorter(protocols, node, packet_id, protocol, payload):
-    #print(f"{receive_time} - {node} - {packet_id} - {protocol} - {payload}")
+def protocol_sorter(node, packet_id, protocol, payload):
+    if verbosity:
+        print(f"{node} - {packet_id} - {protocol} - {payload}")
     last_id = nodes_last_id.get(node, -1)
     if last_id != packet_id:
         nodes_last_id[node] = packet_id
-        if protocol in protocols:
+        if protocol in callbacks:
             try:
-                retval = protocols[protocol](node, payload)
+                retval = callbacks[protocol](node, payload)
                 if retval != None:
                     print(f"Error: Handler retunred: {retval}")
             except Exception as e:

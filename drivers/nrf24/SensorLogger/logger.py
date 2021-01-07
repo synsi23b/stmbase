@@ -2,6 +2,15 @@ from logger_base import start_listen
 from datetime import datetime
 from mongo import insert_message, insert_key_value, insert_task_status, insert_temperature_value, update_radio_state
 import struct
+import argparse
+
+parser = argparse.ArgumentParser(description='RF24Logger -> Collect Sensor Data and send to MongoDB')
+parser.add_argument('--verbose', dest='verbose', action='store_const',
+                    const=True, default=False,
+                    help='increase programm chatter (default: only errors)')
+
+args = parser.parse_args()
+
 
 int_16_packer = struct.Struct(">h")
 uint_16_packer = struct.Struct(">H")
@@ -132,4 +141,4 @@ node_last_receive_time = None
 
 
 # doesn't return
-start_listen("LG01", protocols)
+start_listen("LG01", protocols, args.verbose)
