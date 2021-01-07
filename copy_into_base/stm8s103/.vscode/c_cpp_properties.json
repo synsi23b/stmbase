@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceFolder}/src/**",
+                "${workspaceFolder}/stmbase/synhal8/**",
+                "${workspaceFolder}/stmbase/synos8/**",
+                "${workspaceFolder}/stmbase/drivers/**",
+                "C:\\Program Files (x86)\\IAR Systems\\Embedded Workbench 8.3\\stm8\\inc\\**"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE",
+                "STM8S103",
+                "__task=static",
+                "__no_operation()=1"
+            ],
+            "intelliSenseMode": "gcc-x64"
+        }
+    ],
+    "version": 4
+}

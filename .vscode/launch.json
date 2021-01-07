@@ -25,7 +25,10 @@
             "request": "launch",
             "program": "${workspaceFolder}/startproject.py",
             "console": "integratedTerminal",
-            "args": ["STM32", "stm32f103c8", "8192"]
+            "args": [
+                "1",
+                "8192"
+            ]
         },
         {
             "name": "Generate stm32f401ccu6",
@@ -33,7 +36,21 @@
             "request": "launch",
             "program": "${workspaceFolder}/startproject.py",
             "console": "integratedTerminal",
-            "args": ["STM32", "stm32f401ccu6", "20480"]
+            "args": [
+                "2",
+                "20480"
+            ]
+        },
+        {
+            "name": "Generate stm8s103",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/startproject.py",
+            "console": "integratedTerminal",
+            "args": [
+                "3",
+                "0"
+            ]
         }
     ]
 }

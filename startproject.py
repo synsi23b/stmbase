@@ -3,34 +3,66 @@ import os
 import argparse
 import sys
 
-def main():
-    parser = argparse.ArgumentParser(description='Generate a segger embedded studio or iar workbench project according to target processor')
-    parser.add_argument('bits', type=str, help="STM8 or STM32")
-    parser.add_argument('chip', type=str, help="for which chip to initialize the project")
-    parser.add_argument('heap', type=int, help="how much bytes of heap to allocate")
-    args = parser.parse_args()
-    #parser.print_help()
 
+def main():
+    chips = {
+        1: 'stm32f103c8',
+        2: 'stm32f401ccu6',
+        3: 'stm8s103'
+    }
+    is_stm8 = [3]
+
+    chiphelp = "for which chip to initialize the project (by number).\n Available choices:\n"
+    for k, v in chips.items():
+        chiphelp += f"{k}:\t{v}\n"
+
+    parser = argparse.ArgumentParser(
+        description='Generate a segger embedded studio or iar workbench project according to target processor')
+    parser.add_argument('chip', type=int, help=chiphelp)
+    parser.add_argument(
+        'heap', type=int, help="how much bytes of heap to allocate. Default 8kb, ignored for stm8", default=8192)
+    args = parser.parse_args()
+    parser.print_help()
+
+    if args.chip not in chips:
+        print("Invalid chip chosen, aborting")
+        exit(-1)
+
+    chipname = chips[args.chip]
     submodule_folder = Path(__file__).parent
     project_folder = submodule_folder.parent
     project_name = project_folder.name
-    
+
+    # copy static project base assets depending on the operating system
     if os.name == "nt":
-        os.system(f"robocopy {submodule_folder}\\copy_into_base\\{args.chip} {project_folder} /E")
+        os.system(
+            f"robocopy {submodule_folder}\\copy_into_base\\{chipname} {project_folder} /E")
     else:
-        os.system(f"cp -rvf {submodule_folder}/copy_into_base/{args.chip}/. {project_folder}")
-    if args.bits == "STM8":
-        pass
-    elif args.bits == "STM32":
-        template_file = submodule_folder / f"embos/{args.chip}/project_template.emProject"
+        os.system(
+            f"cp -rvf {submodule_folder}/copy_into_base/{chipname}/. {project_folder}")
+
+    if args.chip in is_stm8:
+        workspace_template_file = submodule_folder / \
+            f"synos8/iar_workspace_template.eww"
+        workspace_file = project_folder / f"{project_name}_workspace.eww"
+        project_template_file = submodule_folder / f"synos8/iar_project_template.ewp"
+        project_file = project_folder / f"{project_name}.ewp"
+    else:
+        project_template_file = submodule_folder / \
+            f"embos/{chipname}/project_template.emProject"
         project_file = project_folder / f"{project_name}.emProject"
-    else:
-        raise ValueError("Unknown processor bits count")
-    
-    with template_file.open('r') as file:
-        template = file.read()
-    with project_file.open('w') as file:
-        file.write(template.format(project=project_name, heap_size=args.heap))
+
+    if workspace_template_file:
+        with workspace_template_file.open('r') as f:
+            template = f.read()
+        with workspace_file.open('w') as f:
+            f.write(template.format(project=project_name))
+
+    with project_template_file.open('r') as f:
+        template = f.read()
+    with project_file.open('w') as f:
+        f.write(template.format(project=project_name, heap_size=args.heap))
+
 
 if __name__ == "__main__":
     main()
