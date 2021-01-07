@@ -14,7 +14,7 @@ Routine Kernel::_routinelist[SYN_OS_ROUTINE_COUNT];
 uint8_t Kernel::_current_ticks_left;
 uint8_t Kernel::_readycount;
 uint8_t Kernel::_isr_reschedule_request;
-uint8_t *Kernel::_mainstack;
+uint8_t *_mainstack;
 
 static Routine *volatile _current_routine;
 
@@ -36,6 +36,24 @@ void Kernel::for_each_routine(Functor functor)
     functor(pr);
     ++pr;
   }
+}
+
+void Routine::init(void *functor, uint16_t arg, uint16_t stacksize)
+{
+  // Routine Index out of bounds! Increase the ammount specified in the config
+  //static_assert(Index < SYN_OS_ROUTINE_COUNT, "Routine Index out of bounds! Increase the ammount specified in the config");
+#ifdef DEBUG
+  // Routine Index out of bounds! Increase the ammount specified in the config
+  while (Kernel::_readycount >= SYN_OS_ROUTINE_COUNT)
+    ;
+  // stack is crossing stackpointer roll over address !!!
+  while (uint16_t(Kernel::_mainstack - stacksize) < 0x1FF)
+    ;
+#endif
+  uint8_t *stack = Kernel::_base_stack_setup(stacksize);
+  Routine *prout = Kernel::_routinelist + Kernel::_readycount;
+  prout->_state = runnable;
+  prout->_init(functor, (void *)arg, stack);
 }
 
 #ifdef SYN_OS_ENABLE_TIMEOUT_API
@@ -485,6 +503,7 @@ void Kernel::init()
   _measure_pin.mode(true, true);
   _measure_pin.set();
 #endif
+  // used to select correct index in _routinelist during initialization
   _readycount = 0;
   // use this variable to initialize co routines
   _mainstack = (uint8_t *)(0x3FF - SYN_OS_MAIN_STACK_SIZE);

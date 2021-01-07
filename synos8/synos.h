@@ -49,15 +49,7 @@ namespace syn
     // there will be a warning when a stack crosses this line. which might be neccessary to allow more than
     // 512byte total for stack if that is needed.
     // the main stack maximum can be configured in the synos cfg file
-    //
-    // the template arguments Index and rr_millis select the specific points
-    // Index shall be counting from 0 up to SYN_OS_ROUTINE_COUNT - 1
-    // rr_millis is in milliseconds regardless of the selected tick frequency (1000 or 500 Hz)
-    //
-    // the argument will be turned interpreted as a pointer, great for feeding raw 16bit numbers to the functor
-    // but also a bit dangerous. so be careful not to supply invalid addressess
-    template <uint8_t Index, uint16_t rr_millis, typename Functor_t, typename Argument_t>
-    static void init(Functor_t functor, Argument_t arg, uint16_t stacksize);
+    static void init(void *functor, uint16_t arg, uint16_t stacksize);
 
     // leave execution context if other routinbe is runnable
     static void yield();
@@ -86,10 +78,6 @@ namespace syn
 
     State_t _state;
     uint8_t *_stackptr;
-#ifndef SYN_OS_ROUTINE_RR_SLICE_MS
-    // if every routine can have a specific round robin value instead of the global one
-    uint8_t _rr_reload;
-#endif
     // linked list for waiting on Semaphores, Mutex, etc..
     Routine *_next;
 #ifdef SYN_OS_USE_EVENTS
@@ -283,7 +271,7 @@ namespace syn
     static uint8_t _current_ticks_left;
     static uint8_t _readycount;
     static uint8_t _isr_reschedule_request;
-    static uint8_t *_mainstack;
+    //static uint8_t *_mainstack;
   };
 
   template <typename Mail_t, uint8_t Size>
@@ -494,26 +482,6 @@ namespace syn
     bool _read_dirty;
 #endif
   };
-
-  template <uint8_t Index, uint16_t rr_millis, typename Functor_t, typename Argument_t>
-  inline void Routine::init(Functor_t functor, Argument_t arg, uint16_t stacksize)
-  {
-    // Routine Index out of bounds! Increase the ammount specified in the config
-    static_assert(Index < SYN_OS_ROUTINE_COUNT, "Routine Index out of bounds! Increase the ammount specified in the config");
-#ifdef DEBUG
-    // stack is crossing stackpointer roll over address !!!
-    while(uint16_t(Kernel::_mainstack - stacksize) < 0x1FF)
-      ;
-#endif
-    uint8_t *stack = Kernel::_base_stack_setup(stacksize);
-#ifndef SYN_OS_ROUTINE_RR_SLICE_MS
-    static_assert((rr_millis / SYN_SYSTICK_FREQ) >= SYN_SYSTICK_FREQ, "Round robin reload needs at least SYN_SYSTICK_FREQ");
-    static_assert((rr_millis / SYN_SYSTICK_FREQ) < 256, "Round robin reload needs to be less than 256");
-    Kernel::_routinelist[Index]._rr_reload = rr_millis / SYN_SYSTICK_FREQ;
-#endif
-    Kernel::_routinelist[Index]._state = runnable;
-    Kernel::_routinelist[Index]._init((void *)functor, (void *)arg, stack);
-  }
 
 #if (SYN_OS_TICK_HOOK_COUNT > 0)
   template <uint8_t Index, uint16_t Reload_ms>
