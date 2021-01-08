@@ -112,7 +112,7 @@ void RF24::stop_listen()
   _ce.clear();
   // delay because of some shenaningans were people send before the device is ready??
   // its the time it takes to switch from receiver to stanby mode. Maybe also the clones need it
-  syn::udelay(130);
+  syn::Utility::udelay(130);
   // if ack payloads are enabled, flush tx, too. Flushing anytime is also ok. It doesn't take long.
   _write_command(FLUSH_TX);
   // clear the prim rx bit from the config

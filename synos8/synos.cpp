@@ -40,10 +40,8 @@ void Kernel::for_each_routine(Functor functor)
   }
 }
 
-void Routine::init(void *functor, uint16_t arg, uint16_t stacksize)
+void Routine::init(void (*functor)(uint16_t), uint16_t arg, uint8_t stacksize)
 {
-  // Routine Index out of bounds! Increase the ammount specified in the config
-  //static_assert(Index < SYN_OS_ROUTINE_COUNT, "Routine Index out of bounds! Increase the ammount specified in the config");
 #ifdef DEBUG
   // Routine Index out of bounds! Increase the ammount specified in the config
   while (Kernel::_readycount >= SYN_OS_ROUTINE_COUNT)
@@ -52,10 +50,76 @@ void Routine::init(void *functor, uint16_t arg, uint16_t stacksize)
   while (uint16_t(Kernel::_mainstack - stacksize) < 0x1FF)
     ;
 #endif
-  uint8_t *stack = Kernel::_base_stack_setup(stacksize);
+  //uint8_t *stack = Kernel::_base_stack_setup(stacksize);
   Routine *prout = Kernel::_routinelist + Kernel::_readycount;
   prout->_state = runnable;
-  prout->_init(functor, (void *)arg, stack);
+  uint8_t *stacktop = _mainstack;
+  _mainstack -= stacksize;
+#ifdef SYN_OS_STACK_CHECK
+  stacksize -= 14;
+  uint8_t *stackbot = _mainstack + 1;
+  uint8_t initval = 0xC0 + Kernel::_readycount;
+  while (stacksize != 0)
+  {
+    *stackbot++ = initval;
+    --stacksize;
+  }
+#endif
+  //prout->_init(functor, arg, stack);
+  // add the functor and argument to the stack
+  // they will be retrieved on first run by synFirstTime
+  // *stack-- = (uint8_t)((uint16_t)functor & 0xFF);
+  // *stack-- = (uint8_t)(((uint16_t)functor >> 8) & 0xFF);
+  // *stack-- = (uint8_t)(arg & 0xFF);
+  // *stack-- = (uint8_t)((arg >> 8) & 0xFF);
+  uint16_t *pstack = (uint16_t *)(stacktop - 1); // go to 16 bit variable start
+  *pstack-- = (uint16_t)functor;
+  *pstack-- = arg;
+  /**
+   * The thread restore routines will perform a RET which expects to
+   * find the address of the calling routine on the stack. In this case
+   * (the first time a thread is run) we "return" to the entry point for
+   * the thread. That is, we store the thread entry point in the
+   * place that RET will look for the return address: the stack.
+   *
+   * Note that we are using the thread_shell() routine to start all
+   * threads, so we actually store the address of thread_shell()
+   * here. Other ports may store the real thread entry point here
+   * and call it directly from the thread restore routines.
+   *
+   * Because we are filling the stack from top to bottom, this goes
+   * on the stack first (at the top).
+   */
+  // *stack-- = (uint8_t)((uint16_t)synRunFirstTime & 0xFF);
+  // *stack-- = (uint8_t)(((uint16_t)synRunFirstTime >> 8) & 0xFF);
+  *pstack-- = (uint16_t)synRunFirstTime;
+  /**
+   * Because we are using a thread shell which is responsible for
+   * calling the real entry point, it also passes the parameters
+   * to entry point and we need not stack the entry parameter here.
+   *
+   * Other ports may wish to store entry_param in the appropriate
+   * parameter registers when creating a thread's context,
+   * particularly if that port saves those registers anyway.
+   */
+  /**
+   * (IAR) Set up initial values for ?b8 to ?b15.
+  */
+  // *stack-- = 0; // ?b8
+  // *stack-- = 0; // ?b9
+  // *stack-- = 0; // ?b10
+  // *stack-- = 0; // ?b11
+  // *stack-- = 0; // ?b12
+  // *stack-- = 0; // ?b13
+  // *stack-- = 0; // ?b14
+  // *stack-- = 0; // ?b15
+  // _stackptr = stack;
+  *pstack-- = 0; // b8 & b9
+  *pstack-- = 0; // b10 & b11
+  *pstack-- = 0; // b12 & b13
+  *pstack = 0;   // b14 & b15
+   prout->_stackptr = ((uint8_t*)pstack) - 1; // point to first free byte of the stack
+  ++Kernel::_readycount;
 }
 
 #ifdef SYN_OS_ENABLE_TIMEOUT_API
@@ -133,60 +197,91 @@ void Routine::timeouttick()
   TestTimoutExpired fn;
   Kernel::for_each_routine(fn);
 }
+
+// Attempt to run at a secific rate by sleeping in between and compensating for
+// code exectuion time by re-evaluating the last execution time
+// since it's all integer math, usefull ranges are in 1..500
+// faster than 500 hertz results in a 1ms sleep, which could be just added manually
+Rate::Rate(uint16_t hertz)
+{
+  _last_run = 0;
+  _sleep_time = 1000 / hertz;
+}
+
+void Rate::sleep()
+{
+  uint16_t sleep_now = _sleep_time - (syn::System::millis() - _last_run);
+  // if sleep now is bigger than sleep_time, there was an underflow
+  // we don't sleep at all in that case
+  if (sleep_now <= _sleep_time)
+  {
+    syn::Routine::sleep(sleep_now);
+  }
+  _last_run = syn::System::millis();
+}
 #endif
 
 #if (SYN_OS_TICK_HOOK_COUNT > 0)
 SysTickHook SysTickHook::_timerlist[SYN_OS_TICK_HOOK_COUNT];
 #endif
 
-void Routine::_init(void *functor, void *arg, uint8_t *stack)
-{
-  // add the functor and argument to the stack
-  // they will be retrieved on first run by synFirstTime
-  *stack-- = (uint8_t)((uint16_t)functor & 0xFF);
-  *stack-- = (uint8_t)(((uint16_t)functor >> 8) & 0xFF);
-  *stack-- = (uint8_t)((uint16_t)arg & 0xFF);
-  *stack-- = (uint8_t)(((uint16_t)arg >> 8) & 0xFF);
-  /**
-   * The thread restore routines will perform a RET which expects to
-   * find the address of the calling routine on the stack. In this case
-   * (the first time a thread is run) we "return" to the entry point for
-   * the thread. That is, we store the thread entry point in the
-   * place that RET will look for the return address: the stack.
-   *
-   * Note that we are using the thread_shell() routine to start all
-   * threads, so we actually store the address of thread_shell()
-   * here. Other ports may store the real thread entry point here
-   * and call it directly from the thread restore routines.
-   *
-   * Because we are filling the stack from top to bottom, this goes
-   * on the stack first (at the top).
-   */
-  *stack-- = (uint8_t)((uint16_t)synRunFirstTime & 0xFF);
-  *stack-- = (uint8_t)(((uint16_t)synRunFirstTime >> 8) & 0xFF);
-  /**
-   * Because we are using a thread shell which is responsible for
-   * calling the real entry point, it also passes the parameters
-   * to entry point and we need not stack the entry parameter here.
-   *
-   * Other ports may wish to store entry_param in the appropriate
-   * parameter registers when creating a thread's context,
-   * particularly if that port saves those registers anyway.
-   */
-  /**
-   * (IAR) Set up initial values for ?b8 to ?b15.
-  */
-  *stack-- = 0; // ?b8
-  *stack-- = 0; // ?b9
-  *stack-- = 0; // ?b10
-  *stack-- = 0; // ?b11
-  *stack-- = 0; // ?b12
-  *stack-- = 0; // ?b13
-  *stack-- = 0; // ?b14
-  *stack-- = 0; // ?b15
-  _stackptr = stack;
-  ++Kernel::_readycount;
-}
+// void Routine::_init(void (*functor)(uint16_t), uint16_t arg, uint8_t *stack)
+// {
+//   // add the functor and argument to the stack
+//   // they will be retrieved on first run by synFirstTime
+//   // *stack-- = (uint8_t)((uint16_t)functor & 0xFF);
+//   // *stack-- = (uint8_t)(((uint16_t)functor >> 8) & 0xFF);
+//   // *stack-- = (uint8_t)(arg & 0xFF);
+//   // *stack-- = (uint8_t)((arg >> 8) & 0xFF);
+//   uint16_t *pstack = (uint16_t *)(stack - 1); // go to 16 bit variable start
+//   *pstack-- = (uint16_t)functor;
+//   *pstack-- = arg;
+//   /**
+//    * The thread restore routines will perform a RET which expects to
+//    * find the address of the calling routine on the stack. In this case
+//    * (the first time a thread is run) we "return" to the entry point for
+//    * the thread. That is, we store the thread entry point in the
+//    * place that RET will look for the return address: the stack.
+//    *
+//    * Note that we are using the thread_shell() routine to start all
+//    * threads, so we actually store the address of thread_shell()
+//    * here. Other ports may store the real thread entry point here
+//    * and call it directly from the thread restore routines.
+//    *
+//    * Because we are filling the stack from top to bottom, this goes
+//    * on the stack first (at the top).
+//    */
+//   // *stack-- = (uint8_t)((uint16_t)synRunFirstTime & 0xFF);
+//   // *stack-- = (uint8_t)(((uint16_t)synRunFirstTime >> 8) & 0xFF);
+//   *pstack-- = (uint16_t)synRunFirstTime;
+//   /**
+//    * Because we are using a thread shell which is responsible for
+//    * calling the real entry point, it also passes the parameters
+//    * to entry point and we need not stack the entry parameter here.
+//    *
+//    * Other ports may wish to store entry_param in the appropriate
+//    * parameter registers when creating a thread's context,
+//    * particularly if that port saves those registers anyway.
+//    */
+//   /**
+//    * (IAR) Set up initial values for ?b8 to ?b15.
+//   */
+//   // *stack-- = 0; // ?b8
+//   // *stack-- = 0; // ?b9
+//   // *stack-- = 0; // ?b10
+//   // *stack-- = 0; // ?b11
+//   // *stack-- = 0; // ?b12
+//   // *stack-- = 0; // ?b13
+//   // *stack-- = 0; // ?b14
+//   // *stack-- = 0; // ?b15
+//   // _stackptr = stack;
+//   *pstack-- = 0; // b8 & b9
+//   *pstack-- = 0; // b10 & b11
+//   *pstack-- = 0; // b12 & b13
+//   *pstack = 0;   // b14 & b15
+//   _stackptr = ((uint8_t *)pstack) - 1;
+//   ++Kernel::_readycount;
+// }
 
 void Routine::yield()
 {
@@ -233,7 +328,11 @@ void SysTickHook::_checkAndExec()
     if (millis == ptim->_next_exec_time)
     {
       ptim->_next_exec_time = millis + ptim->_reload;
-      assert(ptim->_functor != 0); // to many hooks cofigured in synhal_cfg
+#ifdef DEBUG
+      // to many hooks cofigured in synhal_cfg
+      while (ptim->_functor == 0)
+        ;
+#endif
       ptim->_functor();
     }
     ++ptim;
@@ -256,7 +355,11 @@ void Semaphore::give_isr()
 {
   // already critical section, dont need Atomic
   ++_count;
-  assert(_count != 0); // watch for overflow
+#ifdef DEBUG
+  // watch for overflow
+  while (_count == 0)
+    ;
+#endif
   // unconditionally unblockrecurse, Kernel will know best what to do
   Kernel::_unblockWaitlist(_waitlist);
 }
@@ -324,8 +427,11 @@ void Mutex::lock()
     }
   }
   ++_count;
+#ifdef DEBUG
   // watch for mutex overlock
-  assert(_count != 0);
+  while (_count == 0)
+    ;
+#endif
 }
 
 #ifdef SYN_OS_ENABLE_TIMEOUT_API
@@ -340,8 +446,11 @@ bool Mutex::lock(uint16_t timeout)
   if (_owner == _current_routine)
   {
     ++_count;
+#ifdef DEBUG
     // watch for mutex overlock
-    assert(_count != 0);
+    while (_count == 0)
+      ;
+#endif
     ret = true;
   }
   else
@@ -377,8 +486,11 @@ bool Mutex::try_lock()
   if (_owner == _current_routine)
   {
     ++_count;
+#ifdef DEBUG
     // watch for mutex overlock
-    assert(_count != 0);
+    while (_count == 0)
+      ;
+#endif
     ret = true;
   }
   return ret;
@@ -386,9 +498,21 @@ bool Mutex::try_lock()
 
 void Mutex::unlock()
 {
+  if (_owner != _current_routine)
+  {
+#ifdef DEBUG
+    // you should think hard and long about your wrongdoings!
+    while (true)
+      ;
+#endif
+    return;
+  }
   Atomic a;
-  assert(_owner == _current_routine);
-  assert(_count != 0);
+#ifdef DEBUG
+  // watch for mutex over-unlock
+  while (_count == 0)
+    ;
+#endif
   if (--_count == 0)
   {
     _owner = 0;

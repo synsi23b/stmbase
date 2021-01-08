@@ -73,14 +73,22 @@ int main()
   // the count of routines has to exactly match the amount of routines used
   // the routine index given during initialization has to match
 
+  // Routines should never return, but there is a safeguard if that happens.
+  // However that safeguard costs 2 bytes of stack and 6 bytes of rom.
+  // furthermore, if roundrobin is disabled, the processor will be stuck on the
+  // returned rotuine forever. you have been warned.
+
   // routine index 0, round_robin_time 10 millis
   // stack allocated automatically
-  syn::Routine::init((void *)&check_input_routine, 0, 128);
+  syn::Routine::init(&check_input_routine, 0, 128);
 
-  // routine index 1, round_robin_time 10 millis, managing the nrf24 module
-  //syn::Routine::init<1, 10>(&RF24Node::message_handler_routine, RF24_NODE_FOLD_ADDR('S', 'M', 0), 128);
+  // routine index 1, managing the nrf24 module
+  // RF24Node::Config nrfcfg;
+  // nrfcfg.this_node_address = RF24_NODE_FOLD_ADDR('D', 'G', 1);
+  // nrfcfg.indata_handler = 0;
+  // syn::Routine::init(&RF24Node::message_handler_routine, (uint16_t)&nrfcfg, 128);
 
-  syn::Routine::init((void *)&thermometer_routine, 0, 128);
+  syn::Routine::init(&thermometer_routine, 0, 128);
 
   syn::SysTickHook::init<0, 10>(tim_x);
   //syn::SysTickHook::init<1, 10>(tim_y);

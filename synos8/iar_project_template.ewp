@@ -257,8 +257,8 @@
                 </option>
                 <option>
                     <name>CCIncludePath2</name>
-                    <state>C:\Users\synsi\repos\stm8playground\stmbase\synos8</state>
-                    <state>C:\Users\synsi\repos\stm8playground\stmbase\synhal8</state>
+                    <state>$WS_DIR$\stmbase\synos8</state>
+                    <state>$WS_DIR$\stmbase\synhal8</state>
                 </option>
                 <option>
                     <name>CCStdIncCheck</name>
@@ -1076,8 +1076,8 @@
                 </option>
                 <option>
                     <name>CCIncludePath2</name>
-                    <state>C:\Users\synsi\repos\stm8playground\stmbase\synos8</state>
-                    <state>C:\Users\synsi\repos\stm8playground\stmbase\synhal8</state>
+                    <state>$WS_DIR$\stmbase\synos8</state>
+                    <state>$WS_DIR$\stmbase\synhal8</state>
                 </option>
                 <option>
                     <name>CCStdIncCheck</name>
@@ -1778,8 +1778,8 @@
                     </option>
                     <option>
                         <name>CCIncludePath2</name>
-                        <state>C:\Users\synsi\repos\stm8playground\stmbase\synos8</state>
-                        <state>C:\Users\synsi\repos\stm8playground\stmbase\synhal8</state>
+                        <state>$WS_DIR$\stmbase\synos8</state>
+                        <state>$WS_DIR$\stmbase\synhal8</state>
                     </option>
                     <option>
                         <name>CCStdIncCheck</name>
@@ -1997,8 +1997,8 @@
                     </option>
                     <option>
                         <name>CCIncludePath2</name>
-                        <state>C:\Users\synsi\repos\stm8playground\stmbase\synos8</state>
-                        <state>C:\Users\synsi\repos\stm8playground\stmbase\synhal8</state>
+                        <state>$WS_DIR$\stmbase\synos8</state>
+                        <state>$WS_DIR$\stmbase\synhal8</state>
                     </option>
                     <option>
                         <name>CCStdIncCheck</name>

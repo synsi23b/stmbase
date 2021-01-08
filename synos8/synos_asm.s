@@ -425,7 +425,13 @@ synRunFirstTime:
   ; and we pop our argument of the stack into X
   POPW X
   ; and we call ret to jump to the actual routine, that should be on the stack
-  RET
+  ; RET
+  ; pop the routine address of the stack and call it
+  POPW Y
+  call (Y)
+  ; if the routine ever returns, stay stuck *costs 2 bytes of stack and 6 bytes of rom*
+SYN_ROUTINE_RETURNED:
+  JP SYN_ROUTINE_RETURNED
 
   ; __task void synRunOnMainStack(void* functor, uint8_t* mainstack);
   PUBLIC synRunOnMainStack

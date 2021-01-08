@@ -3,7 +3,7 @@
 volatile uint16_t syn::System::sMillis = 0;
 
 // block for the specidifed ammount of microseconds using a busy loop
-void syn::udelay(uint16_t micros)
+void syn::Utility::udelay(uint16_t micros)
 {
   for (; micros != 0; --micros)
   {
@@ -24,6 +24,91 @@ void syn::udelay(uint16_t micros)
 }
 
 using namespace syn;
+
+// return number of characters excluding trailing zero
+uint8_t Utility::strlen(const char *str)
+{
+  uint8_t count = 0;
+  while (*str != 0)
+  {
+    ++str;
+    ++count;
+  }
+  return count;
+}
+
+// copys the string until trailing zero and returns number of bytes copied
+// doesn't add a trailing zero and doesn't check for anything really
+char *Utility::strcpy(char *dst, const char *str)
+{
+  while (*str != 0)
+  {
+    *dst++ = *str++;
+  }
+  return dst;
+}
+
+// write signed integer as asci to the outbuffer, return bytes written
+char *Utility::sprint_i16(char *dst, int16_t value)
+{
+  if (value < 0)
+  {
+    value *= -1;
+    *dst++ = '-';
+  }
+  return sprint_u16(dst, value);
+}
+
+// write unsigned integer as asci to the outbuffer, return bytes written
+char *Utility::sprint_u16(char *dst, uint16_t value)
+{
+  if (value == 0)
+  {
+    *dst = '0';
+    return dst + 1;
+  }
+  uint16_t modulo = 10000;
+  // find modulo start value
+  uint8_t tmp;
+  while (true)
+  {
+    tmp = value / modulo;
+    value = value % modulo;
+    if (tmp != 0)
+      break;
+    modulo /= 10;
+  }
+  // start add ingintegers to buffer, no leading zeros
+  while (true)
+  {
+    *dst++ = tmp + '0';
+    modulo /= 10;
+    if (modulo == 0)
+      break;
+    tmp = value / modulo;
+    value = value % modulo;
+  }
+  return dst;
+}
+
+char *_write_single_hex(char *dst, uint8_t value)
+{
+  if (value < 10)
+  {
+    *dst++ = value + '0';
+  }
+  else
+  {
+    *dst++ = value + ('A' - 10);
+  }
+  return dst;
+}
+
+char *Utility::sprint_hex(char *dst, uint8_t value)
+{
+  dst = _write_single_hex(dst, (value / 16));
+  return _write_single_hex(dst, value & 0x0F);
+}
 
 void GpioBase::pushpull(uint8_t *port_base, uint8_t mask)
 {

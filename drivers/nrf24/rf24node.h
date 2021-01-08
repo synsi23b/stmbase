@@ -97,7 +97,7 @@ public:
 
   private:
     void _init(uint16_t folded_receiver_address, RF24Node::Protocol protocol);
-    char *_log_key(const char *key);
+    char *_log_key(const char *key, char seperator);
 
     RF24Node::LinkMode _get_mode() const;
     uint8_t _get_payload_count() const;
@@ -127,13 +127,13 @@ public:
   // returns 0 if the message pool is full already
   static Message *try_reserve(uint16_t folded_receiver_address, Protocol protocol);
 
-  static void message_handler_routine(Config *config);
+  static void message_handler_routine(uint16_t pconfig);
 
 private:
   static Mailbox_t _outbox;
   //static const char *_this_node_address;
   static RF24 _radio;
-  static uint8_t RF24Node::_inbuffer[32];
+  static uint8_t _inbuffer[32];
   // addresses past this line are included in the radio state message
   // currently that is only the success and failure counter
   static uint16_t _success_counter;

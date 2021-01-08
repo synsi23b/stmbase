@@ -5,19 +5,35 @@
 
 namespace syn
 {
-
-  inline void swap_bytes(uint16_t &value)
+  class Utility
   {
-    uint8_t *b1, *b2;
-    b1 = (uint8_t *)&value;
-    b2 = ((uint8_t *)&value) + 1;
-    uint8_t tmp = *b1;
-    *b1 = *b2;
-    *b2 = tmp;
-  }
+  public:
+    // swap upper and lower byte of 16 bit value
+    inline void swap_bytes(uint16_t &value)
+    {
+      uint8_t *b1, *b2;
+      b1 = (uint8_t *)&value;
+      b2 = ((uint8_t *)&value) + 1;
+      uint8_t tmp = *b1;
+      *b1 = *b2;
+      *b2 = tmp;
+    }
 
-  // block for the specified ammount using an estimation
-  void udelay(uint16_t micros);
+    // block for the specified ammount using an estimation
+    static void udelay(uint16_t micros);
+
+    // return number of characters excluding trailing zero
+    static uint8_t strlen(const char *str);
+    // copys the string until trailing zero and returns pointer to next write position
+    // doesn't add a trailing zero and doesn't check for anything really
+    static char *strcpy(char *dst, const char *str);
+    // write signed integer as asci to the outbuffer, returns pointer to next write position
+    static char *sprint_i16(char *dst, int16_t value);
+    // write unsigned integer as asci to the outbuffer, returns pointer to next write position
+    static char *sprint_u16(char *dst, uint16_t value);
+    // write unsigned integer as asci hex to the outbuffer, returns pointer to next write position
+    static char *sprint_hex(char *dst, uint8_t value);
+  };
 
   class GpioBase
   {
@@ -173,7 +189,7 @@ namespace syn
         {
           ++count;
         }
-        udelay(4);
+        Utility::udelay(4);
       }
       if (count > 190)
       {
@@ -462,6 +478,10 @@ namespace syn
     static volatile uint16_t sMillis;
   };
 
+  // capture the current time during reset, than allows querries whether a specific ammount
+  // of milliseconds have passed or not. However due to timer roll over in the 16 bit timer,
+  // the running out can only be detected during the window of (UINT16_MAX - COMPARE_VALUE)
+  // the timer rolls over every 65 seconds.
   class DeadlineTimer
   {
   public:

@@ -40,7 +40,7 @@ bool OneWire::reset(void)
   {
     if (--retries == 0)
       return false;
-    syn::udelay(2);
+    syn::Utility::udelay(2);
   }
 
   bool result;
@@ -48,10 +48,10 @@ bool OneWire::reset(void)
     syn::Atomic a;
     // pull output line line and wait for the minimum reset time
     _pin.set_direction_bit();
-    syn::udelay(480);
+    syn::Utility::udelay(480);
     // let the pin float again to read the slaves
     _pin.clear_direction_bit();
-    syn::udelay(70);
+    syn::Utility::udelay(70);
     result = !_pin.read();
     // noInterrupts();
     // DIRECT_WRITE_LOW(reg, mask);
@@ -65,7 +65,7 @@ bool OneWire::reset(void)
     // interrupts();
   }
   //delayMicroseconds(410);
-  syn::udelay(410);
+  syn::Utility::udelay(410);
   return result;
 }
 
@@ -83,10 +83,10 @@ void OneWire::write_bit(bool bit)
   {
     syn::Atomic a;
     _pin.set_direction_bit();
-    syn::udelay(low_time);
+    syn::Utility::udelay(low_time);
     _pin.clear_direction_bit();
   }
-  syn::udelay(65 - low_time);
+  syn::Utility::udelay(65 - low_time);
 }
 
 //
@@ -99,13 +99,13 @@ bool OneWire::read_bit(void)
   {
     syn::Atomic a;
     _pin.set_direction_bit();
-    syn::udelay(2);
+    syn::Utility::udelay(2);
     _pin.clear_direction_bit();
-    syn::udelay(8);
+    syn::Utility::udelay(8);
     // data is valid for 15 uSec after falling edge
     result = _pin.read();
   }
-  syn::udelay(55);
+  syn::Utility::udelay(55);
   return result;
 }
 

@@ -130,14 +130,14 @@ inline void TM1638::_delay()
   nop();
 #endif
 #if (defined(STM32F103xB) || defined(STM32F401xC))
-  syn::udelay(1);
+  syn::Utility::udelay(1);
 #endif
 }
 
 void TM1638::_delay_fast_device()
 {
 #if (defined(STM32F103xB) || defined(STM32F401xC))
-  syn::udelay(1);
+  syn::Utility::udelay(1);
 #endif
 }
 

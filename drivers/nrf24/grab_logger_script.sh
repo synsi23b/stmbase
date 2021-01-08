@@ -1,3 +1,3 @@
 #!/bin/bash
 
-scp -r octo:~/SensorLogger/ ./ 
+scp -r octo:"~/SensorLogger/" "./SensorLogger"

@@ -1,7 +1,7 @@
 #pragma once
 #include "../synhal8/synhal.h"
 #include "intrinsics.h"
-#include "assert.h"
+//#include "assert.h"
 
 namespace syn
 {
@@ -49,7 +49,7 @@ namespace syn
     // there will be a warning when a stack crosses this line. which might be neccessary to allow more than
     // 512byte total for stack if that is needed.
     // the main stack maximum can be configured in the synos cfg file
-    static void init(void *functor, uint16_t arg, uint16_t stacksize);
+    static void init(void (*functor)(uint16_t), uint16_t arg, uint8_t stacksize);
 
     // leave execution context if other routinbe is runnable
     static void yield();
@@ -71,7 +71,7 @@ namespace syn
     bool _timeout_is_expired() const;
 
   private:
-    void _init(void *functor, void *arg, uint8_t *stack);
+    //void _init(void (*functor)(uint16_t), uint16_t arg, uint8_t *stack);
 
     void block(State reason);
     void unblock();
@@ -113,6 +113,22 @@ namespace syn
   {
     syn::Routine::sleep(milliseconds);
   }
+
+  class Rate
+  {
+  public:
+    // Attempt to run at a secific rate by sleeping in between and compensating for
+    // code exectuion time by re-evaluating the last execution time
+    // since it's all integer math, usefull ranges are in 1..500
+    // faster than 500 hertz results in a 1ms sleep, which could be just added manually
+    Rate(uint16_t hertz);
+
+    void sleep();
+
+  private:
+    uint16_t _last_run;
+    uint16_t _sleep_time;
+  };
 
   class SysTickHook
   {

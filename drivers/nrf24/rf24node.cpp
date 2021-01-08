@@ -1,5 +1,5 @@
 #include "rf24node.h"
-#include <stdio.h>
+//#include <stdio.h>
 //#include <string.h>
 
 RF24Node::Mailbox_t RF24Node::_outbox;
@@ -44,19 +44,29 @@ void RF24Node::Message::_init(uint16_t folded_receiver_address, RF24Node::Protoc
 
 void RF24Node::Message::log_u8(const char *key, uint8_t value)
 {
-  log_u16(key, value);
+  uint8_t *res = (uint8_t *)_log_key(key, '\1');
+  *res = value;
+  _mode = (res - _payload) + 1;
+  //log_u16(key, value);
 }
 
 void RF24Node::Message::log_i8(const char *key, int8_t value)
 {
-  log_i16(key, value);
+  uint8_t *res = (uint8_t *)_log_key(key, '\2');
+  *res = value;
+  _mode = (res - _payload) + 1;
+  //log_i16(key, value);
 }
 
 void RF24Node::Message::log_u16(const char *key, uint16_t value)
 {
-  char *res = _log_key(key);
-  int num = sprintf(res, "%u", value);
-  _mode += num;
+  // char *res = _log_key(key, ':');
+  // //int num = sprintf(res, "%u", value);
+  // res = syn::Utility::sprint_u16(res, value);
+  // _mode = res - (char *)_payload;
+  uint8_t *res = (uint8_t *)_log_key(key, '\3');
+  _store_big_endian_16(res, value);
+  _mode = (res - _payload) + 2;
 #ifdef DEBUG
   while (_mode > RF24_NODE_PAYLOAD_SIZE)
     ;
@@ -65,65 +75,46 @@ void RF24Node::Message::log_u16(const char *key, uint16_t value)
 
 void RF24Node::Message::log_i16(const char *key, int16_t value)
 {
-  char *res = _log_key(key);
-  int num = sprintf(res, "%d", value);
-  _mode += num;
+  // char *res = _log_key(key, ':');
+  // //int num = sprintf(res, "%d", value);
+  // //_mode += num;
+  // res = syn::Utility::sprint_i16(res, value);
+  // _mode = res - (char *)_payload;
+  uint8_t *res = (uint8_t *)_log_key(key, '\4');
+  _store_big_endian_16(res, value);
+  _mode = (res - _payload) + 2;
 #ifdef DEBUG
   while (_mode > RF24_NODE_PAYLOAD_SIZE)
     ;
 #endif
 }
-
-// void RF24Node::Message::log_u32(const char *key, uint32_t value)
-// {
-//   char *res = _log_key(key);
-//   int num = sprintf(res, "%u", value);
-//   _mode += num;
-// #ifdef DEBUG
-//   while (_mode > RF24_NODE_PAYLOAD_SIZE)
-//     ;
-// #endif
-// }
-
-// void RF24Node::Message::log_i32(const char *key, int32_t value)
-// {
-//   char *res = _log_key(key);
-//   int num = sprintf(res, "%d", value);
-//   _mode += num;
-// #ifdef DEBUG
-//   while (_mode > RF24_NODE_PAYLOAD_SIZE)
-//     ;
-// #endif
-// }
 
 void RF24Node::Message::log_str(const char *key, const char *string)
 {
-  char *res = _log_key(key);
-  int num = sprintf(res, "%s\3", string);
-  _mode += num;
+  char *res = _log_key(key, '\5');
+  //int num = sprintf(res, "%s\3", string);
+  //_mode += num;
+  res = syn::Utility::strcpy(res, string);
+  *res++ = '\0';
+  _mode = res - (char *)_payload;
 #ifdef DEBUG
   while (_mode > RF24_NODE_PAYLOAD_SIZE)
     ;
 #endif
 }
 
-// void RF24Node::Message::log_mongo(const char *mapstring)
-// {
-//   char *res = _log_key(key);
-//   int num = sprintf(res, "%s\3", string);
-//   _mode += num;
-// }
-
-char *RF24Node::Message::_log_key(const char *key)
+char *RF24Node::Message::_log_key(const char *key, char seperator)
 {
 #ifdef DEBUG
   Protocol proto = _protocol;
   while (proto != log_key_value && proto != radio_state)
     ;
 #endif
-  int num = sprintf((char *)_payload + _mode, "%s:", key);
-  _mode += num;
-  return (char *)_payload + _mode;
+  // int num = sprintf((char *)_payload + _mode, "%s:", key);
+  char *writep = (char *)_payload + _mode;
+  char *resp = syn::Utility::strcpy(writep, key);
+  *resp++ = seperator;
+  return resp;
 }
 
 void RF24Node::Message::message(const char *message)
@@ -133,8 +124,10 @@ void RF24Node::Message::message(const char *message)
   while (proto != message_info && proto != message_warning && proto != message_error)
     ;
 #endif
-  int num = sprintf((char *)_payload, "%s", message);
-  _mode = num;
+  //int num = sprintf((char *)_payload, "%s", message);
+  //_mode = num;
+  char *res = syn::Utility::strcpy((char *)_payload, message);
+  _mode = res - (char *)_payload;
 #ifdef DEBUG
   while (_mode > RF24_NODE_PAYLOAD_SIZE)
     ;
@@ -150,8 +143,10 @@ void RF24Node::Message::task(const char *description, uint16_t remaining_seconds
 #endif
   _payload[0] = progress_percent;
   _store_big_endian_16(_payload + 1, remaining_seconds);
-  int num = sprintf((char *)_payload + 3, "%s", description);
-  _mode = num + 3;
+  //int num = sprintf((char *)_payload + 3, "%s", description);
+  //_mode = num + 3;
+  char *res = syn::Utility::strcpy((char *)_payload + 3, description);
+  _mode = res - (char *)_payload;
 #ifdef DEBUG
   while (_mode > RF24_NODE_PAYLOAD_SIZE)
     ;
@@ -164,19 +159,22 @@ void RF24Node::Message::temperature(const uint8_t *thermometer_id, int16_t value
   while (_protocol != temperature_value)
     ;
 #endif
-  char *buff;
+  uint8_t *buff = _payload;
+  const uint8_t *rpoint = thermometer_id;
   for (uint8_t i = 0; i < 8; ++i)
   {
-    uint8_t val = thermometer_id[i];
-    buff = (char *)&(_payload[i * 2]);
-    if (val < 16)
-    {
-      *buff++ = '0';
-    }
-    sprintf(buff, "%X", val);
+    //uint8_t val = thermometer_id[i];
+    //buff = (char *)&(_payload[i * 2]);
+    // if (val < 16)
+    // {
+    //   *buff++ = '0';
+    // }
+    // sprintf(buff, "%X", val);
+    //buff = syn::Utility::sprint_hex(buff, *rpoint++);
+    *buff++ = *rpoint++;
   }
-  _store_big_endian_16(&_payload[16], value);
-  _mode = 18;
+  _store_big_endian_16(&_payload[8], value);
+  _mode = 10;
 }
 
 // void RF24Node::Message::_radio_state(uint16_t *pointer_to_int32x2)
@@ -255,11 +253,11 @@ RF24Node::Message *RF24Node::try_reserve(uint16_t folded_receiver_address, Proto
   return pres;
 }
 
-void RF24Node::message_handler_routine(Config *config)
+void RF24Node::message_handler_routine(uint16_t pconfig)
 {
   uint8_t adrbuffer[4];
-  uint16_t this_node_address = config->this_node_address;
-  void (*indata_handler)(uint8_t *) = config->indata_handler;
+  uint16_t this_node_address = ((Config *)pconfig)->this_node_address;
+  void (*indata_handler)(uint8_t *) = ((Config *)pconfig)->indata_handler;
   Message::unfold_address(this_node_address, adrbuffer);
   bool init_success = _radio.init((const char *)adrbuffer);
 

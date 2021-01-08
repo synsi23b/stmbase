@@ -24,26 +24,56 @@ def request_time(node, payload):
     pass
 
 
+def _unpack_string(indata):
+    idx = 0
+    for c in indata:
+        if c == 0:
+            break
+        idx += 1
+    return [str(indata[:idx], encoding='utf-8')]
+
+
+_unpack_splitters = {
+    # uint8
+    1: (struct.Struct(">B").unpack, 1),
+    # int8
+    2: (struct.Struct(">b").unpack, 1),
+    # uint16
+    3: (struct.Struct(">H").unpack, 2),
+    # int16
+    4: (struct.Struct(">h").unpack, 2),
+    # string
+    5: (_unpack_string, -1)
+}
+
+
+def _get_key_and_splitter(payload, startidx):
+    idx = 0 + startidx
+    while True:
+        val = payload[idx]
+        if val in _unpack_splitters:
+            key = str(payload[startidx:idx], encoding='utf-8')
+            splitter = _unpack_splitters[val]
+            return key, splitter, idx + 1
+        idx += 1
+
 def _unpack_key_value(payload):
-    msg = str(payload, encoding='utf-8')
+    #msg = str(payload, encoding='utf-8')
     values = {}
     try:
+        index = 0
         while True:
-            value = None
-            key, remainder = msg.split(':', 1)
-            if remainder[0].isdigit() or remainder[0] == '-':
-                for i in range(1, len(remainder)):
-                    if not remainder[i].isdigit():
-                        value = int(remainder[:i])
-                        msg = remainder[i:]
-                        break
-                if value is None:
-                    # if value is None, this int was the final token of the stream
-                    value = int(remainder)
-                    msg = ""
+            # first find the end of the key
+            key, splitter, index = _get_key_and_splitter(payload, index)
+            end_of_data = splitter[1]
+            # than check data size and exctract it from payload
+            if end_of_data > 0:
+                value = splitter[0](payload[index : index + end_of_data])[0]
+                index += end_of_data
             else:
-                # it's a string, split at "End of Text"
-                value, msg = remainder.split('\3', 1)
+                value = splitter[0](payload[index : ])[0]
+                index += len(value)
+            # finally, add to our result dictionary
             values[key] = value
     except Exception as e:
         #print(e)
