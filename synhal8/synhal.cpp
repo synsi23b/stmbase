@@ -110,91 +110,102 @@ char *Utility::sprint_hex(char *dst, uint8_t value)
   return _write_single_hex(dst, value & 0x0F);
 }
 
-void GpioBase::pushpull(uint8_t *port_base, uint8_t mask)
+void GpioBase::pushpull(GPIO_TypeDef *port, uint8_t mask)
 {
-  // _pPort->DDR |= _pinmask;
-  // _pPort->CR1 |= _pinmask;
-  // _pPort->CR2 |= _pinmask;
-  port_base += 2; // advance to DDR
+  // _port->DDR |= _pinmask;
+  // _port->CR1 |= _pinmask;
+  // _port->CR2 |= _pinmask;
+  uint8_t *port_base = (uint8_t *)&port->DDR;
   *port_base++ |= mask;
-  *port_base++ |= mask;
+  //*port_base++ |= mask;
   *port_base |= mask;
 }
 
-void Gpio::pushpull()
+Gpio &Gpio::pushpull()
 {
-  // _pPort->DDR |= _pinmask;
-  // _pPort->CR1 |= _pinmask;
-  // _pPort->CR2 |= _pinmask;
-  GpioBase::pushpull((uint8_t *)_pPort, _pinmask);
+  // _port->DDR |= _pinmask;
+  // _port->CR1 |= _pinmask;
+  // _port->CR2 |= _pinmask;
+  GpioBase::pushpull(_port, _pinmask);
+  return *this;
 }
 
-void GpioBase::opendrain(uint8_t *port_base, uint8_t mask)
+void GpioBase::opendrain(GPIO_TypeDef *port, uint8_t mask)
 {
-  // _pPort->DDR |= _pinmask;
-  // _pPort->CR1 &= ~_pinmask;
-  // _pPort->CR2 |= _pinmask;
+  // _port->DDR |= _pinmask;
+  // _port->CR1 &= ~_pinmask;
+  // _port->CR2 |= _pinmask;
   // DDR -> CR1 -> CR2
-  port_base += 2; // advance to DDR
-  *port_base |= mask;
-  port_base += 2; // advance to CR2
-  *port_base |= mask;
-  --port_base; // decrease to CR1
+  uint8_t *port_base = (uint8_t *)&port->DDR;
+  *port_base++ |= mask;
+  //port_base += 2; // advance to CR2
+  //*port_base |= mask;
+  //--port_base; // decrease to CR1
   mask = ~mask;
   *port_base &= mask;
 }
 
-void Gpio::opendrain()
+Gpio &Gpio::opendrain()
 {
   // out_opendrain, max speed
-  // _pPort->DDR |= _pinmask;
-  // _pPort->CR1 &= ~_pinmask;
-  // _pPort->CR2 |= _pinmask;
-  GpioBase::opendrain((uint8_t *)_pPort, _pinmask);
+  // _port->DDR |= _pinmask;
+  // _port->CR1 &= ~_pinmask;
+  // _port->CR2 |= _pinmask;
+  GpioBase::opendrain(_port, _pinmask);
+  return *this;
 }
 
-void GpioBase::input_pullup(uint8_t *port_base, uint8_t mask)
+void GpioBase::input_pullup(GPIO_TypeDef *port, uint8_t mask)
 {
-  // _pPort->DDR &= ~_pinmask;
-  // _pPort->CR1 |= _pinmask;
-  // _pPort->CR2 &= ~_pinmask;
+  // _port->DDR &= ~_pinmask;
+  // _port->CR1 |= _pinmask;
+  // _port->CR2 &= ~_pinmask;
   // DDR -> CR1 -> CR2
-  port_base += 3; // advance to CR1
+  uint8_t *port_base = (uint8_t *)&port->DDR;
+  *port_base++ &= ~mask;
   *port_base |= mask;
-  mask = ~mask;
-  --port_base; // decrease to DDR
-  *port_base &= mask;
-  port_base += 2; // increase to CR2
-  *port_base &= mask;
 }
 
-void Gpio::input_pullup()
+Gpio &Gpio::input_pullup()
 {
-  // _pPort->DDR &= ~_pinmask;
-  // _pPort->CR1 |= _pinmask;
-  // _pPort->CR2 &= ~_pinmask;
-  GpioBase::input_pullup((uint8_t *)_pPort, _pinmask);
+  // _port->DDR &= ~_pinmask;
+  // _port->CR1 |= _pinmask;
+  // _port->CR2 &= ~_pinmask;
+  GpioBase::input_pullup(_port, _pinmask);
+  return *this;
 }
 
-void GpioBase::floating(uint8_t *port_base, uint8_t mask)
+void GpioBase::floating(GPIO_TypeDef *port, uint8_t mask)
 {
-  // _pPort->DDR &= ~_pinmask;
-  // _pPort->CR1 &= ~_pinmask;
-  // _pPort->CR2 &= ~_pinmask;
+  // _port->DDR &= ~_pinmask;
+  // _port->CR1 &= ~_pinmask;
+  // _port->CR2 &= ~_pinmask;
   mask = ~mask;
-  // DDR -> CR1 -> CR2
-  port_base += 2; // advance pointer to DDR register
-  *port_base++ &= mask;
+  // DDR -> CR1
+  uint8_t *port_base = (uint8_t *)&port->DDR;
   *port_base++ &= mask;
   *port_base &= mask;
+  //*port_base &= mask;
 }
 
-void Gpio::floating()
+Gpio &Gpio::floating()
 {
-  // _pPort->DDR &= ~_pinmask;
-  // _pPort->CR1 &= ~_pinmask;
-  // _pPort->CR2 &= ~_pinmask;
-  GpioBase::floating((uint8_t *)_pPort, _pinmask);
+  // _port->DDR &= ~_pinmask;
+  // _port->CR1 &= ~_pinmask;
+  // _port->CR2 &= ~_pinmask;
+  GpioBase::floating(_port, _pinmask);
+  return *this;
+}
+
+void GpioBase::high_speed(GPIO_TypeDef *port, uint8_t mask)
+{
+  port->CR2 |= mask;
+}
+
+Gpio &Gpio::high_speed()
+{
+  _port->CR2 |= _pinmask;
+  return *this;
 }
 
 // block for the specidifed ammount of millis using systick
@@ -324,4 +335,170 @@ INTERRUPT_HANDLER(I2C_ISR, 19)
   I2cSlave::isr();
 }
 #endif
+#endif
+
+void Adc::configurepin(uint8_t channel)
+{
+  Gpio pin;
+#ifndef SYN_HAL_32_PIN_DEVICE
+  switch (channel)
+  {
+  case 2:
+    pin.init('C', 4);
+    break;
+  case 3:
+    pin.init('D', 2);
+    break;
+  case 4:
+    pin.init('D', 3);
+    break;
+  case 5:
+    pin.init('D', 5);
+    break;
+  case 6:
+    pin.init('D', 6);
+    break;
+  };
+  pin.floating();
+#else
+  pin.init('B', channel)
+      .floating();
+#endif
+  ADC1->TDRL |= (1 << channel);
+}
+
+/* using the numbers from the manual works just fine, I dont know why they defined it this way */
+
+#define AWU_vector 3                /* IRQ No. in STM8 manual:  1 */
+#define CLK_CSS_vector 4            /* IRQ No. in STM8 manual:  2 */
+#define CLK_SWITCH_vector 4         /* IRQ No. in STM8 manual:  2 */
+#define EXTI0_vector 5              /* IRQ No. in STM8 manual:  3 */
+#define EXTI1_vector 6              /* IRQ No. in STM8 manual:  4 */
+#define EXTI2_vector 7              /* IRQ No. in STM8 manual:  5 */
+#define EXTI3_vector 8              /* IRQ No. in STM8 manual:  6 */
+#define EXTI4_vector 9              /* IRQ No. in STM8 manual:  7 */
+#define SPI_CRCERR_vector 12        /* IRQ No. in STM8 manual: 10 */
+#define SPI_MODF_vector 12          /* IRQ No. in STM8 manual: 10 */
+#define SPI_OVR_vector 12           /* IRQ No. in STM8 manual: 10 */
+#define SPI_RXNE_vector 12          /* IRQ No. in STM8 manual: 10 */
+#define SPI_TXE_vector 12           /* IRQ No. in STM8 manual: 10 */
+#define SPI_WKUP_vector 12          /* IRQ No. in STM8 manual: 10 */
+#define TIM1_CAPCOM_BIF_vector 13   /* IRQ No. in STM8 manual: 11 */
+#define TIM1_CAPCOM_TIF_vector 13   /* IRQ No. in STM8 manual: 11 */
+#define TIM1_OVR_UIF_vector 13      /* IRQ No. in STM8 manual: 11 */
+#define TIM1_CAPCOM_CC1IF_vector 14 /* IRQ No. in STM8 manual: 12 */
+#define TIM1_CAPCOM_CC2IF_vector 14 /* IRQ No. in STM8 manual: 12 */
+#define TIM1_CAPCOM_CC3IF_vector 14 /* IRQ No. in STM8 manual: 12 */
+#define TIM1_CAPCOM_CC4IF_vector 14 /* IRQ No. in STM8 manual: 12 */
+#define TIM1_CAPCOM_COMIF_vector 14 /* IRQ No. in STM8 manual: 12 */
+#define TIM2_OVR_UIF_vector 15      /* IRQ No. in STM8 manual: 13 */
+#define TIM2_CAPCOM_CC1IF_vector 16 /* IRQ No. in STM8 manual: 14 */
+#define TIM2_CAPCOM_CC2IF_vector 16 /* IRQ No. in STM8 manual: 14 */
+#define TIM2_CAPCOM_CC3IF_vector 16 /* IRQ No. in STM8 manual: 14 */
+#define TIM2_CAPCOM_TIF_vector 16   /* IRQ No. in STM8 manual: 14 */
+#define UART1_T_TC_vector 19        /* IRQ No. in STM8 manual: 17 */
+#define UART1_T_TXE_vector 19       /* IRQ No. in STM8 manual: 17 */
+#define UART1_R_IDLE_vector 20      /* IRQ No. in STM8 manual: 18 */
+#define UART1_R_LBDF_vector 20      /* IRQ No. in STM8 manual: 18 */
+#define UART1_R_OR_vector 20        /* IRQ No. in STM8 manual: 18 */
+#define UART1_R_PE_vector 20        /* IRQ No. in STM8 manual: 18 */
+#define UART1_R_RXNE_vector 20      /* IRQ No. in STM8 manual: 18 */
+#define I2C_ADD10_vector 21         /* IRQ No. in STM8 manual: 19 */
+#define I2C_ADDR_vector 21          /* IRQ No. in STM8 manual: 19 */
+#define I2C_AF_vector 21            /* IRQ No. in STM8 manual: 19 */
+#define I2C_ARLO_vector 21          /* IRQ No. in STM8 manual: 19 */
+#define I2C_BERR_vector 21          /* IRQ No. in STM8 manual: 19 */
+#define I2C_BTF_vector 21           /* IRQ No. in STM8 manual: 19 */
+#define I2C_OVR_vector 21           /* IRQ No. in STM8 manual: 19 */
+#define I2C_RXNE_vector 21          /* IRQ No. in STM8 manual: 19 */
+#define I2C_SB_vector 21            /* IRQ No. in STM8 manual: 19 */
+#define I2C_STOPF_vector 21         /* IRQ No. in STM8 manual: 19 */
+#define I2C_TXE_vector 21           /* IRQ No. in STM8 manual: 19 */
+#define I2C_WUFH_vector 21          /* IRQ No. in STM8 manual: 19 */
+#define ADC1_AWDG_vector 24         /* IRQ No. in STM8 manual: 22 */
+#define ADC1_AWS0_vector 24         /* IRQ No. in STM8 manual: 22 */
+#define ADC1_AWS1_vector 24         /* IRQ No. in STM8 manual: 22 */
+#define ADC1_AWS2_vector 24         /* IRQ No. in STM8 manual: 22 */
+#define ADC1_AWS3_vector 24         /* IRQ No. in STM8 manual: 22 */
+#define ADC1_AWS4_vector 24         /* IRQ No. in STM8 manual: 22 */
+#define ADC1_AWS5_vector 24         /* IRQ No. in STM8 manual: 22 */
+#define ADC1_AWS6_vector 24         /* IRQ No. in STM8 manual: 22 */
+#define ADC1_AWS7_vector 24         /* IRQ No. in STM8 manual: 22 */
+#define ADC1_AWS8_vector 24         /* IRQ No. in STM8 manual: 22 */
+#define ADC1_AWS9_vector 24         /* IRQ No. in STM8 manual: 22 */
+#define ADC1_EOC_vector 24          /* IRQ No. in STM8 manual: 22 */
+#define TIM4_OVR_UIF_vector 25      /* IRQ No. in STM8 manual: 23 */
+#define FLASH_EOP_vector 26         /* IRQ No. in STM8 manual: 24 */
+#define FLASH_WR_PG_DIS_vector 26   /* IRQ No. in STM8 manual: 24 */
+
+#ifdef DEBUG_INTERRUPTS
+INTERRUPT_HANDLER(AWU_ISR, 1)
+{
+  while (true)
+  {
+  }
+}
+
+INTERRUPT_HANDLER(EXTI0_ISR, 3)
+{
+  while (true)
+  {
+  }
+}
+
+INTERRUPT_HANDLER(EXTI1_ISR, 4)
+{
+  while (true)
+  {
+  }
+}
+
+INTERRUPT_HANDLER(EXTI2_ISR, 5)
+{
+  while (true)
+  {
+  }
+}
+
+INTERRUPT_HANDLER(EXTI3_ISR, 6)
+{
+  while (true)
+  {
+  }
+}
+
+INTERRUPT_HANDLER(EXTI4_ISR, 7)
+{
+  while (true)
+  {
+  }
+}
+
+INTERRUPT_HANDLER(SPI_ISR, 12)
+{
+  while (true)
+  {
+  }
+}
+
+INTERRUPT_HANDLER(UART1_TX_ISR, 17)
+{
+  while (true)
+  {
+  }
+}
+
+INTERRUPT_HANDLER(UART1_RX_ISR, 18)
+{
+  while (true)
+  {
+  }
+}
+
+INTERRUPT_HANDLER(I2C_ISR, 19)
+{
+  while (true)
+  {
+  }
+}
 #endif

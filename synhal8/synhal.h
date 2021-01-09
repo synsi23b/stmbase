@@ -47,10 +47,11 @@ namespace syn
       return (GPIO_TypeDef *)(GPIOA_BaseAddress + ((port - 'A') * 0x05));
     }
 
-    static void pushpull(uint8_t *config_register_base, uint8_t mask);
-    static void opendrain(uint8_t *config_register_base, uint8_t mask);
-    static void input_pullup(uint8_t *config_register_base, uint8_t mask);
-    static void floating(uint8_t *config_register_base, uint8_t mask);
+    static void pushpull(GPIO_TypeDef *port, uint8_t mask);
+    static void opendrain(GPIO_TypeDef *port, uint8_t mask);
+    static void input_pullup(GPIO_TypeDef *port, uint8_t mask);
+    static void floating(GPIO_TypeDef *port, uint8_t mask);
+    static void high_speed(GPIO_TypeDef *port, uint8_t mask);
 
     enum eExtiLevel
     {
@@ -119,62 +120,69 @@ namespace syn
       init(port, pinnum);
     }
 
-    void init(char port, uint8_t pinnum)
+    Gpio &init(char port, uint8_t pinnum)
     {
-      _pPort = GpioBase::get_port_address(port);
+      _port = GpioBase::get_port_address(port);
       _pinmask = 1 << pinnum;
+      return *this;
     }
 
-    void init_multi(char port, uint8_t pinmask)
+    Gpio &init_multi(char port, uint8_t pinmask)
     {
-      _pPort = GpioBase::get_port_address(port);
+      _port = GpioBase::get_port_address(port);
       _pinmask = pinmask;
+      return *this;
     }
 
-    void change_pin_mask(uint8_t new_mask)
+    Gpio &change_pin_mask(uint8_t new_mask)
     {
       _pinmask = new_mask;
+      return *this;
     }
 
-    void change_pin_mask_by_number(uint8_t new_pinnum)
+    Gpio &change_pin_mask_by_number(uint8_t new_pinnum)
     {
       _pinmask = 1 << new_pinnum;
+      return *this;
     }
 
-    void pushpull();
-    void opendrain();
-    void input_pullup();
-    void floating();
+    Gpio &pushpull();
+    Gpio &opendrain();
+    Gpio &input_pullup();
+    Gpio &floating();
+    // WARNING! in input mode it enables EXTI
+    // should not be used unless in peripheral initialization
+    Gpio &high_speed();
 
-    // used to quickly toggle between pushpull<->input or opendrain<->floating
-    // very special use cases when bitbanging, check datasheets!
+    // used to quickly toggle between pushpull<->input_pullup or opendrain<->floating
+    // use cases when bitbanging, check datasheets!
     void clear_direction_bit()
     {
-      _pPort->DDR &= ~_pinmask;
+      _port->DDR &= ~_pinmask;
     }
 
     void set_direction_bit()
     {
-      _pPort->DDR |= _pinmask;
+      _port->DDR |= _pinmask;
     }
 
     void set()
     {
-      _pPort->ODR |= _pinmask;
+      _port->ODR |= _pinmask;
     }
 
     void clear()
     {
-      _pPort->ODR &= ~_pinmask;
+      _port->ODR &= ~_pinmask;
     }
 
     bool read()
     {
-      return _pPort->IDR & _pinmask;
+      return _port->IDR & _pinmask;
     }
 
   private:
-    GPIO_TypeDef *_pPort;
+    GPIO_TypeDef *_port;
     uint8_t _pinmask;
   };
 
@@ -1114,19 +1122,17 @@ namespace syn
       if (lsbfirst)
         cr1 |= SPI_CR1_LSBFIRST;
       SPI->CR1 = cr1 | SPI_CR1_SPE;
-      Gpio temp_pin;
-      temp_pin.init('C', 4);
-      temp_pin.pushpull();
       Gpio pins;
-      pins.init_multi('C', 0x60); // pin 5, 6 SCK / MOSI
-      pins.pushpull();
+      pins.init_multi('C', 0x60) // pin 5, 6 SCK / MOSI
+          .pushpull()
+          .high_speed();
       // set CLK idle according to cpol
       if (cpol)
         pins.set();
       else
         pins.clear();
-      pins.change_pin_mask_by_number(7);
-      pins.floating();
+      pins.change_pin_mask_by_number(7)
+          .floating();
     }
 
     // write count bytes from the constant data buffer, but discard incoming data
@@ -1274,9 +1280,9 @@ namespace syn
       // reset the device because glitches at startup
       I2C->CR2 = I2C_CR2_SWRST;
       Gpio pins;
-      pins.init_multi('B', 0x30);
-      pins.opendrain();
-      pins.set();
+      pins.init_multi('B', 0x30)
+          .opendrain()
+          .set();
       I2C->CR2 = 0;
       I2C->FREQR = 16; // 16 MHz
       if (fastmode)
@@ -1963,8 +1969,15 @@ namespace syn
     // to start the conversations
     static void initScan(uint8_t channel)
     {
+#ifndef SYN_HAL_32_PIN_DEVICE
       for (uint8_t ch = 2; ch <= channel; ++ch)
+      {
+#else
+      for (uint8_t ch = 0; ch <= channel; ++ch)
+      {
+#endif
         configurepin(ch);
+      }
       ADC1->CSR = channel;
       ADC1->CR3 = ADC1_CR3_DBUF;
       ADC1->CR2 = ADC1_CR2_ALIGN | ADC1_CR2_SCAN;
@@ -2049,43 +2062,8 @@ namespace syn
       ADC1->CSR &= ~ADC1_CSR_AWDIE;
     }
 
-  private:
-    static void configurepin(uint8_t channel)
-    {
-#ifndef SYN_HAL_32_PIN_DEVICE
-      Gpio pin;
-      switch (channel)
-      {
-      case 2:
-      {
-        pin.init('C', 4);
-        ADC1->TDRL |= (1 << 2);
-      }
-      break;
-      case 3:
-        pin.init('D', 2);
-        ADC1->TDRL |= (1 << 3);
-        break;
-      case 4:
-        pin.init('D', 3);
-        ADC1->TDRL |= (1 << 4);
-        break;
-      case 5:
-        pin.init('D', 5);
-        ADC1->TDRL |= (1 << 5);
-        break;
-      case 6:
-        pin.init('D', 6);
-        ADC1->TDRL |= (1 << 6);
-        break;
-      }
-      pin.floating();
-#else
-      Gpio pin('B', channel);
-      pin.floating();
-      ADC1->TDRL |= (1 << channel);
-#endif
-    }
+private:
+  static void configurepin(uint8_t channel);
   };
 } // namespace syn
 #endif /* SYN_STM8S_HAL */
