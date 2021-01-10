@@ -915,13 +915,13 @@ namespace syn
     static void setPWM(uint16_t duty, uint8_t channel)
     {
       channel -= 1;
-      //*((&TIM1->CCR1H) + channel * 2) = duty >> 8;
-      // try using a trick instead of shifting 8 times
-      // this writes the lower register first and than the high register
-      // which doesn't really update the shadow register, but if we write the
-      // low register again, it should be ok
-      *((uint16_t *)((&TIM1->CCR1H) + channel * 2)) = duty;
-      *((&TIM1->CCR1L) + channel * 2) = duty;
+      uint8_t *ccr_high = (uint8_t *)(&TIM2->CCR1H) + channel * 2;
+      // in the manual it says, the LDW instruction is forbidden, and we need to write
+      // the MSB and than the LSB. LDW instruction writes the LSB first, so, just do it twice
+      // LDW first, than LD (8 bit)
+      *((uint16_t *)ccr_high) = duty;
+      ++ccr_high; // point to ccr_low
+      *ccr_high = duty & 0xFF;
     }
 
     // enable encoder mode for channel 1 and 2 till rolover as specified by the cfg
@@ -953,31 +953,41 @@ namespace syn
     // returns the current encoder count and resets it back to zero
     static int16_t readEncoder(uint8_t minval)
     {
-      int16_t ret = *((int16_t *)(&TIM1->CNTRH));
-      if (ret < 0)
+      // see reference page 142 for reading 16 bit counter correctly
+      // MSB first, than LSB. LDW reads LSB first
+      union retunion
       {
-        ret = -ret;
-        if (ret > minval)
+        int16_t sig16;
+        uint8_t bytes[2];
+      };
+      retunion ret;
+      ret.bytes[0] = TIM1->CNTRH;
+      ret.bytes[1] = TIM1->CNTRL;
+
+      if (ret.sig16 < 0)
+      {
+        ret.sig16 = -ret.sig16;
+        if (ret.sig16 > minval)
         {
           *((int16_t *)(&TIM1->CNTRH)) = 0;
-          ret /= minval;
-          ret = -ret;
+          ret.sig16 /= minval;
+          ret.sig16 = -ret.sig16;
         }
         else
         {
-          ret = 0;
+          ret.sig16 = 0;
         }
       }
-      else if (ret > minval)
+      else if (ret.sig16 > minval)
       {
         *((int16_t *)(&TIM1->CNTRH)) = 0;
-        ret /= minval;
+        ret.sig16 /= minval;
       }
       else
       {
-        ret = 0;
+        ret.sig16 = 0;
       }
-      return ret;
+      return ret.sig16;
     }
   };
 
@@ -1079,14 +1089,23 @@ namespace syn
     // arduino pwm: the minimum is 0 and the maximum is 255.
     static void setPWM(uint16_t duty, uint8_t channel)
     {
+      // channel -= 1;
+      // //*((&TIM1->CCR1H) + channel * 2) = duty >> 8;
+      // // try useing a trick instead of shifting 8 times
+      // // this writes the lower register first and than the high register
+      // // which doesn't really update the shadow register, but if we write the
+      // // low register again, it should be ok
+      // *((uint16_t *)((&TIM2->CCR1H) + channel * 2)) = duty;
+      // *((&TIM2->CCR1L) + channel * 2) = duty;
+
       channel -= 1;
-      //*((&TIM1->CCR1H) + channel * 2) = duty >> 8;
-      // try useing a trick instead of shifting 8 times
-      // this writes the lower register first and than the high register
-      // which doesn't really update the shadow register, but if we write the
-      // low register again, it should be ok
-      *((uint16_t *)((&TIM2->CCR1H) + channel * 2)) = duty;
-      *((&TIM2->CCR1L) + channel * 2) = duty;
+      uint8_t *ccr_high = (uint8_t *)(&TIM2->CCR1H) + channel * 2;
+      // in the manual it says, the LDW instruction is forbidden, and we need to write
+      // the MSB and than the LSB. LDW instruction writes the LSB first, so, just do it twice
+      // LDW first, than LD (8 bit)
+      *((uint16_t *)ccr_high) = duty;
+      ++ccr_high; // point to ccr_low
+      *ccr_high = duty & 0xFF;
     }
   };
 
