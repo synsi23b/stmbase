@@ -211,18 +211,14 @@ void TM1638::init(int8_t dio_port, uint8_t dio_pin,
                   int8_t clk_port, uint8_t clk_pin,
                   int8_t stb_port, uint8_t stb_pin)
 {
-  _dio.init(dio_port, dio_pin);
-  _clk.init(clk_port, clk_pin);
-  _stb.init(stb_port, stb_pin);
-#ifdef STM8S103
-  _dio.mode(true, false);
-  _clk.mode(true, false);
-  _stb.mode(true, false);
-#endif
-#if (defined(STM32F103xB) || defined(STM32F401xC))
-#endif
-  _stb.set();
-  clear();
+  _dio.init(dio_port, dio_pin)
+    .pushpull();
+  _clk.init(clk_port, clk_pin)
+    .pushpull();
+  _stb.init(stb_port, stb_pin)
+    .pushpull()
+    .set();
+  this->clear();
   intensity(0x0B);
 }
 

@@ -1788,6 +1788,13 @@ namespace syn
       while (rx_busy())
         ;
     }
+    
+    static void putc(uint8_t c)
+    {
+      while (tx_busy())
+        ;
+      UART1->DR = c;
+    }
 
     // write sizeof(datatype) * count bytes from the buffer data without blocking
     template <typename T>
@@ -1813,27 +1820,10 @@ namespace syn
     }
 
     // transmitter isr, don't call manually
-    static void tx_isr()
-    {
-      UART1->DR = *sTxData++;
-      if (--sTxCount == 0)
-      {
-        // when all bytes are transmitted, disable the interrupt again
-        UART1->CR2 &= ~UART1_CR2_TIEN;
-      }
-    }
+    static void tx_isr();
 
     // receiver isr, don't call manually
-    static void rx_isr()
-    {
-      *sRxData++ = UART1->DR;
-      if (--sRxCount == 0)
-      {
-        // when all bytes are read, disable the interrupt again
-        UART1->CR2 &= ~UART1_CR2_RIEN;
-      }
-    }
-
+    static void rx_isr();
   private:
     static const uint8_t *sTxData;
     static uint8_t *sRxData;
