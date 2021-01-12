@@ -23,6 +23,18 @@ public:
   // doesn't overwrite regular display buffer
   void writeError(uint16_t num);
 
+  // display LOAD and number and synchronize
+  // doesn't overwrite regular display buffer
+  void writeLoad(uint16_t num);
+
+  // write leftDisplay 4 bytes
+  // doesn't sync the output, just buffers
+  void writeLeft(const uint8_t *data);
+
+  // write right Display number
+  // doesn't sync the output, just buffers
+  void writeRight(uint16_t num);
+
   // write signed integer and remainder (0 to 99)
   // into the display buffer
   // if the remainder is to big, it will be no error,
@@ -212,14 +224,14 @@ void TM1638::init(int8_t dio_port, uint8_t dio_pin,
                   int8_t stb_port, uint8_t stb_pin)
 {
   _dio.init(dio_port, dio_pin)
-    .pushpull();
+      .opendrain();
   _clk.init(clk_port, clk_pin)
     .pushpull();
   _stb.init(stb_port, stb_pin)
     .pushpull()
     .set();
   this->clear();
-  intensity(0x0B);
+  intensity(0x08 | 6);
 }
 
 void TM1638::clear()
@@ -240,6 +252,26 @@ void TM1638::writeError(uint16_t num)
   uint8_t data[8] = { 0x79, 0x50, 0x50, 0, 0, 0, 0, 0 };
   _write_int(num, data + 7, false);
   _sync(data);
+}
+
+void TM1638::writeLoad(uint16_t num)
+{
+  uint8_t data[8] = {0x38, 0x5C, 0x77, 0x5E, 0, 0, 0, 0};
+  _write_int(num, data + 7, false);
+  _sync(data);
+}
+
+void TM1638::writeLeft(const uint8_t *data)
+{
+  for (uint8_t i = 0; i < 4; ++i)
+    _display[i] = data[i];
+}
+
+void TM1638::writeRight(uint16_t num)
+{
+  for (uint8_t i = 4; i < 8; ++i)
+    _display[i] = 0;
+  _write_int(num, _display + 7, false);
 }
 
 void TM1638::writeSignedInt(int16_t num, uint8_t remainder)
