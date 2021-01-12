@@ -138,4 +138,5 @@ private:
   // currently that is only the success and failure counter
   static uint16_t _success_counter;
   static uint16_t _failure_counter;
+  static uint16_t _outbox_overflow_counter;
 };

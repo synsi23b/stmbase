@@ -88,8 +88,9 @@ def radio_state(node, payload):
     total = success + failure
     percent = 0.00
     if total > 0:
-        percent = float(success) / float(total)
-    update_radio_state(node, success, failure, percent)
+        percent = round((float(success) / float(total)) * 100)
+    out_overflow = values.get('o', 0)
+    update_radio_state(node, success, failure, percent, out_overflow)
 
 
 def log_key_value(node, payload):
@@ -146,8 +147,8 @@ def task_canceled(node, payload):
 
 
 def temperature_value(node, payload):
-    thermometer = str(payload[:16], encoding='utf-8')
-    temperature = int_16_packer.unpack(payload[16:])[0]
+    thermometer = payload[:8].hex()
+    temperature = int_16_packer.unpack(payload[8:])[0]
     temperature = temperature * 0.0625
     insert_temperature_value(node, thermometer, temperature)
 

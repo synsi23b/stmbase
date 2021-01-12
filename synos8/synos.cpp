@@ -149,8 +149,9 @@ void Routine::_setupTimeout(uint16_t timeout_ms, Routine **waitlist)
   if (_timeout == 0)
   {
     // protect from roll over problem.
-    // a timeout value of 0 has a different interpretition.
-    // t signales to the routine that the action it did timed out.
+    // if the timeout value is ever zero, the returning routine will
+    // interpret this as the waiting timed out, and not that it might
+    // have been woken by the event it was waiting on before the timeout hit it.
     _timeout = SYN_SYSTICK_FREQ;
   }
   _waitlist = waitlist;
@@ -774,14 +775,15 @@ void Kernel::_contextSwitch()
   {
     // find the next runnable routine, is not current
     Routine *pold = _current_routine;
-    // make sure we can switch out of the idle routine properly
+    // if the current routine is the idle routine, we set a fake pointer
+    // this get's us to the real routines once inside the selection loop
     if (_current_routine == _fake_idle_routine())
       _current_routine = _routinelist - 1;
     while (true)
     {
       // get next routine, roll over if we hit the end
-      // this also works of current is the idle routine
-      // we are guaranteed to break, because runnable count is not zero
+      // this also works if current is the idle routine
+      // we are guaranteed to break the loop, because runnable count is not zero
       if (++_current_routine == &_routinelist[SYN_OS_ROUTINE_COUNT])
         _current_routine = _routinelist;
       if (_current_routine->is_runnable())

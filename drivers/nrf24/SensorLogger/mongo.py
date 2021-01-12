@@ -30,7 +30,7 @@ def get_db():
     return _db
 
 
-def update_radio_state(node, success, failure, percent):
+def update_radio_state(node, success, failure, percent, out_overflow):
     mfilter = {
         'node': node
     }
@@ -39,7 +39,8 @@ def update_radio_state(node, success, failure, percent):
         '$set': {'percent': percent},
         '$inc': {
             'packet_send_success': success,
-            'packet_send_failure': failure
+            'packet_send_failure': failure,
+            'outbox_overflow': out_overflow
         }
     }
     db = get_db()

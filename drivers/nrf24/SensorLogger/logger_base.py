@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import time
+import datetime
 from RF24 import *
 #import RPi.GPIO as GPIO
 import struct
@@ -36,7 +37,7 @@ def start_listen(this_node_address, message_callbacks, verbose):
 
     while True:
         _read_all_data()
-        time.sleep(0.1)
+        time.sleep(0.05)
 
 
 def _unfold_address(raw_payload):
@@ -72,7 +73,10 @@ def _read_all_data():
 
 def protocol_sorter(node, packet_id, protocol, payload):
     if verbosity:
-        print(f"{node} - {packet_id} - {protocol} - {payload}")
+        protoname = protocol
+        if protocol in callbacks:
+            protoname = callbacks[protocol].__name__
+        print(f"{datetime.datetime.now()}: {node} - {packet_id} - {protoname} - {payload}")
     last_id = nodes_last_id.get(node, -1)
     if last_id != packet_id:
         nodes_last_id[node] = packet_id
