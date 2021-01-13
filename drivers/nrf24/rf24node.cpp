@@ -78,7 +78,7 @@ void RF24Node::Message::log_str(const char *key, const char *string)
   char *res = _log_key(key, '\5');
   res = syn::Utility::strcpy(res, string);
   *res++ = '\0';
-  _mode = res - (char *)_payload;
+  _mode = (res - (char *)_payload) + 1;
 #ifdef DEBUG
   while (_mode > RF24_NODE_PAYLOAD_SIZE)
     ;

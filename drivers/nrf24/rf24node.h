@@ -106,11 +106,10 @@ public:
     // hold various data about the package, not send
     uint8_t _mode;
     // hold receiver address, gets set by the node
-    // to it's own address before sending
+    // to it's own address before sending and included as payload
     uint16_t _address;
     RF24Node::Protocol _protocol;
-    // adjust size by one for trailing zero
-    uint8_t _payload[RF24_NODE_PAYLOAD_SIZE + 1];
+    uint8_t _payload[RF24_NODE_PAYLOAD_SIZE];
   };
 
   class Config
