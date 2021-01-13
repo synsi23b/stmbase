@@ -270,7 +270,6 @@ void RF24Node::message_handler_routine(uint16_t pconfig)
 
   _current_msg = 0;
   uint8_t retry_count = 0;
-  uint8_t packet_id_counter = 0;
   uint16_t sleep_counter = 0;
   while (true != false)
   {

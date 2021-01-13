@@ -30,16 +30,16 @@ def get_db():
     return _db
 
 
-def update_radio_state(node, success, failure, percent, out_overflow):
+def update_radio_state(node, success, failure, lost_messages, out_overflow):
     mfilter = {
         'node': node
     }
     mupdate = {
         '$currentDate': {'radio_status_stamp': True},
-        '$set': {'percent': percent},
         '$inc': {
             'packet_send_success': success,
             'packet_send_failure': failure,
+            'lost_messages': lost_messages,
             'outbox_overflow': out_overflow
         }
     }

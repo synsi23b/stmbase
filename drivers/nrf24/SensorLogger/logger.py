@@ -85,12 +85,9 @@ def radio_state(node, payload):
     values = _unpack_key_value(payload)
     success = values['s']
     failure = values['f']
-    total = success + failure
-    percent = 0.00
-    if total > 0:
-        percent = round((float(success) / float(total)) * 100)
+    lost_messages = values.get('l', 0)
     out_overflow = values.get('o', 0)
-    update_radio_state(node, success, failure, percent, out_overflow)
+    update_radio_state(node, success, failure, lost_messages, out_overflow)
 
 
 def log_key_value(node, payload):
