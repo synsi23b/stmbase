@@ -38,7 +38,7 @@ public:
 
     // if sending failed, wait a bit and retry
     // can seriously block this node from doing anything else
-    // also might be just the node thinking it didn't suceed
+    // also might be just the node thinking it didn't succeed
     retry_forever = 0x00,
     // wait a bit between sending and try a total of 4 times
     retry_4 = 0x20,
@@ -70,7 +70,7 @@ public:
     void log_str(const char *key, const char *string);
 
     // send strings with different kind of log level
-    // the log level is determined by the protocoll
+    // the log level is determined by the protocol
     // message_info, message_warning, message_error
     void message(const char *message);
 
@@ -81,13 +81,13 @@ public:
     void task(const char *description, uint16_t remaining_seconds, uint8_t progress_percent);
 
     // send the temperature measured on one DS18B20 Thermometer
-    // thermometer_id is a pointer to an 8 byte themometer ID array, wil be send as a hex string
-    // followed directly by temperature value as little endian integer in 100th degrees celsius
+    // thermometer_id is a pointer to an 8 byte thermometer ID array, will be send as a hex string
+    // followed directly by temperature value as little endian integer in 100th degrees Celsius
     // i.e. if the value is 3556 -> 35.56 degrees
     void temperature(const uint8_t *thermometer_id, int16_t value);
 
     // send the completed message to the receiver
-    // linkmode can select amount of attempts to send the message again
+    // link mode can select amount of attempts to send the message again
     // or send it forever, which would be the only mode to be called "reliable"
     // but it can choke the Node message buffer, if the destination is not reachable
     void send(RF24Node::LinkMode mode = unreliable);
@@ -130,13 +130,19 @@ public:
   static void message_handler_routine(uint16_t pconfig);
 
 private:
+  static bool _try_setup_next_message();
+  static bool _try_send();
+  static void _purge_current_message(bool success);
+
   static Mailbox_t _outbox;
-  //static const char *_this_node_address;
+  static Message *_current_msg;
+  static uint16_t _this_node_address;
+
   static RF24 _radio;
   static uint8_t _inbuffer[32];
   // addresses past this line are included in the radio state message
-  // currently that is only the success and failure counter
   static uint16_t _success_counter;
   static uint16_t _failure_counter;
+  static uint16_t _lost_message_counter;
   static uint16_t _outbox_overflow_counter;
 };

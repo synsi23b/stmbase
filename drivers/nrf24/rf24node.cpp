@@ -3,15 +3,17 @@
 //#include <string.h>
 
 RF24Node::Mailbox_t RF24Node::_outbox;
-//const char *RF24Node::_this_node_address;
+RF24Node::Message *RF24Node::_current_msg;
+uint16_t RF24Node::_this_node_address;
 RF24 RF24Node::_radio;
 
 uint8_t RF24Node::_inbuffer[32];
 
-// count the amount of successfull and failed messages
-uint16_t RF24Node::_success_counter = 0;
-uint16_t RF24Node::_failure_counter = 0;
-uint16_t RF24Node::_outbox_overflow_counter = 0;
+// count the amount of successful and failed messages
+uint16_t RF24Node::_success_counter = 0;         // count ACK messages
+uint16_t RF24Node::_failure_counter = 0;         // count NACK messages
+uint16_t RF24Node::_lost_message_counter = 0;    // count NACK & purged messages
+uint16_t RF24Node::_outbox_overflow_counter = 0; // count times message reservation failed
 
 #ifdef STM8S
 template <typename T>
@@ -151,7 +153,7 @@ RF24Node::LinkMode RF24Node::Message::_get_mode() const
 
 uint8_t RF24Node::Message::_get_payload_count() const
 {
-  // address + protocoll + count bytes of mode
+  // address + protocol + count bytes of mode
   return (_mode & 0x1F) + 3;
 }
 
@@ -197,25 +199,76 @@ RF24Node::Message *RF24Node::try_reserve(uint16_t folded_receiver_address, Proto
   return pres;
 }
 
+bool RF24Node::_try_setup_next_message()
+{
+  static uint8_t packet_id_counter = 0;
+#ifdef DEBUG
+  while (_current_msg != 0)
+    ;
+#endif
+  if (_outbox.try_peek(&_current_msg))
+  {
+    // setup message addresses
+    uint8_t adrbuffer[4];
+    Message::unfold_address(_current_msg->_address, adrbuffer);
+    _radio.set_destination((const char *)adrbuffer);
+    _current_msg->_address = _this_node_address;
+    _current_msg->_set_packet_id(packet_id_counter);
+    // 8 bit packet id counter rolls over to 0 packet id in 4 rounds
+    packet_id_counter += 0x40;
+    return true;
+  }
+  return false;
+}
+
+bool RF24Node::_try_send()
+{
+  bool success = _radio.write((uint8_t *)(&_current_msg->_address), _current_msg->_get_payload_count());
+  if (success)
+  {
+    ++_success_counter;
+  }
+  else
+  {
+    ++_failure_counter;
+  }
+  return success;
+}
+
+void RF24Node::_purge_current_message(bool success)
+{
+  if (!success)
+  {
+    ++_lost_message_counter;
+  }
+  _outbox.purge();
+  _current_msg = 0;
+}
+
 void RF24Node::message_handler_routine(uint16_t pconfig)
 {
-  uint8_t adrbuffer[4];
-  uint16_t this_node_address = ((Config *)pconfig)->this_node_address;
   void (*indata_handler)(uint8_t *) = ((Config *)pconfig)->indata_handler;
-  Message::unfold_address(this_node_address, adrbuffer);
-  bool init_success = _radio.init((const char *)adrbuffer);
+  _this_node_address = ((Config *)pconfig)->this_node_address;
+
+  {
+    uint8_t adrbuffer[4];
+    Message::unfold_address(_this_node_address, adrbuffer);
+    while (true)
+    {
+      if (_radio.init((const char *)adrbuffer))
+      {
+        break;
+      }
+      syn::sleep(150);
+    }
+  }
 
   if (indata_handler != 0)
   {
     _radio.listen();
   }
 
-#ifdef DEBUG
-  while(!init_success)
-    ;
-#endif
-
-  Message *mail_to_send = 0;
+  _current_msg = 0;
   uint8_t retry_count = 0;
   uint8_t packet_id_counter = 0;
   uint16_t sleep_counter = 0;
@@ -223,94 +276,78 @@ void RF24Node::message_handler_routine(uint16_t pconfig)
   {
     if (indata_handler != 0)
     {
+      syn::sleep(137);
     }
     else
     {
       syn::sleep(137);
     }
     ++sleep_counter;
-    if (mail_to_send != 0)
+
+    // handle outgoing messages
+    if (_current_msg != 0)
     {
+      // current message is not null, retry to send it
       if (retry_count > 0)
       {
         retry_count -= 8;
         if (retry_count == 0)
         {
-          // our retries are over, purge the message
-          _outbox.purge();  // release message back to pool
-          mail_to_send = 0; // make sure to grab a new message
-          continue;
+          // our retries are over, purge the message instead of sending
+          _purge_current_message(false);
+          continue; // skip everything, the retry message ran out
         }
       }
-      if (_radio.write((uint8_t *)(&mail_to_send->_address), mail_to_send->_get_payload_count()))
+      if (_try_send())
       {
-        _outbox.purge();  // release message back to pool
-        mail_to_send = 0; // make sure to grab a new message
-        ++_success_counter;
-      }
-      else
-      {
-        ++_failure_counter;
+        _purge_current_message(true);
       }
     }
-    else if (_outbox.try_peek(&mail_to_send))
+    else if (_try_setup_next_message())
     {
-      // setup message addresses
-      Message::unfold_address(mail_to_send->_address, adrbuffer);
-      _radio.set_destination((const char *)adrbuffer);
-      //memcpy(mail_to_send->_address, this_node_address, 4);
-      mail_to_send->_address = this_node_address;
-      mail_to_send->_set_packet_id(packet_id_counter);
-      // 8 bit packet id counter rolls over to 0 packet id in 4 rounds
-      packet_id_counter += 0x40;
       // try to send the message
-      bool success = _radio.write((uint8_t *)(&mail_to_send->_address), mail_to_send->_get_payload_count());
+      bool success = _try_send();
       if (!success)
       {
-        ++_failure_counter;
-        // if we weren't successfull, check the message mode to determine the next action
-        LinkMode mode = mail_to_send->_get_mode();
+        // if we weren't successful, check the message mode to determine the next action
+        LinkMode mode = _current_msg->_get_mode();
         if (mode != unreliable)
         {
           retry_count = ((uint8_t)mode) & 0xE0;
-          continue;
+          continue; // skip purging the message, as it is a retry one
         }
       }
       else
       {
-        if ((mail_to_send->_protocol & RF24_NODE_PROTOCOLL_MASK) == radio_state)
+        if ((_current_msg->_protocol & RF24_NODE_PROTOCOLL_MASK) == radio_state)
         {
           // success in sending our radio state, reset the counters
+          sleep_counter = 0;
           _success_counter = 0;
           _failure_counter = 0;
+          _lost_message_counter = 0;
           _outbox_overflow_counter = 0;
         }
-        else
-        {
-          ++_success_counter;
-        }        
       }
-      // successfull send or unreliable message gets here
-      // also get here if we reached the end of a retry counter
-      _outbox.purge();  // release message back to pool
-      mail_to_send = 0; // make sure to grab a new message
+      // successful send or unreliable failure message gets here
+      _purge_current_message(success);
     }
     else
     {
-      // no mail to send, try to send radio status message if the time has come for that
-      // 20 minutes / 137 millliseconds ~ 8759 iterations
+      // outbox is empty and _current_msg is null
       if (sleep_counter > 8759)
       {
-        mail_to_send = try_reserve(RF24_NODE_LOGGER, radio_state);
-        if (mail_to_send)
+        // 20 minutes / 137 milliseconds ~ 8759 iterations
+        // periodically send the status of this node
+        _current_msg = try_reserve(RF24_NODE_LOGGER, radio_state);
+        if (_current_msg)
         {
-          //mail_to_send->_radio_state((uint16_t *)&_success_counter);
-          mail_to_send->log_u16("s", _success_counter);
-          mail_to_send->log_u16("f", _failure_counter);
-          mail_to_send->log_u16("o", _outbox_overflow_counter);
-          mail_to_send->send();
-          mail_to_send = 0;
-          sleep_counter = 0;
+          _current_msg->log_u16("s", _success_counter);
+          _current_msg->log_u16("f", _failure_counter);
+          _current_msg->log_u16("l", _lost_message_counter);
+          _current_msg->log_u16("o", _outbox_overflow_counter);
+          _current_msg->send(RF24Node::unreliable); // definitely send only once, since we don't reset counters in the retry-arc
+          _current_msg = 0;
         }
       }
     }
