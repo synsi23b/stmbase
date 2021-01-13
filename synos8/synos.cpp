@@ -50,8 +50,7 @@ void Routine::init(void (*functor)(uint16_t), uint16_t arg, uint8_t stacksize)
   while (uint16_t(Kernel::_mainstack - stacksize) < 0x1FF)
     ;
 #endif
-  //uint8_t *stack = Kernel::_base_stack_setup(stacksize);
-  Routine *prout = Kernel::_routinelist + Kernel::_readycount;
+  Routine *prout = _current_routine++;
   prout->_state = runnable;
   uint8_t *stacktop = _mainstack;
   _mainstack -= stacksize;
@@ -118,7 +117,7 @@ void Routine::init(void (*functor)(uint16_t), uint16_t arg, uint8_t stacksize)
   *pstack-- = 0; // b10 & b11
   *pstack-- = 0; // b12 & b13
   *pstack = 0;   // b14 & b15
-   prout->_stackptr = ((uint8_t*)pstack) - 1; // point to first free byte of the stack
+  prout->_stackptr = ((uint8_t*)pstack) - 1; // point to first free byte of the stack
   ++Kernel::_readycount;
 }
 
@@ -142,7 +141,7 @@ void Routine::_setupTimeout(uint16_t timeout_ms, Routine **waitlist)
 #if (SYN_SYSTICK_FREQ == 2)
   // since we test the timneout by equality for speed, we have to make sure only
   // even numbers are used, since millis is incremented by 2, not 1
-  // so clear the leas significant bit
+  // so clear the least significant bit
   timeout_ms = timeout_ms & 0xFFFE;
 #endif
   _timeout = timeout_ms + System::millis();
@@ -182,7 +181,7 @@ void Routine::TestTimoutExpired::operator()(Routine *pr)
     if (pr->_timeout == _current_millis)
     {
       // unblocks the routine
-      if (Kernel::_removeWaitlist(pr->_waitlist, pr))
+      if (Kernel::_removeWaitlist(pr, pr->_waitlist))
       {
         // is expired, set to zero to notify user code
         pr->_timeout = 0;
@@ -608,15 +607,15 @@ void Kernel::_unblockEventlist(Routine *&listhead, uint8_t value)
   if (listhead != 0)
   {
     Routine *prt = listhead;
+    listhead = 0; // reset listhead to be empty, than dissovle the list
+    Routine *tmp = prt;
     do
     {
       prt->_setEventValue(value);
       prt->unblock();
       prt = prt->_next;
     } while (prt != 0);
-    prt = listhead;
-    listhead = 0;
-    _contextUnblocked(prt);
+    _contextUnblocked(tmp);
   }
 }
 #endif
@@ -630,8 +629,9 @@ void Kernel::init()
   _measure_pin.mode(true, true);
   _measure_pin.set();
 #endif
-  // used to select correct index in _routinelist during initialization
+  // used during routine initialization
   _readycount = 0;
+  _current_routine = _routinelist;
   // use this variable to initialize co routines
   _mainstack = (uint8_t *)(0x3FF - SYN_OS_MAIN_STACK_SIZE);
 }
@@ -707,10 +707,11 @@ void Kernel::exit_isr()
 
 void Kernel::_enterWaitlist(Routine *&listhead, Routine::State blocking_reason)
 {
+  Routine *cur = _current_routine;
+  cur->_next = 0;
   if (listhead == 0)
   {
-    listhead = _current_routine;
-    _current_routine->_next = 0;
+    listhead = cur;
   }
   else
   {
@@ -719,8 +720,7 @@ void Kernel::_enterWaitlist(Routine *&listhead, Routine::State blocking_reason)
     {
       tmp = tmp->_next;
     }
-    tmp->_next = _current_routine;
-    _current_routine->_next = 0;
+    tmp->_next = cur;
   }
   _contextYield(blocking_reason);
 }
@@ -736,7 +736,7 @@ void Kernel::_unblockWaitlist(Routine *&listhead)
   }
 }
 
-bool Kernel::_removeWaitlist(Routine **listhead, Routine *to_remove)
+bool Kernel::_removeWaitlist(Routine *to_remove, Routine **listhead)
 {
   // set the return value to true if the routine timed out during whatever it waited for
   bool ret = false;
@@ -775,23 +775,25 @@ void Kernel::_contextSwitch()
   {
     // find the next runnable routine, is not current
     Routine *pold = _current_routine;
+    Routine *pnext = pold;
     // if the current routine is the idle routine, we set a fake pointer
     // this get's us to the real routines once inside the selection loop
-    if (_current_routine == _fake_idle_routine())
-      _current_routine = _routinelist - 1;
+    if (pnext == _fake_idle_routine())
+      pnext = _routinelist - 1;
     while (true)
     {
       // get next routine, roll over if we hit the end
       // this also works if current is the idle routine
       // we are guaranteed to break the loop, because runnable count is not zero
-      if (++_current_routine == &_routinelist[SYN_OS_ROUTINE_COUNT])
-        _current_routine = _routinelist;
-      if (_current_routine->is_runnable())
+      if (++pnext == &_routinelist[SYN_OS_ROUTINE_COUNT])
+        pnext = _routinelist;
+      if (pnext->is_runnable())
       {
 #if (SYN_OS_ROUTINE_RR_SLICE_MS != 0)
         _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS / SYN_SYSTICK_FREQ;
 #endif
-        archContextSwitch(pold, _current_routine);
+        _current_routine = pnext;
+        archContextSwitch(pold, pnext);
         break;
       }
     }
@@ -800,7 +802,7 @@ void Kernel::_contextSwitch()
   {
     Routine *pold = _current_routine;
     _current_routine = _fake_idle_routine();
-    archContextSwitch(pold, _current_routine);
+    archContextSwitch(pold, _fake_idle_routine());
   }
   // else idle task already running and no runnables, do nothing
 }
@@ -856,8 +858,7 @@ void Kernel::_tickySwitch()
     // for some reason without this nop the compiler thinks its a cool
     // idea to clear the reschedule_request before even reading it.
     // doesn't matter if its set to volatile or not.
-    // so removed volatile and instead, added different clearing scheme
-    //nop();
+    nop();
     _isr_reschedule_request = 0;
     // request 0x80 is set when an interrupt enables a routine
     // but since we don't practice eager preemption, this only

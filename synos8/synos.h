@@ -281,7 +281,7 @@ namespace syn
     static void _unblockEventlist(Routine *&listhead, uint8_t value);
     // remove the specified routine from the waitlist, but don't reschedule
     // returns true if the routine is actually in the waitlist
-    static bool _removeWaitlist(Routine **listhead, Routine *to_remove);
+    static bool _removeWaitlist(Routine *to_remove, Routine **listhead);
 
     static Routine _routinelist[SYN_OS_ROUTINE_COUNT];
 #if (SYN_OS_ROUTINE_RR_SLICE_MS != 0)
