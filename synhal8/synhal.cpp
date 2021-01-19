@@ -110,6 +110,19 @@ char *Utility::sprint_hex(char *dst, uint8_t value)
   return _write_single_hex(dst, value & 0x0F);
 }
 
+bool Utility::memcmp(const uint8_t *a1, const uint8_t *a2, uint8_t len)
+{
+  while (len != 0)
+  {
+    if (*a1++ != *a2++)
+    {
+      return false;
+    }
+    --len;
+  }
+  return true;
+}
+
 void GpioBase::pushpull(GPIO_TypeDef *port, uint8_t mask)
 {
   // _port->DDR |= _pinmask;

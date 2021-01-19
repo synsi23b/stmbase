@@ -33,6 +33,8 @@ namespace syn
     static char *sprint_u16(char *dst, uint16_t value);
     // write unsigned integer as asci hex to the outbuffer, returns pointer to next write position
     static char *sprint_hex(char *dst, uint8_t value);
+    // compare two arrays for equality
+    static bool memcmp(const uint8_t *a1, const uint8_t *a2, uint8_t len);
   };
 
   class GpioBase
@@ -1679,10 +1681,11 @@ namespace syn
     // when leaving the parameters blank it is set to the common 8N1
     static void init(eBaudrate bd, eStopbits sb = sb1, eParity pr = none)
     {
-      Gpio pin('D', 5);
-      pin.pushpull();
-      pin.change_pin_mask_by_number(6);
-      pin.opendrain();
+      Gpio pin;
+      pin.init('D', 5)
+          .pushpull();
+      pin.change_pin_mask_by_number(6)
+          .floating();
       switch (bd)
       {
       case bd2400:
@@ -1764,24 +1767,22 @@ namespace syn
       rim();
     }
 
-    // read sizeof(datatype) * count bytes into the buffer data without blocking
-    template <typename T>
-    static void read_async(T *data, uint8_t count = 1)
+    // read count bytes into the buffer data without blocking
+    static void read_async(uint8_t *data, uint8_t count)
     {
       // wait for any other ongoing transmission to complete
       while (rx_busy())
         ;
-      sRxData = (uint8_t *)data;
-      sRxCount = count * sizeof(T);
+      sRxData = data;
+      sRxCount = count;
       // clear the receiver not empty flag
       UART1->SR &= ~UART1_SR_RXNE;
       // enable Uart interrupt to take care of all transmitting
       UART1->CR2 |= UART1_CR2_RIEN;
     }
 
-    // read sizeof(datatype) * count bytes into the buffer data
-    template <typename T>
-    static void read(T *data, uint8_t count = 1)
+    // read count bytes into the buffer data
+    static void read(uint8_t *data, uint8_t count)
     {
       read_async(data, count);
       // block until transmission is finished
@@ -1796,27 +1797,26 @@ namespace syn
       UART1->DR = c;
     }
 
-    // write sizeof(datatype) * count bytes from the buffer data without blocking
-    template <typename T>
-    static void write_async(const T *data, uint8_t count = 1)
+    // write count bytes from the buffer data without blocking
+    static void write_async(const uint8_t *data, uint8_t count)
     {
       // wait for any ongoing transmission to complete
       while (tx_busy())
         ;
-      sTxData = (const uint8_t *)data;
-      sTxCount = count * sizeof(T);
+      sTxData = data;
+      sTxCount = count;
       // enable Uart interrupt to take care of all transmitting
       UART1->CR2 |= UART1_CR2_TIEN;
     }
 
-    // write sizeof(datatype) * count bytes from the buffer data
-    template <typename T>
-    static void write(T *data, uint8_t count = 1)
+    // write count bytes from the buffer data
+    static void write(const uint8_t *data, uint8_t count)
     {
-      write_async(data, count);
-      // block until transmission is finished
-      while (tx_busy())
-        ;
+      while (count != 0)
+      {
+        putc(*data++);
+        --count;
+      }
     }
 
     // transmitter isr, don't call manually
