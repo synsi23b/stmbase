@@ -48,7 +48,7 @@ extern "C" {
 
 struct AES_ctx
 {
-  uint8_t RoundKey[AES_keyExpSize];
+  //uint8_t RoundKey[AES_keyExpSize];
 #if (defined(CBC) && (CBC == 1)) || (defined(CTR) && (CTR == 1))
   uint8_t Iv[AES_BLOCKLEN];
 #endif
@@ -78,6 +78,8 @@ void AES_ECB_decrypt(const struct AES_ctx* ctx, uint8_t* buf);
 void AES_CBC_encrypt_buffer(struct AES_ctx* ctx, uint8_t* buf, uint8_t length);
 void AES_CBC_decrypt_buffer(struct AES_ctx* ctx, uint8_t* buf, uint8_t length);
 
+// takes a 16 byte iv and a block. returns pointer to computed mic *not reentrant*
+const uint8_t *create_mic(const uint8_t *iv, const uint8_t *block);
 #endif // #if defined(CBC) && (CBC == 1)
 
 
