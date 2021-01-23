@@ -371,6 +371,8 @@ void Adc::configurepin(uint8_t channel)
   case 6:
     pin.init('D', 6);
     break;
+  default:
+    return;
   };
   pin.floating();
 #else
