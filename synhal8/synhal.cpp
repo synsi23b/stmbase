@@ -1,9 +1,14 @@
 #include "synhal.h"
 
-volatile uint16_t syn::System::sMillis = 0;
+using namespace syn;
+
+volatile uint16_t System::_millis = 0;
+#ifdef SYN_SYSTEM_SECONDS_SUPPORT
+uint32_t System::_seconds = 0;
+#endif
 
 // block for the specidifed ammount of microseconds using a busy loop
-void syn::Utility::udelay(uint16_t micros)
+void Utility::udelay(uint16_t micros)
 {
   for (; micros != 0; --micros)
   {
@@ -22,8 +27,6 @@ void syn::Utility::udelay(uint16_t micros)
     nop();
   }
 }
-
-using namespace syn;
 
 // return number of characters excluding trailing zero
 uint8_t Utility::strlen(const char *str)
@@ -224,8 +227,8 @@ Gpio &Gpio::high_speed()
 // block for the specidifed ammount of millis using systick
 void System::delay(uint16_t millis)
 {
-  uint16_t end = millis + sMillis;
-  while ((end - sMillis) <= millis)
+  uint16_t end = millis + _millis;
+  while ((end - _millis) <= millis)
     ;
 }
 
@@ -380,6 +383,26 @@ void Adc::configurepin(uint8_t channel)
       .floating();
 #endif
   ADC1->TDRL |= (1 << channel);
+}
+
+void Adc::random(uint8_t *buff, uint8_t count, uint8_t channel)
+{
+  initContinuous(channel);
+  while (count != 0)
+  {
+    uint8_t tmp = 0;
+    for (uint8_t mask = 0x80; mask != 0; mask >>= 1)
+    {
+      uint16_t av = syn::Adc::read();
+      if (av & 0x01)
+      {
+        tmp |= mask;
+      }
+      syn::Utility::udelay(4);
+    }
+    *buff++ = tmp;
+    --count;
+  }
 }
 
 /* using the numbers from the manual works just fine, I dont know why they defined it this way */

@@ -444,48 +444,52 @@ namespace syn
     // returns current value of the millis counter
     static uint16_t millis()
     {
-      return sMillis;
+      return _millis;
     }
 
     // return the lower 8 bit of the millis counter
     static uint8_t millis8()
     {
-      return *(((uint8_t *)&sMillis) + 1);
+      return *(((uint8_t *)&_millis) + 1);
     }
 
     // block for the specidifed ammount of millis using systick
     static void delay(uint16_t millis);
 
+#ifdef SYN_SYSTEM_SECONDS_SUPPORT
+    static uint32_t *seconds()
+    {
+      return &_seconds;
+    }
+#endif
+
     // Systick ISR, don't call manually
     static void _systick_isr()
     {
       TIM4->SR1 = 0; // clear irq flag
-      ++sMillis;
-#if (SYN_SYSTICK_FREQ == 2)
-      ++sMillis;
+      uint16_t tmp = ++_millis;
+#ifdef SYN_SYSTEM_SECONDS_SUPPORT
+      if ((tmp % 1000) == 0)
+      {
+        ++_seconds;
+      }
 #endif
     }
 
   private:
     static void systick_init()
     {
-#if (SYN_SYSTICK_FREQ == 1)
       TIM4->PSCR = 0x6;        // 16MHz / 64 -> 250KHz
       TIM4->ARR = 249;         // 125KHz / 250 -> 1000Hz
       TIM4->EGR = TIM4_EGR_UG; // load the values from shadow registers
       TIM4->IER = TIM4_IER_UIE;
       TIM4->CR1 = TIM4_CR1_URS | TIM4_CR1_CEN;
-#endif
-#if (SYN_SYSTICK_FREQ == 2)
-      TIM4->PSCR = 0x7;        // 16MHz / 128 -> 125KHz
-      TIM4->ARR = 249;         // 125KHz / 250 -> 500Hz
-      TIM4->EGR = TIM4_EGR_UG; // load the values from shadow registers
-      TIM4->IER = TIM4_IER_UIE;
-      TIM4->CR1 = TIM4_CR1_URS | TIM4_CR1_CEN;
-#endif
     }
 
-    static volatile uint16_t sMillis;
+    static volatile uint16_t _millis;
+#ifdef SYN_SYSTEM_SECONDS_SUPPORT
+    static uint32_t _seconds;
+#endif
   };
 
   // capture the current time during reset, than allows querries whether a specific ammount
@@ -509,6 +513,32 @@ namespace syn
 
   private:
     uint16_t _reset_time;
+  };
+
+  class MinuteDeadlineTimer
+  {
+  public:
+    void reset(uint8_t offset = 0)
+    {
+      _deadline.reset();
+      _minutes_past = offset;
+    }
+
+    // compare if compare_value minutes have past since last reset
+    // has to be called at least every 5 seconds, better faster.
+    bool expired(uint8_t compare_value)
+    {
+      if (_deadline.expired(60000))
+      {
+        _deadline.reset();
+        ++_minutes_past;
+      }
+      return _minutes_past >= compare_value;
+    }
+
+  private:
+    DeadlineTimer _deadline;
+    uint8_t _minutes_past;
   };
 
 #ifndef SYN_HAL_32_PIN_DEVICE
@@ -1679,7 +1709,7 @@ namespace syn
 
     // initialize the UART interface with the given settings
     // when leaving the parameters blank it is set to the common 8N1
-    static void init(eBaudrate bd, eStopbits sb = sb1, eParity pr = none)
+    static void init(eBaudrate bd = bd115200, eStopbits sb = sb1, eParity pr = none)
     {
       Gpio pin;
       pin.init('D', 5)
@@ -1839,6 +1869,8 @@ namespace syn
   // readSingle(channel);
   // which will setup the pin, make one coversion and return the signal.
   // blocks during conversion instead of leaving the ADC running in the background.
+  //
+  // In general, one conversion takes 28 master clock cycles.
   class Adc
   {
   public:
@@ -1874,7 +1906,7 @@ namespace syn
     // read the last valid 10 bit value in single or continued single channel mode
     static uint16_t read()
     {
-      return *((uint16_t *)&(ADC1->DRH));
+      return *((volatile uint16_t *)&(ADC1->DRH));
     }
 
     // read the last valid 8 bit value in single or continued single channel mode
@@ -1957,6 +1989,8 @@ namespace syn
       ADC1->CR2 = ADC1_CR2_ALIGN;
       ADC1->CSR = channel;
       ADC1->CR1 = ADC1_CR1_CONT | ADC1_CR1_ADON;
+      convert();
+      Utility::udelay(3);
     }
 
     // set the adc to perform a continous 8 bit precission conversion
@@ -2027,6 +2061,12 @@ namespace syn
       // clear the schmitt trigger disable bit again
       ADC1->TDRL &= ~(1 << channel);
     }
+
+    // use adc to generate random values
+    // fills the buffer until count bytes are reached
+    // works with either a floating pin, or a port without pin (for example 10)
+    // but floating pin seems to be working better
+    static void random(uint8_t *buff, uint8_t count, uint8_t channel);
 
     /*
     enable the analog watchdog to trigger an interrupt if the min or max
