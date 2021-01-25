@@ -39,3 +39,4 @@ synos8/kernel/
 *.pyc
 
 .mongo_creds.json
+drivers/aes/roundkey.h

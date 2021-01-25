@@ -14,11 +14,6 @@
 //#define SYN_HAL_EXTI_D
 //#define SYN_HAL_EXTI_E
 
-// determine the systick behavior
-// 0 -> off (synos can't round robin)
-// 1 -> 1ms per tick
-// 2 -> 2ms per tick
-#define SYN_SYSTICK_FREQ 1
 // the ammount of used routines, has to match the actual ammount used
 // it is detrtiement to use every routine index only once and use them all
 #define SYN_OS_ROUTINE_COUNT 2

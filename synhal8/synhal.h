@@ -845,6 +845,20 @@ namespace syn
       TIM1->CR1 = TIM1_CR1_CEN;
     }
 
+    // initialize to run on 25khz
+    // minimum value is zero, if that works for the fans
+    // 100% duity cycle is at value 128 or above
+    static void init_pc_fan_pwm()
+    {
+      // divide pclk by 5 -> 3.2 MHz -> 312.5 nanosec per tick
+      TIM1->PSCRH = 0;
+      TIM1->PSCRL = 4;
+      // 40usec (25KHz) / 312.5 nanosec = 128 parts aka 100% duty.
+      TIM1->ARRH = 0;
+      TIM1->ARRL = 127;
+      TIM1->CR1 = TIM1_CR1_CEN;
+    }
+
     // enable channel 1 and 2 mapped to encoder interface
     static void init_encoder()
     {
@@ -947,7 +961,7 @@ namespace syn
     static void setPWM(uint16_t duty, uint8_t channel)
     {
       channel -= 1;
-      uint8_t *ccr_high = (uint8_t *)(&TIM2->CCR1H) + channel * 2;
+      uint8_t *ccr_high = (uint8_t *)(&TIM1->CCR1H) + channel * 2;
       // in the manual it says, the LDW instruction is forbidden, and we need to write
       // the MSB and than the LSB. LDW instruction writes the LSB first, so, just do it twice
       // LDW first, than LD (8 bit)

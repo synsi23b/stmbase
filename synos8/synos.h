@@ -506,8 +506,8 @@ namespace syn
   {
     static_assert(Index < SYN_OS_TICK_HOOK_COUNT, "Timer Index out of bounds!");
     static_assert(Reload_ms > 0, "Timer needs at least Reload of 1");
-    static_assert((Reload_ms / SYN_SYSTICK_FREQ) < 256, "Timer reload needs to be less than 256 ticks");
-    _timerlist[Index]._init(functor, Reload_ms / SYN_SYSTICK_FREQ);
+    static_assert((Reload_ms) < 256, "Timer reload needs to be less than 256 ticks");
+    _timerlist[Index]._init(functor, Reload_ms);
   }
 #endif
 

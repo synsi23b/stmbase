@@ -134,16 +134,10 @@ void Routine::sleep(uint16_t timeout)
 
 void Routine::_setupTimeout(uint16_t timeout_ms, Routine **waitlist)
 {
-  if(timeout_ms < SYN_SYSTICK_FREQ)
+  if (timeout_ms == 0)
   {
-    timeout_ms = SYN_SYSTICK_FREQ;
+    timeout_ms = 1;
   }
-#if (SYN_SYSTICK_FREQ == 2)
-  // since we test the timneout by equality for speed, we have to make sure only
-  // even numbers are used, since millis is incremented by 2, not 1
-  // so clear the least significant bit
-  timeout_ms = timeout_ms & 0xFFFE;
-#endif
   _timeout = timeout_ms + System::millis();
   if (_timeout == 0)
   {
@@ -151,7 +145,7 @@ void Routine::_setupTimeout(uint16_t timeout_ms, Routine **waitlist)
     // if the timeout value is ever zero, the returning routine will
     // interpret this as the waiting timed out, and not that it might
     // have been woken by the event it was waiting on before the timeout hit it.
-    _timeout = SYN_SYSTICK_FREQ;
+    _timeout = 1;
   }
   _waitlist = waitlist;
 }
@@ -625,9 +619,9 @@ void Kernel::init()
   // initialize clocks and peripherals
   System::init();
 #ifdef SYN_OS_MEASURE_INTERNALS
-  _measure_pin.init('A', 1);
-  _measure_pin.mode(true, true);
-  _measure_pin.set();
+  _measure_pin.init('A', 1)
+    .pushpull()
+    .set();
 #endif
   // used during routine initialization
   _readycount = 0;
@@ -641,7 +635,7 @@ void Kernel::spin()
   // reset current count, got counted up by adding routines
   _current_routine = _routinelist;
 #if (SYN_OS_ROUTINE_RR_SLICE_MS != 0)
-  _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS / SYN_SYSTICK_FREQ;
+  _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS;
 #endif
 #ifdef DEBUG
   while (_readycount != SYN_OS_ROUTINE_COUNT)
@@ -699,7 +693,7 @@ void Kernel::exit_isr()
     // _current_routine already points to the new routine, so just
     // reschedule (delayed) the whole purpose of this is to not interrupt an isr
 #if (SYN_OS_ROUTINE_RR_SLICE_MS != 0)
-    _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS / SYN_SYSTICK_FREQ;
+    _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS;
 #endif
     archContextSwitch(_fake_idle_routine(), _current_routine);
   }
@@ -790,7 +784,7 @@ void Kernel::_contextSwitch()
       if (pnext->is_runnable())
       {
 #if (SYN_OS_ROUTINE_RR_SLICE_MS != 0)
-        _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS / SYN_SYSTICK_FREQ;
+        _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS;
 #endif
         _current_routine = pnext;
         archContextSwitch(pold, pnext);
@@ -835,7 +829,7 @@ void Kernel::_contextUnblocked(Routine *unblocked)
     {
       // not an isr context, so switch right away
 #if (SYN_OS_ROUTINE_RR_SLICE_MS != 0)
-      _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS / SYN_SYSTICK_FREQ;
+      _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS;
 #endif
       archContextSwitch(_fake_idle_routine(), _current_routine);
     }
@@ -866,7 +860,7 @@ void Kernel::_tickySwitch()
     // _current_routine already points to the new routine, so just
     // reschedule (delayed) the whole purpose of this is to not interrupt an isr
 #if (SYN_OS_ROUTINE_RR_SLICE_MS != 0)
-    _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS / SYN_SYSTICK_FREQ;
+    _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS;
 #endif
 
     archContextSwitch(_fake_idle_routine(), _current_routine);
@@ -881,7 +875,7 @@ void Kernel::_tickySwitch()
       if (_readycount == 1 && _current_routine->is_runnable())
       {
         // no switch needed, just refresh this routines tick count
-        _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS / SYN_SYSTICK_FREQ;
+        _current_ticks_left = SYN_OS_ROUTINE_RR_SLICE_MS;
       }
       else
       {
