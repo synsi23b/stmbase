@@ -1,5 +1,9 @@
 #include "rf24.h"
 #include "nRF24L01.h"
+#include "../aes/aes.h"
+
+syn::Gpio RF24::_csel;
+syn::Gpio RF24::_ce;
 
 // setup all config registers and assign this modules receiving address (3 byte)
 // in case of STM8s uses port A1 for csn and A2 for ce
@@ -89,6 +93,21 @@ bool RF24::write(const uint8_t *data, uint8_t count)
   return true;
 }
 
+bool RF24::write_mic(uint8_t *data_32_byte)
+{
+  // first of all, zero the last 8 byte of the message
+  // this will contain the MIC, but for calculation it's
+  // important to have a known state
+  syn::Utility::clear_array(data_32_byte + 24, 8);
+  // next, calculate the MIC inside the AES LIB. the key should be made
+  // by the accompaning python script
+  const uint8_t* mic = AES_CBC_create_mic(data_32_byte, data_32_byte + 16);
+  // now we have the 16 byte long MIC, only use the first 8 bytes thou
+  syn::Utility::memcpy(data_32_byte + 24, mic, 8);
+  // finally, send the crap with the regular method
+  return write(data_32_byte, 32);
+}
+
 bool RF24::write_ack_payload(const uint8_t *data, uint8_t count)
 {
   bool ret = false;
@@ -145,6 +164,33 @@ uint8_t RF24::read(uint8_t *buffer)
   // clear RX_FIFO IRQ event flag
   _write_register(NRF_STATUS, 0x40);
   return count;
+}
+
+int8_t RF24::read_mic(uint8_t *buffer_32_byte)
+{
+  uint8_t size = read(buffer_32_byte);
+  if(size != 32)
+  {
+    return size;
+  }
+  // got 32 byte package, check mic
+  // first store the received mic temporarily
+  uint8_t mictmp[8];
+  syn::Utility::memcpy(mictmp, buffer_32_byte + 24, 8);
+  // than zero it
+  syn::Utility::clear_array(buffer_32_byte + 24, 8);
+  // and calculate the mic again
+  const uint8_t *pmic = AES_CBC_create_mic(buffer_32_byte, buffer_32_byte + 16);
+  // finally, compare if the received and calculated mic match
+  if(syn::Utility::memcmp(pmic, mictmp, 8))
+  {
+    // the MIC is correct, return success value
+    return 32;
+  }
+  else
+  {
+    return -1;
+  }
 }
 
 uint8_t RF24::_write_command(uint8_t command)

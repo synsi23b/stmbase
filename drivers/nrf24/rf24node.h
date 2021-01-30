@@ -1,8 +1,8 @@
 #pragma once
 
+#include "../../../src/synhal_cfg.h"
 #include "rf24.h"
 
-#define RF24_NODE_MAILBOX_COUNT 8
 #define RF24_NODE_PAYLOAD_SIZE 29
 
 // put in 2 chars (A..Z) and a number (0..63), get a folded 4 byte address
@@ -119,8 +119,6 @@ public:
     void (*indata_handler)(uint8_t *payload);
   };
 
-  typedef syn::MailBox<Message, RF24_NODE_MAILBOX_COUNT> Mailbox_t;
-
   // reserve a Message to fill with data
   // call message send method to try and send it
   // returns 0 if the message pool is full already
@@ -129,6 +127,9 @@ public:
   static void message_handler_routine(uint16_t pconfig);
 
 private:
+#if RF24_NODE_MAILBOX_COUNT != 0
+  typedef syn::MailBox<Message, RF24_NODE_MAILBOX_COUNT> Mailbox_t;
+  
   static bool _try_setup_next_message();
   static bool _try_send();
   static void _purge_current_message(bool success);
@@ -137,11 +138,11 @@ private:
   static Message *_current_msg;
   static uint16_t _this_node_address;
 
-  static RF24 _radio;
   static uint8_t _inbuffer[32];
   // addresses past this line are included in the radio state message
   static uint16_t _success_counter;
   static uint16_t _failure_counter;
   static uint16_t _lost_message_counter;
   static uint16_t _outbox_overflow_counter;
+#endif
 };

@@ -14,6 +14,17 @@
 //#define SYN_HAL_EXTI_D
 //#define SYN_HAL_EXTI_E
 
+/**************************************/
+// defines for advanced drivers
+/**************************************/
+
+// set to zero disables rf24node convenience routine
+#define RF24_NODE_MAILBOX_COUNT 4
+
+/**************************************/
+// defines for configuring synos itself
+/**************************************/
+
 // the ammount of used routines, has to match the actual ammount used
 // it is detrtiement to use every routine index only once and use them all
 #define SYN_OS_ROUTINE_COUNT 2

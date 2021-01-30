@@ -20,7 +20,7 @@ elif mode == 256:
   exp_key = 32
   exp_rk = 240
 
-key = "whateverwhatever"
+key = ""
 while len(key) != exp_key:
   key = input(f"Please enter a {exp_key} character key: ")
 
@@ -30,7 +30,7 @@ while len(key) != exp_key:
 print(f"Got key >> {key} <<")
 ordkey = [ord(c) for c in key]
 prockey = []
-for i in range(exp_key / 4):
+for i in range(int(exp_key / 4)):
   prockey.append([])
   prockey[-1].append(ordkey.pop(0))
   prockey[-1].append(ordkey.pop(0))
@@ -57,6 +57,7 @@ lastline = roundkeys[-1]
 roundkeys[-1] = lastline[:-3]
 
 with open(current_folder / "roundkey.h", "w") as of:
+  of.write(f"// Key: {key}\n")
   of.write(f"static const unsigned char static_roundkey[{exp_rk}] = {{\n")
   of.writelines(roundkeys)
   of.write("\n};")

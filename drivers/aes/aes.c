@@ -511,7 +511,7 @@ void AES_CBC_encrypt_buffer(struct AES_ctx *ctx, uint8_t* buf, uint8_t length)
   memcpy(ctx->Iv, Iv, AES_BLOCKLEN);
 }
 
-const uint8_t* create_mic(const uint8_t* iv, const uint8_t* block)
+const uint8_t* AES_CBC_create_mic(const uint8_t* iv, const uint8_t* block)
 {
   static uint8_t mic[16];
   uint8_t count = AES_BLOCKLEN;

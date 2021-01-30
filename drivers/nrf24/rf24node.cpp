@@ -2,10 +2,10 @@
 //#include <stdio.h>
 //#include <string.h>
 
+#if RF24_NODE_MAILBOX_COUNT != 0
 RF24Node::Mailbox_t RF24Node::_outbox;
 RF24Node::Message *RF24Node::_current_msg;
 uint16_t RF24Node::_this_node_address;
-RF24 RF24Node::_radio;
 
 uint8_t RF24Node::_inbuffer[32];
 
@@ -14,6 +14,8 @@ uint16_t RF24Node::_success_counter = 0;         // count ACK messages
 uint16_t RF24Node::_failure_counter = 0;         // count NACK messages
 uint16_t RF24Node::_lost_message_counter = 0;    // count NACK & purged messages
 uint16_t RF24Node::_outbox_overflow_counter = 0; // count times message reservation failed
+
+
 
 #ifdef STM8S
 template <typename T>
@@ -211,7 +213,7 @@ bool RF24Node::_try_setup_next_message()
     // setup message addresses
     uint8_t adrbuffer[4];
     Message::unfold_address(_current_msg->_address, adrbuffer);
-    _radio.set_destination((const char *)adrbuffer);
+    RF24::set_destination((const char *)adrbuffer);
     _current_msg->_address = _this_node_address;
     _current_msg->_set_packet_id(packet_id_counter);
     // 8 bit packet id counter rolls over to 0 packet id in 4 rounds
@@ -223,7 +225,7 @@ bool RF24Node::_try_setup_next_message()
 
 bool RF24Node::_try_send()
 {
-  bool success = _radio.write((uint8_t *)(&_current_msg->_address), _current_msg->_get_payload_count());
+  bool success = RF24::write((uint8_t *)(&_current_msg->_address), _current_msg->_get_payload_count());
   if (success)
   {
     ++_success_counter;
@@ -255,7 +257,7 @@ void RF24Node::message_handler_routine(uint16_t pconfig)
     Message::unfold_address(_this_node_address, adrbuffer);
     while (true)
     {
-      if (_radio.init((const char *)adrbuffer))
+      if (RF24::init((const char *)adrbuffer))
       {
         break;
       }
@@ -265,7 +267,7 @@ void RF24Node::message_handler_routine(uint16_t pconfig)
 
   if (indata_handler != 0)
   {
-    _radio.listen();
+    RF24::listen();
   }
 
   _current_msg = 0;
@@ -352,3 +354,5 @@ void RF24Node::message_handler_routine(uint16_t pconfig)
     }
   }
 }
+
+#endif // #if RF24_NODE_MAILBOX_COUNT != 0

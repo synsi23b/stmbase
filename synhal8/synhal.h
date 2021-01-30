@@ -35,6 +35,10 @@ namespace syn
     static char *sprint_hex(char *dst, uint8_t value);
     // compare two arrays for equality
     static bool memcmp(const uint8_t *a1, const uint8_t *a2, uint8_t len);
+    // copy array
+    static void memcpy(uint8_t* dst, const uint8_t *src, uint8_t count);
+    // zero array
+    static void clear_array(uint8_t* data, uint8_t count);
   };
 
   class GpioBase
