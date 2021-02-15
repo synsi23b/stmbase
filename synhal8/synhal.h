@@ -315,8 +315,8 @@ namespace syn
       // disable voltage regulator when power down
       CLK->ICKR = 0x0D | CLK_ICKR_REGAH;
       // wait till LSI and HSI are ready
-      while (!(CLK->ICKR & 0x12))
-        ;
+      //while (!(CLK->ICKR & 0x12)) // HSI is ready after reset, already in use
+      //  ;
       // set HSI and CPU prescaler to 1 for full speed 16MHz
       CLK->CKDIVR = 0;
       // enable programm memory write protection
@@ -831,9 +831,9 @@ namespace syn
       // divide pclk by 2^4 (16) -> 1MHz
       TIM1->PSCRH = 0;
       TIM1->PSCRL = 15;
-      // reload at 20.000 -> 50 Hz
+      // reload at 19999 -> 50 Hz
       TIM1->ARRH = 0x4E;
-      TIM1->ARRL = 0x20;
+      TIM1->ARRL = 0x1F;
       TIM1->CR1 = TIM1_CR1_CEN;
     }
 
@@ -843,7 +843,7 @@ namespace syn
       // divide by 128 to get roughly an update at 125KHz
       TIM1->PSCRH = 0;
       TIM1->PSCRL = 127;
-      // reload at 255 -> ~490Hz
+      // reload at 254 -> ~490Hz
       TIM1->ARRH = 0;
       TIM1->ARRL = 0xFE;
       TIM1->CR1 = TIM1_CR1_CEN;
@@ -1050,9 +1050,9 @@ namespace syn
     {
       // divide pclk by 2^4 (16) -> 1MHz
       TIM2->PSCR = 4;
-      // reload at 20.000 -> 50 Hz
+      // reload at 19999 -> 50 Hz
       TIM2->ARRH = 0x4E;
-      TIM2->ARRL = 0x20;
+      TIM2->ARRL = 0x1F;
       TIM2->CR1 = TIM2_CR1_CEN;
     }
 
@@ -1061,7 +1061,7 @@ namespace syn
     {
       // divide by 128 to get roughly an update at 125KHz
       TIM2->PSCR = 7;
-      // reload at 255 -> ~490Hz
+      // reload at 254 -> ~490Hz
       TIM2->ARRH = 0;
       TIM2->ARRL = 0xFE;
       TIM2->CR1 = TIM2_CR1_CEN;

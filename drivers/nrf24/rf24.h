@@ -42,7 +42,7 @@ public:
   // therefore it's important to use a 32byte input buffer. the MIC is calculated
   // by using AES-128-CBC, the first 16 byte act as a IV and should contain a NONCE
   // the last 8 byte of the buffer will be zeroed before calculating the MIC
-  static bool write_mic(uint8_t *data_32_byte);
+  static bool write_mic(uint8_t *data_32_byte, uint8_t micsize);
 
   // same as read, but the buffer has to be 32 byte.
   // it will contain the 24byte payload and the 8 byte mic, if the sender is using the same system

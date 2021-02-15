@@ -511,17 +511,18 @@ void AES_CBC_encrypt_buffer(struct AES_ctx *ctx, uint8_t* buf, uint8_t length)
   memcpy(ctx->Iv, Iv, AES_BLOCKLEN);
 }
 
-const uint8_t* AES_CBC_create_mic(const uint8_t* iv, const uint8_t* block)
+const uint8_t* AES_CBC_create_mic(const uint8_t *data)
 {
   static uint8_t mic[16];
   uint8_t count = AES_BLOCKLEN;
+  const uint8_t* block = data + 16;
   uint8_t* pm = mic;
-  while(count !=0 )
+  while(count !=0)
   {
     *pm++ = *block++; 
     --count;
   }
-  XorWithIv(mic, iv);
+  XorWithIv(mic, data);
   Cipher((state_t*)mic);
   return mic;
 }
