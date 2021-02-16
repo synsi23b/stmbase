@@ -125,17 +125,17 @@ bool Utility::memcmp(const uint8_t *a1, const uint8_t *a2, uint8_t len)
   return true;
 }
 
-void Utility::memcpy(uint8_t* dst, const uint8_t *src, uint8_t count)
+void Utility::memcpy(uint8_t *dst, const uint8_t *src, uint8_t count)
 {
-  while(count-- != 0)
+  while (count-- != 0)
   {
     *dst++ = *src++;
   }
 }
 
-void Utility::clear_array(uint8_t* data, uint8_t count)
+void Utility::clear_array(uint8_t *data, uint8_t count)
 {
-  while(count-- != 0)
+  while (count-- != 0)
   {
     *data++ = 0;
   }
@@ -239,7 +239,7 @@ Gpio &Gpio::high_speed()
   return *this;
 }
 
-// block for the specidifed ammount of millis using systick
+// block for the specified amount of milliseconds using systick
 void System::delay(uint16_t millis)
 {
   uint16_t end = millis + _millis;
@@ -250,7 +250,7 @@ void System::delay(uint16_t millis)
 #ifdef SYN_HAL_AUTO_WAKEUP_UNIT
 INTERRUPT_HANDLER(AWU_ISR, 1)
 {
-  // read csr to clear interrupt occured bit
+  // read csr to clear interrupt occurred bit
   uint8_t val = AWU->CSR;
   Autowakeup::stopsleep();
 }
@@ -275,7 +275,7 @@ void SpiNC::write_command(uint8_t command, const uint8_t *data, uint8_t count)
   }
   // wait for the transactions to be finished
   // this flag can be late to be set by 2 cpu cycles after writing the DR
-  // so lets hope that incrementing data, decremtening count and comapring takes
+  // so lets hope that incrementing data, decrementing count and comparing takes
   // longer than getting to the load of that status register
   while (SPI->SR & SPI_SR_BSY)
     ;
@@ -353,9 +353,270 @@ INTERRUPT_HANDLER(UART1_RX_ISR, 18)
 #ifndef SYN_HAL_I2C_SLAVE
 uint8_t *I2c::sData = 0;
 volatile uint8_t I2c::sCount = 0;
+uint8_t I2c::sAddress = 0;
+uint8_t I2c::sTxInjectByte = 0;
+
+// initialize the device as master that has no address in either
+// fast or slow mode
+void I2c::init(Speed speed)
+{
+  // reset the device because glitches at startup
+  I2C->CR2 = I2C_CR2_SWRST;
+  Gpio pins;
+  pins.init_multi('B', 0x30)
+      .opendrain()
+      .set();
+  I2C->CR2 = 0;
+  I2C->FREQR = 16; // 16 MHz main clock
+  if (speed==slow)
+  {
+    I2C->CCRH = 0x00;
+    I2C->CCRL = 0x50; // 100 kHz
+    I2C->TRISER = 17; // max rise time 1000 ns
+    
+  }
+  else if (speed==medium)
+  {
+    I2C->CCRH = I2C_CCRH_FS;
+    I2C->CCRL = 0x1A; // 205 kHz
+    I2C->TRISER = 6;  // max rise time 300 ns
+  }
+  else
+  {
+    I2C->CCRH = I2C_CCRH_FS;
+    I2C->CCRL = 0x0E; // 380 kHz
+    I2C->TRISER = 6;  // max rise time 300 ns
+  }
+  // set address configuration complete, has to be done, even in master mode
+  I2C->OARL = 0;
+  I2C->OARH = I2C_OARH_ADDCONF;
+  // raise i2c interrupt to highest level because errata sheet
+  ITC->ISPR5 |= 0xC0;
+  // enable the interrupts
+  I2C->ITR = I2C_ITR_ITBUFEN | I2C_ITR_ITEVTEN | I2C_ITR_ITERREN;
+}
+
+// Check if the Address specified is ACKed (true) or NACKed (false)
+// bus error also returns false
+bool I2c::checkSlave(uint8_t address)
+{
+  while (busy())
+    ;
+  // disable the interrupts
+  I2C->ITR = 0;
+  // enable the device
+  I2C->CR1 = I2C_CR1_PE;
+  // generate a start condition and enter a polling loop
+  I2C->CR2 = I2C_CR2_START;
+  bool slaveanswer = false;
+  while (true)
+  {
+    // any error before even transmitting the address
+    // means we couldn't even access the bus
+    if (I2C->SR2 != 0)
+      break;
+    if (I2C->SR1 & I2C_SR1_SB)
+    {
+      // start condition generated, transmit address
+      I2C->DR = address;
+      while (true)
+      {
+        uint8_t state = I2C->SR2;
+        // slave address not acknowledged
+        if (state & I2C_SR2_AF)
+          break;
+        // any other error
+        if (state != 0)
+          break;
+        // address acknowledged
+        if (I2C->SR1 & I2C_SR1_ADDR)
+        {
+          // generate a stop condition
+          I2C->CR2 = I2C_CR2_STOP;
+          slaveanswer = true;
+          break;
+        }
+      }
+      break;
+    }
+  }
+  // disable the device to clean up any flags that might have been set
+  I2C->CR1 = 0;
+  // enable the interrupts again
+  I2C->ITR = I2C_ITR_ITBUFEN | I2C_ITR_ITEVTEN | I2C_ITR_ITERREN;
+  return slaveanswer;
+}
+
+// read the amount of data specified by count. data needs to be at least that size
+// the address of the slave is expected to be located in data[0] and will be overwritten
+// by the data returned from slave
+void I2c::read_async(uint8_t address, uint8_t *data, uint8_t count)
+{
+  //while(I2C->SR3 & I2C_SR3_BUSY)
+  //  ;
+  while (busy())
+   ;
+  sData = data;
+  sCount = count;
+  sAddress = address | 0x01; // set LSB of address to enter receiver mode
+  // enable the device
+  I2C->CR1 = I2C_CR1_PE;
+  if (count > 2)
+  {
+    I2C->CR2 = I2C_CR2_ACK | I2C_CR2_START;
+  }
+  else if (count == 2)
+  {
+    // set ACK and POS to NACK the 2nd byte
+    I2C->CR2 = I2C_CR2_POS | I2C_CR2_ACK | I2C_CR2_START;
+  }
+  else
+  {
+    // read only 1 byte, don't set the ACK bit if only one byte will be read
+    I2C->CR2 = I2C_CR2_START;
+  }
+}
+
+// read the amount of data specified by count. data needs to be at least that size
+// the address of the slave is expected to be located in data[0] and will be overwritten
+// by the data returned from slave
+// returns true on completion and false in case of an error
+bool I2c::read(uint8_t address, uint8_t *data, uint8_t count)
+{
+  read_async(address, data, count);
+  while (true)
+  {
+    if (state() == 0xFF)
+    {
+      sCount = 0; // reset counter, not busy anymore
+      return false;
+    }
+    if (state() == 0x00)
+      return true;
+  }
+}
+
+// write the amount of data specified by count - 1.
+// data needs to be at least of the size count
+void I2c::write_async(uint8_t address, const uint8_t *data, uint8_t count)
+{
+  //while(I2C->SR3 & I2C_SR3_BUSY)
+  //  ;
+  while (busy())
+    ;
+  sData = (uint8_t *)data;
+  sCount = count + 1;
+  sAddress = address;
+  // enable the device
+  I2C->CR1 = I2C_CR1_PE;
+  I2C->CR2 = I2C_CR2_START;
+}
+
+// write the amount of data specified by count - 1.
+// data needs to be at least of the size count
+// the address of the slave is expected to be located in data[0].
+// returns true on completion and false in case of an error
+bool I2c::write(uint8_t address, const uint8_t *data, uint8_t count)
+{
+  write_async(address, data, count);
+  while (true)
+  {
+    if (state() == 0xFF)
+    {
+      //sCount = 0; // reset counter, not busy anymore
+      return false;
+    }
+    if (state() == 0x00)
+      return true;
+  }
+}
+
+void I2c::_isr()
+{
+  uint8_t state = I2C->SR2;
+  if (state != 0)
+  {
+    // a wild error has appeared
+    sCount = 0xFF;
+    //I2C->SR2 = 0;
+    I2C->CR2 = I2C_CR2_STOP;
+    // disable the device again
+    I2C->CR1 = 0;
+  }
+  else
+  {
+    state = I2C->SR1;
+    if(state == 0)
+      return;
+    if (state & I2C_SR1_ADDR)
+    {
+      // address ACKed, read SR3 to clear the state
+      state = I2C->SR3;
+      if (state & I2C_SR3_TRA)
+      {
+        // entering transmit mode, because of address LSB was not set
+        // put the injection byte
+        I2C->DR = sTxInjectByte;
+        if (--sCount == 0)
+        {
+          // on last byte transmitted, generate a stop condition
+          I2C->CR2 = I2C_CR2_STOP;
+        }
+      }
+      else
+      {
+        uint8_t count = sCount;
+        if (count == 2)
+        {
+          // if receiver mode with exactly 2 data bytes. clear ACK to NACK 2nd byte
+          I2C->CR2 = I2C_CR2_POS;
+        }
+        else if (count == 1)
+        {
+          // if only one byte is to received set a stop instead. The stop will come after the
+          // already ongoing transmission
+          I2C->CR2 = I2C_CR2_STOP;
+        }
+      }
+    }
+    else if (state & I2C_SR1_RXNE)
+    {
+      *sData++ = I2C->DR;
+      if (--sCount == 1)
+      {
+        // on 2nd last byte, clear ACK to NACK last and send a stop after transmission is complete
+        I2C->CR2 = I2C_CR2_STOP;
+      }
+    }
+    else if (state & (I2C_SR1_TXE | I2C_SR1_BTF))
+    {
+      if(sCount == 0)
+      {
+        // why does the device get here?
+        I2C->CR2 = I2C_CR2_STOP;
+      }
+      else
+      {
+        // transmitter empty, put data
+        I2C->DR = *sData++;
+        --sCount;
+        //{
+          // on last byte, generate a stop condition
+          //I2C->CR2 = I2C_CR2_STOP;
+        //}
+      }
+    }
+    else if (state & I2C_SR1_SB)
+    {
+      // start condition send, transmit address
+      I2C->DR = sAddress;
+    }
+  }
+}
+
 INTERRUPT_HANDLER(I2C_ISR, 19)
 {
-  I2c::isr();
+  I2c::_isr();
 }
 #else
 I2cSlave::slaveTxHandle_t I2cSlave::sTxHandle;

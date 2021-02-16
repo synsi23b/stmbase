@@ -1,42 +1,23 @@
 #pragma once
 
-#include <cassert>
-#include <string>
-
-#ifdef SYNHAL_MRAA
-#include <mraa/i2c.hpp>
-namespace syn {
-  class I2cMaster {
-  public:
-    I2cMaster(uint16_t port, uint8_t address)
-    : _i2cdev(port)
-    {
-      _address = address >> 1;
-    }
-
-    void write(uint8_t* data, uint16_t size) {
-      _i2cdev.address(_address);
-      _i2cdev.write(data, size);
-    }
-  private:
-    mraa::I2c _i2cdev;
-    uint8_t _address;
-  };
-}
-#else
 #include <synhal.h>
-#endif
+#include <synos.h>
 
 namespace SSD1306 {
+
 struct Fontinfo_t {
-  uint16_t character_height;
-  char start_ascii;
-  char end_ascii;
-  const uint16_t (*char_info)[3];
+  uint8_t character_height; // in pages
+  // table containing the offset into the bitmap for the character
+  const uint16_t *char_offset;
+  // pixel values directly writable in vertical mode
+  // setup the characters start and end (offset_table[char + 1]) 
   const uint8_t *char_bitmap;
 };
 
-extern const Fontinfo_t lucidaSansUnicode_13ptFontInfo;
+extern const Fontinfo_t font_nokia_8;
+extern const Fontinfo_t font_pokemon_8;
+extern const Fontinfo_t font_vermin_vibes_16;
+extern const Fontinfo_t font_runescape_16;
 
 static const uint16_t displaywidth = 128;
 static const uint16_t displayheight = 64;
@@ -47,82 +28,32 @@ public:
   static const uint8_t I2CADDRESS_A = 0x78;
   static const uint8_t I2CADDRESS_B = 0x7A;
 
-  Display(uint16_t port, uint8_t address);
+  Display(uint8_t port, uint8_t address);
 
-  void init();
-  void writeColumns(uint16_t page, uint16_t columnstart, uint8_t* data, uint16_t columncount);
-
+  void init(syn::I2c::Speed speed = syn::I2c::high);
+  // write pixels to whatever area set by page and column commands.
+  // pointer is auto incrementing and wrapping
+  void writePixels(const uint8_t *data, uint8_t count);
+  // set drawing window page (up / down)
+  void set_page(uint8_t page_start, uint8_t page_end);
+  // set drawing window column
+  void set_column(uint8_t column_start, uint8_t column_end);
+  // write a line of text, starting at page. Fonts are generally 8 or 16 bits hight
+  // that translates to 1 or 2 pages in height. The remaining space after the strinng
+  // will be cleared to blank.
+  void write_line(uint8_t page, const char* text, const Fontinfo_t *pfont);
+  // flipped = true -> top is at connectors
+  // default = false -> bottom is at connectors
+  void flip(bool mode);
+  // shift the ram by x lines, maximum is 63, default after init is 1
+  void shift(uint8_t lines);
 private:
-  void _writeCom(uint8_t com);
-  void _writeData(uint8_t *data, uint16_t columncount);
+  // write command. make sure sharec command buffer is not busy before writing
+  void _writeCom(const uint8_t *coms, uint8_t count);
 
-  syn::I2cMaster _i2c;
+  uint8_t _address;
+  uint8_t _combuf[3];
+  syn::I2c _i2c;
 };
 
-class GfxMemory {
-  static const uint16_t CHUNKSIZE = 16; // for uint16 bitmask
-  static const uint16_t LENCHANGED = displaywidth / CHUNKSIZE;
-
-  class Page {
-  public:
-    void init(uint16_t pagenum);
-    void sync(Display &dsp, bool forced);
-    void clear();
-    void writePixel(uint16_t x, uint16_t y, bool is_set);
-
-  private:
-    int16_t _findChangedStart();
-    int16_t _findChangedEnd();
-
-    uint8_t _columns[displaywidth + 1]; // holds copy of memory + write command in first byte
-    uint8_t _pagenum; // own array index
-    uint16_t _changed[LENCHANGED]; // holds bitmask of changed columns to write only what is necesarry
-    uint16_t _ypixelstart; // substract from requested pixel to write, offset to columns
-  };
-public:
-  GfxMemory();
-
-  void init(Display *pdsp);
-  void sync(bool forced = false);
-
-  void clear();
-  void setCursor(uint16_t x, uint16_t y) {
-    _curx = x;
-    _cury = y;
-  }
-
-  void writePicture(uint16_t width, uint16_t height, const char *data);
-  void writeBlock(uint16_t width, uint16_t height, bool filled, bool adv_x = false);
-  // advances x pointer one line beyond the end of the char, keeps y pointer
-  void writeChar(uint16_t width, uint16_t height, const uint8_t *data);
-  // writes string and advances pointer behind it
-  void writeString(const std::string &text, const Fontinfo_t &info, bool fillLine = false);
-
-  template<typename Fn>
-  void writeAnything(uint16_t width, uint16_t height, Fn funct, bool adv_x, bool adv_y) {
-    if (_curx <= displaywidth) {
-      uint16_t xend = _curx + width;
-      uint16_t yend = _cury + height;
-      if (xend > displaywidth)
-        xend = displaywidth;
-      if (yend > displayheight)
-        yend = displayheight;
-      for (uint16_t ly = _cury; ly < yend; ++ly) {
-        Page *ppage = _findPage(ly);
-        for (uint16_t lx = _curx; lx < xend; ++lx)
-          ppage->writePixel(lx, ly, funct());
-      }
-      if (adv_x)
-        _curx = xend;
-      if (adv_y)
-        _cury = yend;
-    }
-  }
-private:
-  Page * _findPage(uint16_t y);
-
-  Display* _pdsp;
-  Page _pages[pagecount];
-  uint16_t _curx, _cury;
-};
 }

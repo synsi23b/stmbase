@@ -1,223 +1,150 @@
 #include "ssd1306.h"
 
-SSD1306::Display::Display(uint16_t port, uint8_t address) :
-    _i2c(port, address) {
+SSD1306::Display::Display(uint8_t port, uint8_t address) 
+#ifndef STM8S103
+:
+    _i2c(port, address)
+#endif
+{
+  _address = address;
 }
 
-void SSD1306::Display::init() {
-  _i2c.init();
-  _writeCom(0xAE); // display off
-  _writeCom(0xD5); // set display clock div
-  _writeCom(0x80);
-  _writeCom(0xA8); // set multiplex
-  _writeCom(0x3F); // pixel  in height
-  _writeCom(0xD3); // offset
-  _writeCom(0x00); // none
-  _writeCom(0x40); // startline 0
-  _writeCom(0x8D); // chargepump
-  _writeCom(0x14);
-  _writeCom(0x81); // contrast
-  _writeCom(0xCF);
-  _writeCom(0xD9); // set precharge
-  _writeCom(0xF1);
-  _writeCom(0xDB); // set com detect
-  _writeCom(0x40);
-  _writeCom(0x00);
-  _writeCom(0xA4); // resume display
-  _writeCom(0xA6); // normal, none inverted mode
-  _writeCom(0xAF); // turn on oled
+static const uint8_t nothing_pxl[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+
+void SSD1306::Display::init(syn::I2c::Speed speed) {
+  static const uint8_t inicoms[] = {
+    0xAE, // display off
+    // 0xD5, // set display clock div
+    // 0x80, // reset value is 0x80 already
+    // 0xA8, // set multiplex
+    // 0x3F, // pixel  in height, reset is 64 pixel = 0x3F
+    0xD3, // display shift 1 line, not sure if all displays need it.
+    0x01,
+    //0xDA, // com pin cfg, reset is already correct
+    //0x12, // use 0x02 for 32 pixel height display
+    // 0x40, // start page 0 reset to zero, possible range 0x40 .. 0x7F
+    // 0xA0, // mirror RAM around Y Axis -> 0xA1, reset no mirror: SEG0 = COL0
+    0x20, // set addressing mode
+    0x01,  // vertical addressing
+    0x81, // contrast
+    0xFF, // 8bit contrast intensity value, default 7F
+    0xD9, // set precharge period
+    0xF1,
+    0xDB, // set com deselect level VCC
+    0x30, // 0.83*Vcc
+    // 0x00, // ???
+    //0xA4, // resume display
+    //0xA6, // normal, none inverted mode
+    0x8D, // activate charge pump
+    0x14,
+    0xAF  // turn on oled
+  };
+  _i2c.init(speed);
+  _writeCom(inicoms, sizeof(inicoms));
 }
 
-void SSD1306::Display::writeColumns(uint16_t page, uint16_t columnstart, uint8_t* data, uint16_t columncount) {
-  assert(page < pagecount);
-  assert(columnstart < displaywidth);
-  assert(columncount <= displaywidth - columnstart);
-  _writeCom(uint8_t(0xB0 | page)); // set correct page
-  _writeCom(columnstart & 0x0F); // set correct column
-  _writeCom(uint8_t(0x10 | columnstart >> 4));
-  _writeData(data, columncount);
+void SSD1306::Display::writePixels(const uint8_t *data, uint8_t count)
+{
+  _i2c.busy_loop(syn::Routine::yield);
+  _i2c.set_inject(0x40); // display gfx ram memory write command
+  _i2c.write_async(_address, data, count);
 }
 
-void SSD1306::Display::_writeCom(uint8_t com) {
-  uint8_t buf[2] = { 0x0, com };
-  _i2c.write(buf, 2);
+void SSD1306::Display::_writeCom(const uint8_t *coms, uint8_t count)
+{
+  _i2c.set_inject(0x00);
+  _i2c.write_async(_address, coms, count);
 }
 
-// writes the data but puts the writecommand on the column just before the actual data
-// this is reversed after its done. but necesarry thats why no const on data
-void SSD1306::Display::_writeData(uint8_t *data, uint16_t columncount) {
-  // can only send about 32 bytes at a time, so chop up the data to chunks of 30 bytes + address and write command
-  // do it recursively because we are super cool
-  uint16_t bytestowrite = columncount + 1;
-  if (bytestowrite > 31) { // write address + command + 30 data bytes
-    bytestowrite = 31;
+void SSD1306::Display::set_page(uint8_t page_start, uint8_t page_end)
+{
+  _i2c.busy_loop(syn::Routine::yield);
+  _combuf[0] = 0x22;
+  _combuf[1] = page_start;
+  _combuf[2] = page_end;
+  _writeCom(_combuf, 3);
+}
+
+void SSD1306::Display::set_column(uint8_t column_start, uint8_t column_end)
+{
+  _i2c.busy_loop(syn::Routine::yield);
+  _combuf[0] = 0x21;
+  _combuf[1] = column_start;
+  _combuf[2] = column_end;
+  _writeCom(_combuf, 3);
+}
+
+void SSD1306::Display::flip(bool mode)
+{
+  _i2c.busy_loop(syn::Routine::yield);
+  if(mode)
+  {
+    // top is connector
+    _combuf[0] = 0xC8; // flip
+    _combuf[1] = 0xA1; // and mirror
   }
-  --data;
-  auto tmp = *data; // preserv
-  *data = 0x40; // display gfx ram memory write command
-  _i2c.write(data, bytestowrite);
-  *data = tmp; // and reset
-  columncount = columncount - bytestowrite + 1; // + 1 for the command
-  if (columncount > 0) {
-    _writeData(data + 30, columncount);
-  }
-}
-
-void SSD1306::GfxMemory::Page::init(uint16_t pagenum) {
-  _pagenum = pagenum;
-  _ypixelstart = pagenum * 8;
-  clear();
-}
-
-void SSD1306::GfxMemory::Page::sync(SSD1306::Display &dsp, bool forced) {
-  if (forced) {
-    dsp.writeColumns(_pagenum, 0, &_columns[1], displaywidth);
-    for (auto & ch : _changed)
-      ch = 0; // reset changed to 0
-    return;
-  }
-  int16_t startindex = _findChangedStart();
-  if (startindex != -1) {
-    uint16_t endindex = _findChangedEnd();
-
-    uint16_t count = endindex - startindex;
-    dsp.writeColumns(_pagenum, startindex, &_columns[startindex + 1], count);
-
-    for (auto & ch : _changed)
-      ch = 0; // reset changed to 0
-  }
-}
-
-void SSD1306::GfxMemory::Page::clear() {
-  for (auto & col : _columns)
-    col = 0xAA; // reset memory to clear
-  for (auto & ch : _changed)
-    ch = 0xFFFF; // reset changed to full
-}
-
-void SSD1306::GfxMemory::Page::writePixel(uint16_t x, uint16_t y, bool is_set) {
-  y -= _ypixelstart;
-  assert(y >= 0 && y < 8);
-  assert(x >= 0 && x < displaywidth);
-  auto* pcol = &_columns[x + 1]; // because of the reserved byte at the start of the ram
-  auto curcol = *pcol;
-  if (is_set)
-    curcol |= uint8_t(1 << y);
   else
-    curcol &= ~uint8_t(1 << y);
-  if (curcol != *pcol) {
-    *pcol = curcol;
-    uint16_t chgIndex = x / CHUNKSIZE;
-    _changed[chgIndex] |= uint16_t((1 << x % CHUNKSIZE));
+  {
+    // bottom is connector
+    _combuf[0] = 0xC0; // un-flip
+    _combuf[1] = 0xA0; // un-mirror
   }
+  _writeCom(_combuf, 2);
 }
 
-// return the index of the column we need to start writing to display
-// return -1 if this page was not changed at all
-int16_t SSD1306::GfxMemory::Page::_findChangedStart() {
-  int16_t index = 0;
-  for (auto ch : _changed) {
-    if (ch != 0) {
-      uint16_t mask = 1 << (CHUNKSIZE - 1);
-      for (uint16_t i = 0; i < CHUNKSIZE; ++i, mask >>= 1)
-        if (ch & mask)
-          return index + i;
+void SSD1306::Display::shift(uint8_t lines)
+{
+  _i2c.busy_loop(syn::Routine::yield);
+  _combuf[0] = 0xD3;
+  _combuf[1] = lines;
+  _writeCom(_combuf, 2);
+}
+
+void SSD1306::Display::write_line(uint8_t line, const char* text, const Fontinfo_t *pfont)
+{
+  if(line > 7)
+  {
+    line = 7;
+  }
+  uint8_t height = pfont->character_height;
+  uint8_t y_end = line + height - 1;
+  if(y_end > 7)
+  {
+    y_end = 7;
+  }
+  set_page(line, y_end);
+  set_column(0, 127);
+  uint8_t x_start = 0;
+  for(char c = *text++; c != 0 && x_start < 127; c = *text++)
+  {
+    if(c < ' ' || c > '~')
+    {
+      c = '?';
     }
-    index += CHUNKSIZE;
-  }
-  return -1;
-}
-
-// return the one past the end index of the last changed column
-int16_t SSD1306::GfxMemory::Page::_findChangedEnd() {
-  int16_t index = LENCHANGED * CHUNKSIZE;
-  for (uint16_t i = LENCHANGED - 1; i >= 0; --i) {
-    auto ch = _changed[i];
-    if (ch != 0) {
-      uint16_t mask = 0x0001;
-      for (uint16_t j = 0; j < CHUNKSIZE; ++j, mask <<= 1)
-        if (ch & mask)
-          return index - j;
+    c -= ' ';
+    const uint16_t *offs = pfont->char_offset;
+    uint16_t offset = offs[c];
+    uint8_t len = offs[c + 1] - offset;
+    uint8_t x_end = x_start + (len / height);
+    if(x_end > 127)
+    {
+      x_end = 127;
     }
-    index -= CHUNKSIZE;
+    //set_column(x_start, x_end);
+    x_start = x_end;
+    const uint8_t *pixel = pfont->char_bitmap + offset;
+    writePixels(pixel, len);
   }
-  return -1; // should not happen, we only ever call if there is a change
-}
-
-SSD1306::GfxMemory::GfxMemory() {
-  _pdsp = 0;
-  _curx = _cury = 0;
-  for (uint16_t i = 0; i < pagecount; ++i)
-    _pages[i].init(i);
-}
-
-void SSD1306::GfxMemory::init(SSD1306::Display *pdsp) {
-  assert(pdsp);
-  _pdsp = pdsp;
-  _pdsp->init();
-  sync();
-}
-
-void SSD1306::GfxMemory::sync(bool forced) {
-  assert(_pdsp);
-  for (auto & pg : _pages)
-    pg.sync(*_pdsp, forced);
-}
-
-void SSD1306::GfxMemory::clear() {
-  for (auto & pg : _pages)
-    pg.clear();
-}
-
-void SSD1306::GfxMemory::writePicture(uint16_t width, uint16_t height, const char *data) {
-  writeAnything(width, height, [&data]() {return *data++ != '.';}, false, false);
-}
-
-void SSD1306::GfxMemory::writeBlock(uint16_t width, uint16_t height, bool filled, bool adv_x) {
-  writeAnything(width, height, [filled]() {return filled;}, adv_x, false);
-}
-
-// advances x pointer one line beyond the end of the car, keeps y pointer
-void SSD1306::GfxMemory::writeChar(uint16_t width, uint16_t height, const uint8_t *data) {
-  uint16_t mask = 0x80;
-  uint16_t counter = 0;
-  writeAnything(width, height, [width, &data, &mask, &counter]() {
-    if (counter == width) {
-      counter = 0;
-      mask = 0x80;
-      ++data;
+  if(x_start < 127)
+  {
+    // fill the rest with empty line
+    set_column(x_start, 127);
+    int16_t count = 127 - x_start;
+    count *= height;
+    while(count > 0)
+    {
+      writePixels(nothing_pxl, sizeof(nothing_pxl));
+      count -= sizeof(nothing_pxl);
     }
-    else if (mask == 0) {
-      mask = 0x80;
-      ++data;
-    }
-    bool ret = *data & mask;
-    mask >>= 1;
-    ++counter;
-    return ret;
-  }, true, false);
-  writeBlock(1, height, false, true);
-}
-
-// writes string and advances pointer behind it
-void SSD1306::GfxMemory::writeString(const std::string &text, const Fontinfo_t &info, bool fillLine) {
-  for (char cr : text) {
-    if (cr < info.start_ascii || cr > info.end_ascii)
-      cr = '?';
-    uint16_t c = cr - info.start_ascii;
-    uint16_t w = info.char_info[c][0];
-    uint16_t h = info.char_info[c][1];
-    uint16_t offs = info.char_info[c][2];
-    writeChar(w, h, info.char_bitmap + offs);
-  }
-  if (fillLine) {
-    writeBlock(displaywidth, info.char_info[0][1], false);
   }
 }
-
-SSD1306::GfxMemory::Page * SSD1306::GfxMemory::_findPage(uint16_t y) {
-  assert(y < displayheight);
-  // 8 pixel height per chunk
-  return &_pages[y / 8];
-}
-

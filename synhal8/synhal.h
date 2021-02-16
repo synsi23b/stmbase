@@ -749,9 +749,9 @@ namespace syn
   class IWatchdog
   {
   public:
-    // set up the Watchdog to cause a device reset after the given ammout of milli seconds
-    // a value of 0 is forbidden. If the parameter slow is set true, one lsb of the millis
-    // parameter ammounts to 4 milliseconds. Keep in mind that the Watchdog can not be turned
+    // set up the Watchdog to cause a device reset after the given amount of milliseconds
+    // a value of 0 is forbidden. If the parameter slow is set true, one LSB of the milliseconds
+    // parameter amounts to 4 milliseconds. Keep in mind that the Watchdog can not be turned
     // off and even runs when using the Atuosleep feature. At startup the Device can check
     // whether the cause of the reset was the watchdog or not.
     static void start(uint8_t millis, bool slow = false)
@@ -1342,272 +1342,78 @@ namespace syn
   class I2c
   {
   public:
-    // initialize the device as master that has no address in either
-    // fast or slow mode
-    static void init(bool fastmode = true)
+    enum Speed
     {
-      // reset the device because glitches at startup
-      I2C->CR2 = I2C_CR2_SWRST;
-      Gpio pins;
-      pins.init_multi('B', 0x30)
-          .opendrain()
-          .set();
-      I2C->CR2 = 0;
-      I2C->FREQR = 16; // 16 MHz
-      if (fastmode)
-      {
-        I2C->CCRH = I2C_CCRH_FS;
-        I2C->CCRL = 0x0E; // 380 kHz
-        I2C->TRISER = 5;  // max rise time 300 ns
-      }
-      else
-      {
-        I2C->CCRH = 0x00;
-        I2C->CCRL = 0x50; // 100 kHz
-        I2C->TRISER = 17; // max rise time 1000 ns
-      }
-      // set address configuration complete, has to be done
-      I2C->OARL = 0;
-      I2C->OARH = I2C_OARH_ADDCONF;
-      // raise i2c interrupt to highest level because errata sheet
-      ITC->ISPR5 |= 0xC0;
-      // enable the interrupts
-      I2C->ITR = I2C_ITR_ITBUFEN | I2C_ITR_ITEVTEN | I2C_ITR_ITERREN;
-    }
+      slow,
+      medium,
+      high
+    };
+    // initialize the device as master that has no address in either
+    // slow, medium or fast mode (100kHz, 380kHz)
+    static void init(Speed speed = high);
 
     // check if any transmission is on going
     static bool busy()
     {
+      //return sCount != 0;
       return I2C->SR3 & I2C_SR3_BUSY;
     }
 
+    static void busy_loop(void(*functor)(void))
+    {
+      while(busy())
+        functor();
+    }
+
     // returns 0xFF in case the last transmission had an error
-    // returns 0x00 in case the last transmission was succesfull
+    // returns 0x00 in case the last transmission was successful
     // returns any other number if transmission is still ongoing
     static uint8_t state()
     {
       return sCount;
     }
 
+    // in TX mode, there will be one byte injected before actually
+    // transmitting the tx buffer. This is useful for command bytes
+    // common to i2c protocols
+    // when using async methods, be careful to check for not busy
+    static void set_inject(uint8_t inject_byte)
+    {
+      sTxInjectByte = inject_byte;
+    }
+
     // Check if the Address specified is ACKed (true) or NACKed (false)
     // bus error also returns false
-    static bool checkSlave(uint8_t address)
-    {
-      while (busy())
-        ;
-      // dissable the interrupts
-      I2C->ITR = 0;
-      // enable the device
-      I2C->CR1 = I2C_CR1_PE;
-      // generate a start condition and enter a polling loop
-      I2C->CR2 = I2C_CR2_START;
-      bool slaveanswer = false;
-      while (true)
-      {
-        // any error before even transmitting the address
-        // means we couldnt even access the bus
-        if (I2C->SR2 != 0)
-          break;
-        if (I2C->SR1 & I2C_SR1_SB)
-        {
-          // start condition generated, transmitt address
-          I2C->DR = address;
-          while (true)
-          {
-            uint8_t state = I2C->SR2;
-            // slave address not acknowledged
-            if (state & I2C_SR2_AF)
-              break;
-            // any other error
-            if (state != 0)
-              break;
-            // address acknowledged
-            if (I2C->SR1 & I2C_SR1_ADDR)
-            {
-              // generate a stop condition
-              I2C->CR2 = I2C_CR2_STOP;
-              slaveanswer = true;
-              break;
-            }
-          }
-          break;
-        }
-      }
-      // disable the device to clean up any flags that might have been set
-      I2C->CR1 = 0;
-      // enable the interrupts again
-      I2C->ITR = I2C_ITR_ITBUFEN | I2C_ITR_ITEVTEN | I2C_ITR_ITERREN;
-      return slaveanswer;
-    }
+    static bool checkSlave(uint8_t address);
 
-    // read the ammount of data asynchronely specified by count. data needs to be at least that size
-    // the address of the slave is expected to be located in data[0] and will be overwritten
-    // by the data returned from slave
-    template <typename T>
-    static void read_async(T *data, uint8_t count = 1)
-    {
-      while (busy())
-        ;
-      *data |= 0x01; // set lsb of address to enter receiver mode
-      sData = (uint8_t *)data;
-      count = count * sizeof(T);
-      sCount = count;
-      // enable the device
-      I2C->CR1 = I2C_CR1_PE;
-      if (count > 2)
-      {
-        I2C->CR2 = I2C_CR2_ACK | I2C_CR2_START;
-      }
-      else if (count == 2)
-      {
-        // set ACK and POS to nack the 2nd byte
-        I2C->CR2 = I2C_CR2_POS | I2C_CR2_ACK | I2C_CR2_START;
-      }
-      else
-      {
-        // dont set the ACK bit if only one byte will be read
-        I2C->CR2 = I2C_CR2_START;
-      }
-    }
+    // read the amount of data specified by count.
+    // data needs to be at least that size
+    // use state() to check result of the transaction
+    static void read_async(uint8_t address, uint8_t *data, uint8_t count);
 
-    // read the ammount of data specified by count. data needs to be at least that size
-    // the address of the slave is expected to be located in data[0] and will be overwritten
-    // by the data returned from slave
-    // returns true on completition and false in case of an error
-    template <typename T>
-    static bool read(T *data, uint8_t count = 1)
-    {
-      read_async(data, count);
-      while (true)
-      {
-        if (state() == 0xFF)
-          return false;
-        if (state() == 0x00)
-          return true;
-      }
-    }
+    // read the amount of data specified by count.
+    // data needs to be at least that size
+    // returns true on completion and false in case of an error
+    static bool read(uint8_t address, uint8_t *data, uint8_t count);
 
-    // write the ammount of data specified by count - 1 asynchronely.
+    // write the amount of data specified by count.
     // data needs to be at least of the size count
-    // the address of the slave is expected to be located in data[0].
-    template <typename T>
-    static void write_async(const T *data, uint8_t count)
-    {
-      while (busy())
-        ;
-      sData = (uint8_t *)data;
-      // when transmitting only one byte, set count to zero to increase isr speed
-      sCount = count * sizeof(T) - 2;
-      // enable the device
-      I2C->CR1 = I2C_CR1_PE;
-      I2C->CR2 = I2C_CR2_START;
-    }
+    // use state() to check result of the transaction
+    static void write_async(uint8_t address, const uint8_t *data, uint8_t count);
 
-    // write the ammount of data specified by count - 1.
+    // write the amount of data specified by count.
     // data needs to be at least of the size count
-    // the address of the slave is expected to be located in data[0].
-    // returns true on completition and false in case of an error
-    template <typename T>
-    static bool write(T *data, uint8_t count = 1)
-    {
-      write_async(data, count);
-      while (true)
-      {
-        if (state() == 0xFF)
-          return false;
-        if (state() == 0x00)
-          return true;
-      }
-    }
+    // returns true on completion and false in case of an error
+    static bool write(uint8_t address, const uint8_t *data, uint8_t count);
 
-    // Isr serving the data transfer. Don't call this manually
-    static void isr()
-    {
-      uint8_t state = I2C->SR2;
-      if (state != 0)
-      {
-        // a wild error has appeared
-        sCount = 0xFF;
-        //I2C->SR2 = 0;
-        I2C->CR2 = I2C_CR2_STOP;
-        // disable the device again
-        I2C->CR1 = 0;
-      }
-      else
-      {
-        state = I2C->SR1;
-        if (state & I2C_SR1_ADDR)
-        {
-          // address ACKed, read SR3 to clear the state
-          state = I2C->SR3;
-          // if transmitter mode, we need to increment the data pointer to send the next correct byte and fill the buffer
-          // else receiver mode, we overwrite the address that was put in first byte of the data buffer
-          if (state & I2C_SR3_TRA)
-          {
-            ++sData;
-            // transmitter empty, put data
-            I2C->DR = *sData;
-            if (sCount == 0)
-            {
-              // on last byte transmitted, generate a stop condition
-              I2C->CR2 = I2C_CR2_STOP;
-            }
-            else
-            {
-              // more than one byte, increment data pointer again
-              ++sData;
-            }
-          }
-          else
-          {
-            uint8_t count = sCount;
-            if (count == 2)
-            {
-              // if receiver mode with exactly 2 data bytes. clear ACK to NACK 2nd byte
-              I2C->CR2 = I2C_CR2_POS;
-            }
-            else if (count == 1)
-            {
-              // if only one byte is to received set a stop instead. The stop will come after the
-              // allready ongoing transmission
-              I2C->CR2 = I2C_CR2_STOP;
-            }
-          }
-        }
-        else if (state & I2C_SR1_RXNE)
-        {
-          *sData++ = I2C->DR;
-          if (--sCount == 1)
-          {
-            // on 2nd last byte, clear ACK to nack last and send a stop after transmission is complete
-            I2C->CR2 = I2C_CR2_STOP;
-          }
-        }
-        else if (state & I2C_SR1_TXE)
-        {
-          // on last byte, instead of putting data, generate a stop condition
-          if (sCount == 0)
-          {
-            I2C->CR2 = I2C_CR2_STOP;
-          }
-          else
-          {
-            // transmitter empty, put data
-            I2C->DR = *sData++;
-            --sCount;
-          }
-        }
-        else if (state & I2C_SR1_SB)
-        {
-          // start condition send, transmit address
-          I2C->DR = *sData;
-        }
-      }
-    }
+    // ISR serving the data transfer. Don't call this manually
+    static void _isr();
 
   private:
     static uint8_t *sData;
     static volatile uint8_t sCount;
+    static uint8_t sAddress;
+    static uint8_t sTxInjectByte;
   };
 
 #ifdef SYN_HAL_I2C_SLAVE

@@ -52,7 +52,7 @@ public:
 
   // value can range between 0x0 and 0xF
   // 0x8 has to be set to turn on the display at all
-  void intensity(uint8_t value);
+  void intensity(uint8_t value = 0x0E);
 
   // turn on or off the leds according to the mask
   void setLed(uint8_t mask)
@@ -231,7 +231,7 @@ void TM1638::init(int8_t dio_port, uint8_t dio_pin,
     .pushpull()
     .set();
   this->clear();
-  intensity(0x08 | 6);
+  intensity();
 }
 
 void TM1638::clear()
