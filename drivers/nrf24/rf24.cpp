@@ -93,17 +93,17 @@ bool RF24::write(const uint8_t *data, uint8_t count)
   return true;
 }
 
-bool RF24::write_mic(uint8_t *data_32_byte)
+bool RF24::write_mic(uint8_t *data_32_byte, uint8_t micsize)
 {
   // first of all, zero the last 8 byte of the message
   // this will contain the MIC, but for calculation it's
   // important to have a known state
-  syn::Utility::clear_array(data_32_byte + 24, 8);
+  syn::Utility::clear_array(data_32_byte + (32 - micsize), micsize);
   // next, calculate the MIC inside the AES LIB. the key should be made
   // by the accompaning python script
-  const uint8_t* mic = AES_CBC_create_mic(data_32_byte, data_32_byte + 16);
+  const uint8_t* mic = AES_CBC_create_mic(data_32_byte);
   // now we have the 16 byte long MIC, only use the first 8 bytes thou
-  syn::Utility::memcpy(data_32_byte + 24, mic, 8);
+  syn::Utility::memcpy(data_32_byte + (32 - micsize), mic, micsize);
   // finally, send the crap with the regular method
   return write(data_32_byte, 32);
 }
@@ -180,7 +180,7 @@ int8_t RF24::read_mic(uint8_t *buffer_32_byte)
   // than zero it
   syn::Utility::clear_array(buffer_32_byte + 24, 8);
   // and calculate the mic again
-  const uint8_t *pmic = AES_CBC_create_mic(buffer_32_byte, buffer_32_byte + 16);
+  const uint8_t *pmic = AES_CBC_create_mic(buffer_32_byte);
   // finally, compare if the received and calculated mic match
   if(syn::Utility::memcmp(pmic, mictmp, 8))
   {
