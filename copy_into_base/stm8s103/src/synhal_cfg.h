@@ -4,6 +4,7 @@
 //#define SYN_HAL_I2C
 //#define SYN_HAL_I2C_SLAVE
 //#define SYN_HAL_UART
+#define SYN_HAL_UART_RX_BUFFER_SIZE 64
 #define SYN_HAL_SPI
 //#define SYN_HAL_SPI_SLAVE
 //#define SYN_HAL_AUTO_WAKEUP_UNIT

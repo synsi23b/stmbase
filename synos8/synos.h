@@ -166,7 +166,9 @@ namespace syn
     bool try_get();
 
     uint8_t count() const;
-
+    // set or reset the semaphore to a specific value, default 0
+    // is not thread safe !!!
+    void reset(uint8_t value = 0);
   private:
     uint8_t _count;
     Routine *_waitlist;
@@ -500,6 +502,83 @@ namespace syn
 #endif
   };
 
+  template<typename Value_t, uint8_t Size>
+  class AsyncBuffer {
+    public:
+      AsyncBuffer()
+      {
+        _pwrite = _buffer;
+        _overrun = false;
+      }
+
+      uint8_t available() const
+      {
+        return _putsema.count();
+      }
+
+      bool full() const 
+      {
+        return _putsema.count() == Size;
+      }
+
+      bool overrun()
+      {
+        Atomic a;
+        bool tmp = _overrun;
+        _overrun = false;
+        return tmp;
+      }
+
+      void put_isr(const Value_t v)
+      {
+        if(_pwrite == &_buffer[Size])
+        {
+          _overrun = true;
+        }
+        else
+        {
+          _putsema.give_isr();
+          *_pwrite++ = v;
+        }
+      }
+
+      uint8_t pop(Value_t* copybuffer, uint8_t count)
+      {
+        Value_t* pread = _buffer;
+        while(count != 0)
+        {
+          if(_putsema.try_get())
+          {
+            --count;
+            *copybuffer++ = *pread++;
+          }
+          else
+          {
+            break;
+          }
+        }
+        count = pread - _buffer;
+        if(count != 0)
+        {
+          Atomic a;
+          _pwrite = Utility::memcpy(_buffer, pread, _putsema.count());
+        }
+        return count;
+      }
+
+      void flush()
+      {
+        Atomic a;
+        _putsema.reset();
+        _pwrite = _buffer;
+      }
+    private:
+      Value_t *_pwrite;
+      Semaphore _putsema;
+      bool _overrun;
+      Value_t _buffer[Size];
+  };
+
 #if (SYN_OS_TICK_HOOK_COUNT > 0)
   template <uint8_t Index, uint16_t Reload_ms>
   inline void SysTickHook::init(SysTickHook::timer_functor_t functor)
@@ -514,6 +593,11 @@ namespace syn
   inline uint8_t Semaphore::count() const
   {
     return _count;
+  }
+
+  inline void Semaphore::reset(uint8_t value)
+  {
+    _count = value;
   }
 
   inline uint8_t Mutex::count() const

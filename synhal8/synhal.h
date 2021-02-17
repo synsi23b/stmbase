@@ -35,8 +35,8 @@ namespace syn
     static char *sprint_hex(char *dst, uint8_t value);
     // compare two arrays for equality
     static bool memcmp(const uint8_t *a1, const uint8_t *a2, uint8_t len);
-    // copy array
-    static void memcpy(uint8_t* dst, const uint8_t *src, uint8_t count);
+    // copy array and return pointer dst + count (not copied location)
+    static uint8_t* memcpy(uint8_t* dst, const uint8_t *src, uint8_t count);
     // zero array
     static void clear_array(uint8_t* data, uint8_t count);
   };
@@ -1600,49 +1600,20 @@ namespace syn
       return (UART1->SR & UART1_SR_TC) == 0;
     }
 
-    // check whether the last async read is completed or not
-    static bool rx_busy()
-    {
-      return sRxCount != 0;
-    }
+    // check the amount of bytes from last async read are still not read
+    static uint8_t rx_avail();
+    // enable the receiver ISR to actually receive stuff
+    static void rx_start();
+    // stop the receiver ISR, does not delete already received data
+    static void rx_stop();
+    // read up to count bytes into the buffer data
+    static uint8_t read(uint8_t *data, uint8_t count);
 
-    // check the ammount of bytes from last async read are still not read
-    static uint8_t rx_remaining()
-    {
-      return sRxCount;
-    }
+    // reset the receiver buffer back to zero
+    static void rx_flush();
 
-    // abort the current async read
-    static void rx_abort()
-    {
-      sim();
-      UART1->CR2 &= ~UART1_CR2_RIEN;
-      sRxCount = 0;
-      rim();
-    }
-
-    // read count bytes into the buffer data without blocking
-    static void read_async(uint8_t *data, uint8_t count)
-    {
-      // wait for any other ongoing transmission to complete
-      while (rx_busy())
-        ;
-      sRxData = data;
-      sRxCount = count;
-      // clear the receiver not empty flag
-      UART1->SR &= ~UART1_SR_RXNE;
-      // enable Uart interrupt to take care of all transmitting
-      UART1->CR2 |= UART1_CR2_RIEN;
-    }
-
-    // read count bytes into the buffer data
-    static void read(uint8_t *data, uint8_t count)
-    {
-      read_async(data, count);
-      // block until transmission is finished
-      while (rx_busy())
-        ;
-    }
+    // check if there was a buffer overrun since the last time this method was called
+    static bool rx_overrun();
     
     static void putc(uint8_t c)
     {
@@ -1680,9 +1651,7 @@ namespace syn
     static void rx_isr();
   private:
     static const uint8_t *sTxData;
-    static uint8_t *sRxData;
     static volatile uint8_t sTxCount;
-    static volatile uint8_t sRxCount;
   };
 
   // Basic usage:

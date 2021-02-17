@@ -1,4 +1,5 @@
 #include "synhal.h"
+#include <synos.h>
 
 using namespace syn;
 
@@ -125,12 +126,13 @@ bool Utility::memcmp(const uint8_t *a1, const uint8_t *a2, uint8_t len)
   return true;
 }
 
-void Utility::memcpy(uint8_t *dst, const uint8_t *src, uint8_t count)
+uint8_t *Utility::memcpy(uint8_t *dst, const uint8_t *src, uint8_t count)
 {
   while (count-- != 0)
   {
     *dst++ = *src++;
   }
+  return dst;
 }
 
 void Utility::clear_array(uint8_t *data, uint8_t count)
@@ -313,10 +315,59 @@ uint8_t SpiNC::transceive1(uint8_t data)
 
 #ifdef SYN_HAL_UART
 const uint8_t *Uart::sTxData = 0;
-uint8_t *Uart::sRxData = 0;
 volatile uint8_t Uart::sTxCount = 0;
-volatile uint8_t Uart::sRxCount = 0;
+#if SYN_HAL_UART_RX_BUFFER_SIZE != 0
+static AsyncBuffer<uint8_t, SYN_HAL_UART_RX_BUFFER_SIZE> UartsRxBuffer;
 
+// receiver ISR, don't call manually
+void Uart::rx_isr()
+{
+  UartsRxBuffer.put_isr(UART1->DR);
+}
+
+// check the amount of bytes from last async read are still not read
+uint8_t Uart::rx_avail()
+{
+  return UartsRxBuffer.available();
+}
+
+void Uart::rx_start()
+{
+  Atomic a;
+  // clear the receiver not empty flag
+  UART1->SR &= ~UART1_SR_RXNE;
+  // enable UART interrupt to take care of all transmitting
+  UART1->CR2 |= UART1_CR2_RIEN;
+}
+
+void Uart::rx_stop()
+{
+  Atomic a;
+  UART1->CR2 &= ~UART1_CR2_RIEN;
+}
+
+void Uart::rx_flush()
+{
+  UartsRxBuffer.flush();
+}
+
+bool Uart::rx_overrun()
+{
+  return UartsRxBuffer.overrun();
+}
+
+// read up to count bytes into the buffer data
+uint8_t Uart::read(uint8_t *data, uint8_t count)
+{
+  return UartsRxBuffer.pop(data, count);
+}
+#else
+// receiver isr, don't call manually
+void Uart::rx_isr()
+{
+  UART1->CR2 &= ~UART1_CR2_RIEN; // disable RX interrupt
+}
+#endif
 // transmitter isr, don't call manually
 void Uart::tx_isr()
 {
@@ -325,17 +376,6 @@ void Uart::tx_isr()
   {
     // when all bytes are transmitted, disable the interrupt again
     UART1->CR2 &= ~UART1_CR2_TIEN;
-  }
-}
-
-// receiver isr, don't call manually
-void Uart::rx_isr()
-{
-  *sRxData++ = UART1->DR;
-  if (--sRxCount == 0)
-  {
-    // when all bytes are read, disable the interrupt again
-    UART1->CR2 &= ~UART1_CR2_RIEN;
   }
 }
 
@@ -368,14 +408,13 @@ void I2c::init(Speed speed)
       .set();
   I2C->CR2 = 0;
   I2C->FREQR = 16; // 16 MHz main clock
-  if (speed==slow)
+  if (speed == slow)
   {
     I2C->CCRH = 0x00;
     I2C->CCRL = 0x50; // 100 kHz
     I2C->TRISER = 17; // max rise time 1000 ns
-    
   }
-  else if (speed==medium)
+  else if (speed == medium)
   {
     I2C->CCRH = I2C_CCRH_FS;
     I2C->CCRL = 0x1A; // 205 kHz
@@ -455,7 +494,7 @@ void I2c::read_async(uint8_t address, uint8_t *data, uint8_t count)
   //while(I2C->SR3 & I2C_SR3_BUSY)
   //  ;
   while (busy())
-   ;
+    ;
   sData = data;
   sCount = count;
   sAddress = address | 0x01; // set LSB of address to enter receiver mode
@@ -546,7 +585,7 @@ void I2c::_isr()
   else
   {
     state = I2C->SR1;
-    if(state == 0)
+    if (state == 0)
       return;
     if (state & I2C_SR1_ADDR)
     {
@@ -590,7 +629,7 @@ void I2c::_isr()
     }
     else if (state & (I2C_SR1_TXE | I2C_SR1_BTF))
     {
-      if(sCount == 0)
+      if (sCount == 0)
       {
         // why does the device get here?
         I2C->CR2 = I2C_CR2_STOP;
@@ -601,8 +640,8 @@ void I2c::_isr()
         I2C->DR = *sData++;
         --sCount;
         //{
-          // on last byte, generate a stop condition
-          //I2C->CR2 = I2C_CR2_STOP;
+        // on last byte, generate a stop condition
+        //I2C->CR2 = I2C_CR2_STOP;
         //}
       }
     }
