@@ -1746,6 +1746,22 @@ namespace syn
       return read8();
     }
 
+    static uint16_t convertSingle()
+    {
+      convert();
+      while (busy())
+        ;
+      return read();
+    }
+
+    static uint8_t convertSingle8()
+    {
+      convert();
+      while (busy())
+        ;
+      return read8();
+    }
+
     // set the ADC to perform a single 10 bit conversion of the specified channel
     // if the ADC is not already running, convert() has to be called once
     // to start the conversations

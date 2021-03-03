@@ -27,6 +27,7 @@
             "console": "integratedTerminal",
             "args": [
                 "1",
+                "--heap",
                 "8192"
             ]
         },
@@ -38,6 +39,7 @@
             "console": "integratedTerminal",
             "args": [
                 "2",
+                "--heap",
                 "20480"
             ]
         },
@@ -49,6 +51,7 @@
             "console": "integratedTerminal",
             "args": [
                 "3",
+                "--heap",
                 "0"
             ]
         }
