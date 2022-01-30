@@ -324,7 +324,8 @@ void Uart::rx_isr()
 {
   // read data into temporary to make sure we read it, regardless off buffering.
   // else we get stuck in a ISR loop because UART_IRQ never gets cleared
-  uint8_t data = UART1->DR;
+  uint8_t data = UART1->SR;
+  data = UART1->DR;
   UartsRxBuffer.put_isr(data);
 }
 
@@ -365,9 +366,9 @@ uint8_t Uart::peek(uint8_t offset)
 }
 
 // read up to count bytes into the buffer data
-uint8_t Uart::read(uint8_t *data, uint8_t count)
+uint8_t Uart::read(uint8_t *data, uint8_t count, uint8_t offset)
 {
-  return UartsRxBuffer.pop(data, count);
+  return UartsRxBuffer.pop(data, count, offset);
 }
 #else
 // receiver isr, don't call manually

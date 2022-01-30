@@ -17,12 +17,14 @@ public:
   bool available();
 
   // return true if in failsafe mode
-  bool failsafe();
+  bool failsafe() const;
 
-  // return the data for the given channel. available channel numbers are 0 .. 15
+  // return the data for the given channel.
   // data can range from 0 to 2047 (11 bit)
-  uint16_t channel(uint8_t number);
-
+  uint16_t channel_1() const;
+  uint16_t channel_2() const;
+  uint16_t channel_3() const;
+  uint16_t channel_4() const;
 private:
   uint8_t _last_frame[25];
 };

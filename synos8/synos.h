@@ -161,6 +161,7 @@ namespace syn
     void give_isr();
 
     void get();
+    void get_count(uint8_t count);
     bool get(uint16_t timeout);
     bool get_isr();
     bool try_get();
@@ -547,9 +548,10 @@ namespace syn
         return _buffer[offset];
       }
 
-      uint8_t pop(Value_t* copybuffer, uint8_t count)
+      uint8_t pop(Value_t* copybuffer, uint8_t count, uint8_t offset)
       {
-        Value_t* pread = _buffer;
+        Value_t* pread = _buffer + offset;
+        _putsema.get_count(offset);
         while(count != 0)
         {
           if(_putsema.try_get())
@@ -562,7 +564,7 @@ namespace syn
             break;
           }
         }
-        count = pread - _buffer;
+        count = pread - _buffer - offset;
         if(count != 0)
         {
           Atomic a;

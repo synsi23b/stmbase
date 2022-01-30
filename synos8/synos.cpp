@@ -368,6 +368,16 @@ void Semaphore::get()
   --_count;
 }
 
+void Semaphore::get_count(uint8_t count)
+{
+  Atomic a;
+  while (_count < count)
+  {
+    Kernel::_enterWaitlist(_waitlist, Routine::wait_semaphore);
+  }
+  _count -= count;
+}
+
 #ifdef SYN_OS_ENABLE_TIMEOUT_API
 bool Semaphore::get(uint16_t timeout)
 {

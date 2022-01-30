@@ -1613,7 +1613,8 @@ namespace syn
     // stop the receiver ISR, does not delete already received data
     static void rx_stop();
     // read up to count bytes into the buffer data
-    static uint8_t read(uint8_t *data, uint8_t count);
+    // if using the offset, there is no check if that offset is actually real data or out of bounds
+    static uint8_t read(uint8_t *data, uint8_t count, uint8_t offset = 0);
     // retrieve arbitrary bytes from the receiver buffer
     static uint8_t peek(uint8_t offset);
     // reset the receiver buffer back to zero
