@@ -65,6 +65,28 @@ uint16_t SbusReader::channel_1() const
     return ret;
 }
 
+uint16_t SbusReader::channel_2() const
+{
+    uint16_t ret = _last_frame[3] & 0x3F;
+    ret <<= 8;
+    ret |= _last_frame[2];
+    ret >>= 3;
+    return ret;
+}
+
+uint16_t SbusReader::channel_3() const
+{
+    uint16_t ret = _last_frame[4];
+    ret <<= 8;
+    ret |= _last_frame[3];
+    ret >>= 6;
+    if(_last_frame[5] & 0x01)
+    {
+        ret |= 0x0400;
+    }
+    return ret;
+}
+
 
 //         //ret = static_cast<uint16_t>(_last_frame[1] | _last_frame[2] << 8);
 //         break;
