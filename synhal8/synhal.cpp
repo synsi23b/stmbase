@@ -322,7 +322,10 @@ static AsyncBuffer<uint8_t, SYN_HAL_UART_RX_BUFFER_SIZE> UartsRxBuffer;
 // receiver ISR, don't call manually
 void Uart::rx_isr()
 {
-  UartsRxBuffer.put_isr(UART1->DR);
+  // read data into temporary to make sure we read it, regardless off buffering.
+  // else we get stuck in a ISR loop because UART_IRQ never gets cleared
+  uint8_t data = UART1->DR;
+  UartsRxBuffer.put_isr(data);
 }
 
 // check the amount of bytes from last async read are still not read
@@ -354,6 +357,11 @@ void Uart::rx_flush()
 bool Uart::rx_overrun()
 {
   return UartsRxBuffer.overrun();
+}
+
+uint8_t Uart::peek(uint8_t offset)
+{
+  return UartsRxBuffer.peek(offset);
 }
 
 // read up to count bytes into the buffer data

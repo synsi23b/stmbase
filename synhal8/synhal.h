@@ -1516,13 +1516,14 @@ namespace syn
       bd115200,
       bd232400,
       bd460800,
-      bd921600
+      bd921600,
+      bd100000
     };
     enum eStopbits
     {
       sb1 = 0,
+      sb2 = 2,
       sb1_5 = 3,
-      sb2 = 10
     };
     enum eParity
     {
@@ -1574,6 +1575,11 @@ namespace syn
         UART1->BRR2 = 0x01;
         UART1->BRR1 = 0x01;
         break;
+      case bd100000:
+        // used for sbus
+        UART1->BRR2 = 0x00;
+        UART1->BRR1 = 0x0A;
+        break;
       }
       // select the parity
       switch (pr)
@@ -1608,7 +1614,8 @@ namespace syn
     static void rx_stop();
     // read up to count bytes into the buffer data
     static uint8_t read(uint8_t *data, uint8_t count);
-
+    // retrieve arbitrary bytes from the receiver buffer
+    static uint8_t peek(uint8_t offset);
     // reset the receiver buffer back to zero
     static void rx_flush();
 

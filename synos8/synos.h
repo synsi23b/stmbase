@@ -542,6 +542,11 @@ namespace syn
         }
       }
 
+      Value_t peek(uint8_t offset)
+      {
+        return _buffer[offset];
+      }
+
       uint8_t pop(Value_t* copybuffer, uint8_t count)
       {
         Value_t* pread = _buffer;
