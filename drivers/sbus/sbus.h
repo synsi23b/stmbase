@@ -24,7 +24,7 @@ public:
   uint16_t channel_1() const;
   uint16_t channel_2() const;
   uint16_t channel_3() const;
-  //uint16_t channel_4() const;
+  uint16_t channel_4() const;
 private:
   uint8_t _last_frame[25];
 };

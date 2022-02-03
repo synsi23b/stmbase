@@ -8,6 +8,8 @@ void SbusReader::start()
 {
     Uart::init(Uart::bd100000, Uart::sb2, Uart::even);
     Uart::rx_start();
+    Gpio rxpin('D', 6);
+    rxpin.input_pullup();
 }
 
 // return true if a new frame is ready
@@ -84,6 +86,15 @@ uint16_t SbusReader::channel_3() const
     {
         ret |= 0x0400;
     }
+    return ret;
+}
+
+uint16_t SbusReader::channel_4() const
+{
+    uint16_t ret = _last_frame[6] & 0x0F;
+    ret <<= 8;
+    ret |= _last_frame[5];
+    ret >>= 1;
     return ret;
 }
 
