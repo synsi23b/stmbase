@@ -825,15 +825,40 @@ namespace syn
   {
   public:
     // Radio Controll Device conforming PWM signal with 50 Hz
-    // to provide 1000 steps between 1ms and 2ms signal length
+    // to provide 2000 steps between 1ms and 2ms signal length
+    // when setting pwm values between 2000 and 4000
     static void init_rcpwm()
     {
-      // divide pclk by 2^4 (16) -> 1MHz
+      // divide pclk by 2^3 (8) -> 2MHz
       TIM1->PSCRH = 0;
-      TIM1->PSCRL = 15;
-      // reload at 19999 -> 50 Hz
-      TIM1->ARRH = 0x4E;
-      TIM1->ARRL = 0x1F;
+      TIM1->PSCRL = 7;
+      // reload at 39999 -> 50 Hz
+      TIM1->ARRH = 0x9C;
+      TIM1->ARRL = 0x3F;
+      TIM1->CR1 = TIM1_CR1_CEN;
+    }
+
+    // same as regular rcpwm but running at 250Hz
+    static void init_rcpwm_250()
+    {
+      // divide pclk by 2^3 (8) -> 2MHz
+      TIM1->PSCRH = 0;
+      TIM1->PSCRL = 7;
+      // reload at 7999 -> 250 Hz
+      TIM1->ARRH = 0x1F;
+      TIM1->ARRL = 0x3F;
+      TIM1->CR1 = TIM1_CR1_CEN;
+    }
+
+    // same as regular rcpwm but running at 333Hz
+    static void init_rcpwm_333()
+    {
+      // divide pclk by 2^3 (8) -> 2MHz
+      TIM1->PSCRH = 0;
+      TIM1->PSCRL = 7;
+      // reload at 6005 -> 333 Hz
+      TIM1->ARRH = 0x17;
+      TIM1->ARRL = 0x75;
       TIM1->CR1 = TIM1_CR1_CEN;
     }
 
@@ -959,8 +984,9 @@ namespace syn
     // set a pwm duty cycle for the specified channel.
     // channel can be any value between 1 to 4
     // to comply with rc pwm
-    // minimum pulsewidth: 1ms should be at 1000
-    // maximum pulsewidth: 2ms should be at 2000 giving a resolution of 1000 steps
+    // minimum pulsewidth: 1ms should be at 2000
+    // maximum pulsewidth: 2ms should be at 4000 giving a resolution of 2000 steps
+    // and we can easily add sbus values to the output (2000 + sbus value = duty)
     // arduino pwm: the minimum is 0 and the maximum is 255.
     static void setPWM(uint16_t duty, uint8_t channel)
     {
@@ -1045,16 +1071,40 @@ namespace syn
   {
   public:
     // Radio Controll Device conforming PWM signal with 50 Hz
-    // to provide 1000 steps between 1ms and 2ms signal length
+    // to provide 2000 steps between 1ms and 2ms signal length
+    // when setting pwm values between 2000 and 4000
     static void init_rcpwm()
     {
-      // divide pclk by 2^4 (16) -> 1MHz
-      TIM2->PSCR = 4;
-      // reload at 19999 -> 50 Hz
-      TIM2->ARRH = 0x4E;
-      TIM2->ARRL = 0x1F;
+      // divide pclk by 2^3 (8) -> 2MHz
+      TIM2->PSCR = 3;
+      // reload at 39999 -> 50 Hz
+      TIM2->ARRH = 0x9C;
+      TIM2->ARRL = 0x3F;
       TIM2->CR1 = TIM2_CR1_CEN;
     }
+
+    // same as regular rcpwm but running at 250Hz
+    static void init_rcpwm_250()
+    {
+      // divide pclk by 2^3 (8) -> 2MHz
+      TIM2->PSCR = 3;
+      // reload at 7999 -> 250 Hz
+      TIM2->ARRH = 0x1F;
+      TIM2->ARRL = 0x3F;
+      TIM2->CR1 = TIM1_CR1_CEN;
+    }
+
+    // same as regular rcpwm but running at 333Hz
+    static void init_rcpwm_333()
+    {
+      // divide pclk by 2^3 (8) -> 2MHz
+      TIM2->PSCR = 3;
+      // reload at 6005 -> 333 Hz
+      TIM2->ARRH = 0x17;
+      TIM2->ARRL = 0x75;
+      TIM2->CR1 = TIM1_CR1_CEN;
+    }
+
 
     // arduino like pwm, around 500Hz and duty cycle 0 to 255 (see analogWrite)
     static void init_arduinopwm()
@@ -1132,10 +1182,11 @@ namespace syn
     }
 
     // set a pwm duty cycle for the specified channel.
-    // channel can be any value between 1 to 3
+    // channel can be any value between 1 to 4
     // to comply with rc pwm
-    // minimum pulsewidth: 1ms should be at 1000
-    // maximum pulsewidth: 2ms should be at 2000 giving a resolution of 1000 steps
+    // minimum pulsewidth: 1ms should be at 2000
+    // maximum pulsewidth: 2ms should be at 4000 giving a resolution of 2000 steps
+    // and we can easily add sbus values to the output (2000 + sbus value = duty)
     // arduino pwm: the minimum is 0 and the maximum is 255.
     static void setPWM(uint16_t duty, uint8_t channel)
     {
