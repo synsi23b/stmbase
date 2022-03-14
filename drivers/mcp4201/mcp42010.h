@@ -41,13 +41,15 @@ public:
   // address flipped means changes the output pairs
   // during setting, instead of index 0 setting poti 0, it will set poti 1 of device 0
   // also, index 1 will set poti 0 of device 0
-  void init(uint16_t spi_port, bool address_flipped)
+  // value flipped reverses the whiper movement between A - B to accomodate changed electical layout
+  void init(uint16_t spi_port, bool address_flipped, bool value_flipped)
   {
+    _value_flipped = value_flipped;
     for(auto &d : _even)
       d.init(address_flipped ? 1 : 0);
     for(auto &d : _odd)
       d.init(address_flipped ? 0 : 1);
-    _spi.init(spi_port, 5800000, false, false, true, true);
+    _spi.init(spi_port, 4 *1000 *1000, false, false, true, true);
   }
 
   // set the value using a float array ranging from 0.0 to 1.0
@@ -77,10 +79,15 @@ private:
     uint16_t dirty = 0xFFFF;
     for(int16_t dev_idx = DaisyChainLength - 1; dev_idx >= end; --dev_idx)
     {
+      uint8_t setval = *pbuffer;
+      if(_value_flipped)
+      {
+        setval = 255 - setval;
+      }
       // we fill the devices in reverse order, because actually the array is reversed.
       // when transmitting all the devices in a daisychain, we have to start with the
       // last device we want to access.
-      if(devices[dev_idx].set(*pbuffer))
+      if(devices[dev_idx].set(setval))
       {
         dirty = dev_idx;
       }
@@ -103,4 +110,5 @@ private:
   Device _even[DaisyChainLength];
   Device _odd[DaisyChainLength];
   syn::SpiMaster _spi;
+  bool _value_flipped;
 };
