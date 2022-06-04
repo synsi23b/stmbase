@@ -28,8 +28,9 @@ bool SbusReader::available()
                 if(footer < avail)
                 {
                     // footer still in bounds
-                    footer = Uart::peek(footer);
-                    if(footer == 0x00 || (footer & 0x0F == 0x04))
+                    footer = Uart::peek(footer) & 0x0F;
+                    // in case of sbus version 1 the footer is 0x00
+                    if(footer == 0 || footer == 0x04)
                     {
                         // footer is correct, parse the frame
                         Uart::read(_last_frame, 25, frame_start);
@@ -43,10 +44,10 @@ bool SbusReader::available()
             }
             ++frame_start;
         }
-        if(Uart::rx_overrun())
-        {
-            Uart::rx_flush();
-        }
+    }
+    if(Uart::rx_overrun())
+    {
+        Uart::rx_flush();
     }
     return false;
 }
