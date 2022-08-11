@@ -3,6 +3,7 @@ import threading
 import usb.core
 import array
 import sys
+from time import sleep
 
 # transmitting over usb happens in packets of up to 64 byte
 # if we send exactly 64 bytes, the host is not
@@ -167,6 +168,9 @@ while True:
                     buffer.pop(0)
             else: # data missmatch, purge first byte and try again
                 buffer.pop(0)
+        else: # not enough data in yet, sleep a bit
+            # probably never happens because of lots and lots of queing in the os driver and all that
+            sleep(0.01)
         return buffer
     
     @staticmethod
@@ -186,6 +190,9 @@ while True:
                     buffer.pop(0)
             else: # data missmatch, purge first byte and try again
                 buffer.pop(0)
+        else: # not enough data in yet, sleep a bit
+            # probably never happens because of lots and lots of queing in the os driver and all that
+            sleep(0.01)
         return buffer
 
     @staticmethod
