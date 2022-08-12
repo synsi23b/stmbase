@@ -124,7 +124,7 @@ while True:
         ret = False
         if self._usbdev:
             msg = array.array('B', message._serialize())
-            ret = self._usbdev.write(0x80, msg, 100)
+            ret = self._usbdev.write(0x80, msg, 1000)
             ret = (ret - 5) == message._size
         return ret
 
@@ -133,17 +133,26 @@ while True:
         # find and reset the usb device
         dev = usb.core.find(idVendor=0x0483, idProduct=0x5740)
         if not dev:
-            print("Coudln't find SynRPC device")
+            print("Couldn't find SynRPC device")
             self._running = False
         else:
+            print("synrpc: found device -> reseting")
             dev.reset()
+            print("synrpc: checking kernel driver")
             if dev.is_kernel_driver_active(1):
+                print("synrpc: active -> attempt detach")
                 dev.detach_kernel_driver(1)
+            print("synrpc: loading device default configuration")
             dev.set_configuration()
             self._usbdev = dev
+            print("synrpc: reset done, running read loop")
         while self._running:
-            # try to read up to 64 bytes with a 10 millisec timeout
-            arr = dev.read(0x81, 64, 10)
+            # try to read up to 64 bytes with a 1000 millisec timeout just to be able to leave the loop
+            # the function will return after a single bulk transfer of even less than 64 bytes
+            try:
+                arr = dev.read(0x81, 64, 1000)
+            except usb.core.USBTimeoutError:
+                continue
             if arr:
                 buffer += arr.tostring()
             if buffer:

@@ -408,7 +408,7 @@ const char* syn::{handlername}(const syn::{msgname}& msg){{
             pyinit += v.genPyInit()
             position += v.pysize()
             msgfields += v.genPyFieldDsc()
-        cldef = """
+        cldef = """\n\n
 class {msgname}(object):
     \"\"\"
 Message fields:

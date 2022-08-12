@@ -39,4 +39,6 @@ appropriate library file.
 1. create a folder called msg in the root directory 
 2. create messages with ROS-style msgs and rerun synrpc_gen from its folder whenever you change them
 3. there will be sourcefiles added to project for the microcontroller and python files to bridge the gap
-
+4. on linux as admin add a udev rule
+  - `echo "SUBSYSTEM==\"usb\", ATTRS{idVendor}==\"0483\" ATTRS{idProduct}==\"5740\", ENV{ID_MM_DEVICE_IGNORE}=\"1\", MODE=\"0666\"" > /etc/udev/rules.d/99-synrpc.rules`
+5. install python packages pyusb and libusb backend
