@@ -406,7 +406,7 @@ void Dma::enableIrq(uint16_t irq_status_mask, uint16_t priority)
   }
 #endif
 #ifdef STM32G030xx
-#error "Unknown chip!"
+  uint32_t irqn;
 #endif
   Core::enable_isr((IRQn_Type)irqn, priority);
 }

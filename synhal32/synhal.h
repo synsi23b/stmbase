@@ -1153,7 +1153,68 @@ namespace syn
         break;
       }
 #elif defined(STM32G030xx)
-#error "chip not implemented!"
+      _pPort->MODER &= ~(0x3 << (_pin * 2));
+      _pPort->OSPEEDR &= ~(0x3 << (_pin * 2));
+      _pPort->PUPDR &= ~(0x3 << (_pin * 2));
+      volatile uint32_t *pAfr;
+      uint32_t afr_shift;
+      if (_pin < 8)
+      {
+        pAfr = &_pPort->AFR[0];
+        afr_shift = _pin * 4;
+      }
+      else
+      {
+        pAfr = &_pPort->AFR[1];
+        afr_shift = (_pin - 8) * 4;
+      }
+      *pAfr &= ~(0xF << afr_shift);
+      switch (m)
+      {
+      case in_analog:
+        _pPort->MODER |= (0x3 << (_pin * 2));
+        break;
+      case out_push_pull:
+        _pPort->MODER |= (0x1 << (_pin * 2));
+        _pPort->OTYPER &= ~(0x1 << _pin);
+        break;
+      case in_floating:
+        break;
+      case out_open_drain:
+        _pPort->MODER |= (0x1 << (_pin * 2));
+        _pPort->OTYPER |= (0x1 << _pin);
+        break;
+      case in_pullup:
+        _pPort->PUPDR |= (0x1 << (_pin * 2));
+        break;
+      case in_pulldown:
+        _pPort->PUPDR |= (0x2 << (_pin * 2));
+        break;
+      case out_alt_push_pull:
+        _pPort->MODER |= (0x2 << (_pin * 2));
+        _pPort->OTYPER &= ~(0x1 << _pin);
+        *pAfr |= (a << afr_shift);
+        break;
+      case out_alt_open_drain:
+        _pPort->MODER |= (0x2 << (_pin * 2));
+        _pPort->OTYPER |= (0x1 << _pin);
+        *pAfr |= (a << afr_shift);
+        break;
+      }
+      switch (s)
+      {
+      case MHz_10:
+        _pPort->OSPEEDR |= (0x1 << (_pin * 2));
+        break;
+      case MHz_50:
+        _pPort->OSPEEDR |= (0x2 << (_pin * 2));
+        break;
+      case MHz_100:
+        _pPort->OSPEEDR |= (0x3 << (_pin * 2));
+      case Input:
+      case MHz_2:
+        break;
+      }
 #else
 #error "Unknown chip!"
 #endif
@@ -1190,7 +1251,7 @@ namespace syn
 #elif defined(STM32F401xC)
       _pPort->BSRR = uint32_t(_bitmask) << 16;
 #elif defined(STM32G030xx)
-#error "chip not implemented!"
+      _pPort->BSRR = uint32_t(_bitmask) << 16;
 #else
 #error "Unknown chip!"
 #endif
@@ -1237,7 +1298,7 @@ namespace syn
 #elif defined(STM32F401xC)
       map = map;
 #elif defined(STM32G030xx)
-#error "chip not implemented!"
+      map = map;
 #else
 #error "Unknown chip!"
 #endif
@@ -1298,14 +1359,8 @@ namespace syn
       uint16_t extiafionum = (line % 4) * 4;
       uint16_t extiafioreg = line / 4;
 #ifdef STM32F103xB
+      AFIO->EXTICR[extiafioreg] &= ~(0xF << extiafionum);
       AFIO->EXTICR[extiafioreg] |= (extiselector << extiafionum);
-#elif defined(STM32F401xC)
-      SYSCFG->EXTICR[extiafioreg] |= (extiselector << extiafionum);
-#elif defined(STM32G030xx)
-#error "chip not implemented!"
-#else
-#error "Unknown chip"
-#endif
       {
         Atomic a;
         EXTI->IMR |= (1 << line);
@@ -1346,32 +1401,125 @@ namespace syn
       {
         OS_ASSERT(true == false, ERR_BAD_INDEX);
       }
+#elif defined(STM32F401xC)
+      SYSCFG->EXTICR[extiafioreg] &= ~(0xF << extiafionum);
+      SYSCFG->EXTICR[extiafioreg] |= (extiselector << extiafionum);
+      {
+        Atomic a;
+        EXTI->IMR |= (1 << line);
+        if (rising)
+          EXTI->RTSR |= (1 << line);
+        if (falling)
+          EXTI->FTSR |= (1 << line);
+      }
+      if (line == 0)
+      {
+        Core::enable_isr(EXTI0_IRQn, priority);
+      }
+      else if (line == 1)
+      {
+        Core::enable_isr(EXTI1_IRQn, priority);
+      }
+      else if (line == 2)
+      {
+        Core::enable_isr(EXTI2_IRQn, priority);
+      }
+      else if (line == 3)
+      {
+        Core::enable_isr(EXTI3_IRQn, priority);
+      }
+      else if (line == 4)
+      {
+        Core::enable_isr(EXTI4_IRQn, priority);
+      }
+      else if (line < 10)
+      {
+        Core::enable_isr(EXTI9_5_IRQn, priority);
+      }
+      else if (line < 16)
+      {
+        Core::enable_isr(EXTI15_10_IRQn, priority);
+      }
+      else
+      {
+        OS_ASSERT(true == false, ERR_BAD_INDEX);
+      }
+#elif defined(STM32G030xx)
+      EXTI->EXTICR[extiafioreg] &= ~(0xF << extiafionum);
+      EXTI->EXTICR[extiafioreg] |= (extiselector << extiafionum);
+      {
+        Atomic a;
+        EXTI->IMR1 |= (1 << line);
+        if (rising)
+          EXTI->RTSR1 |= (1 << line);
+        if (falling)
+          EXTI->FTSR1 |= (1 << line);
+      }
+      if (line == 0 || line == 1)
+      {
+        Core::enable_isr(EXTI0_1_IRQn, priority);
+      }
+      else if (line == 2 || line == 3)
+      {
+        Core::enable_isr(EXTI2_3_IRQn, priority);
+      }
+      else if (line < 16)
+      {
+        Core::enable_isr(EXTI4_15_IRQn, priority);
+      }
+      else
+      {
+        OS_ASSERT(true == false, ERR_BAD_INDEX);
+      }
+#else
+#error "Unknown chip"
+#endif
     }
 
     static void disable(uint16_t line)
     {
       Atomic a;
+#if defined(STM32G030xx)
+      EXTI->IMR1 &= ~(1 << line);
+      EXTI->RTSR1 &= ~(1 << line);
+      EXTI->FTSR1 &= ~(1 << line);
+#else 
       EXTI->IMR &= ~(1 << line);
       EXTI->RTSR &= ~(1 << line);
       EXTI->FTSR &= ~(1 << line);
+#endif
     }
 
     // generate a software interrupt on the line
     static void sw_trigger(uint16_t line)
     {
+#if defined(STM32G030xx)
+      EXTI->SWIER1 = (1 << line);
+#else
       EXTI->SWIER = (1 << line);
+#endif
     }
 
     // check wether this exti got triggered
     static bool is_set(uint16_t line)
     {
-      return EXTI->PR & (1 << line);
+#if defined(STM32G030xx)
+      uint16_t mask = (1 << line);
+      return EXTI->FPR1 & mask || EXTI->RPR1 & mask;
+#else
+      return EXTI->PR & (1 << line);;
+#endif
     }
 
     // clear the pending bit for the irq line
     static void clear(uint16_t line)
     {
+#if defined(STM32G030xx)
+      EXTI->FPR1 = (1 << line);
+      EXTI->RPR1 = (1 << line);
+#else
       EXTI->PR = (1 << line);
+#endif
     }
   };
 
@@ -1550,6 +1698,7 @@ namespace syn
       _number = number;
       switch (number)
       {
+#ifdef STM32F103xB
       case 1:
         _pTimer = TIM1;
         RCC->APB2ENR |= RCC_APB2ENR_TIM1EN;
@@ -1566,7 +1715,25 @@ namespace syn
         _pTimer = TIM4;
         RCC->APB1ENR |= RCC_APB1ENR_TIM4EN;
         break;
+#endif
 #ifdef STM32F401xC
+      case 1:
+        _pTimer = TIM1;
+        RCC->APB2ENR |= RCC_APB2ENR_TIM1EN;
+        break;
+      case 2:
+        _pTimer = TIM2;
+        RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
+        break;
+      case 3:
+        _pTimer = TIM3;
+        RCC->APB1ENR |= RCC_APB1ENR_TIM3EN;
+        break;
+      case 4:
+        _pTimer = TIM4;
+        RCC->APB1ENR |= RCC_APB1ENR_TIM4EN;
+        break;
+
       case 5:
         _pTimer = TIM5;
         RCC->APB1ENR |= RCC_APB1ENR_TIM5EN;

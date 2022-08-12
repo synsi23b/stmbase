@@ -245,8 +245,8 @@ void OS_Error(OS_STATUS ErrCode) {
   OS_TASK_EnterRegion();           // Avoid further task switches
   OS_Global.Counters.Cnt.DI = 0u;  // Allow interrupts so we can communicate with embOSView
   OS_INT_Enable();
-  OS_Status = ErrCode;
-  while (OS_Status) {
+  OS_Global.Status = ErrCode;
+  while (OS_Global.Status) {
     // Endless loop may be left by setting OS_Status to 0
   }
 }
