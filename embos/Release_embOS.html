@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-<title>Release notes for embOS V5.8.2</title>
+<title>Release notes for embOS V5.16.0</title>
 <meta http-equiv="content-language" content="de">
 <meta name="robots" content="noindex,nofollow">
 <meta http-equiv="pragma" content="no-cache">
@@ -187,7 +187,7 @@ div.divider-global:nth-of-type(even) {
           <!-- Modifiable information starts here                                 -->
           <!-- Don't forget to edit the title tag either                          -->
           <!-- ****************************************************************** -->
-          <h1>Release notes for embOS V5.8.2</h1>
+          <h1>Release notes for embOS V5.16.0</h1>
         </div>
       </div>
     </div>
@@ -196,6 +196,116 @@ div.divider-global:nth-of-type(even) {
   <!-- History                                                       -->
   <!-- ****************************************************************** -->
   <div id="features" class="divider-global">
+    <div class="container">
+      <h2>Version 5.16.0 [03. Dec 2021]</h2>
+      <div>
+        <h3>New Features</h3>
+        <ol>
+          <li>New API function OS_MAILBOX_IsInUse() added.</li>
+          <li>New API functions OS_TIME_ConvertCycles2ms() and OS_TIME_Convertms2Cycles() added.</li>
+
+        </ol>
+      </div>
+      <div>
+        <h3>Improvements</h3>
+        <ol>
+          <li>Tickless mode can now also be used with tick to interrupt ratios other than 1:1.</li>
+          <li>MPU handling for Cortex-M33 improved.</li>
+          <li>OS_TASKEVENT_GetTimed() and OS_TASKEVENT_GetSingleTimed() check now if the task event was signaled within the actual timeout and behave with it like all other API functions with a timeout argument.
+          The previous implementation checked only after the calling task was activated again whether the task event was signaled. This could cause wrong results when the calling task were not executed at once due to a higher
+          priority task.
+        </ol>
+      </div>
+      <div>
+        <h3>Program corrections</h3>
+        <ol>
+          <li>OS_RWLOCK_WrLockTimed() could use a wrong timeout in specific rare situations.<br>
+          The problem existed since embOS version 5.14.0 and is fixed with version 5.16.0.</li>
+          </li>
+        </ol>
+      </div>
+    </div>
+  </div>
+  <div id="features" class="divider-global">
+    <div class="container">
+      <h2>Version 5.14.0 [28. Apr 2021]</h2>
+      <div>
+        <h3>New Features</h3>
+        <ol>
+          <li>Readers-writer lock added.</li>
+          <li>New API function OS_INT_PreserveAndDisable() added.</li>
+        </ol>
+      </div>
+      <div>
+        <h3>Improvements</h3>
+        <ol>
+          <li>OS_TASK_Resume(), OS_TASK_ResumeAll() and OS_TASK_Suspend() can now also be called from main().</li>
+        </ol>
+      </div>
+      <div>
+        <h3>Program corrections</h3>
+        <ol>
+          <li>Under rare circumstances, a round robin task could run although its time slice has expired.<br>
+          The problem existed since embOS version 5.10.0 and is fixed with version 5.14.0.</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+  <div id="features" class="divider-global">
+    <div class="container">
+      <h2>Version 5.12.0 [02. Oct 2020]</h2>
+      <div>
+        <h3>New Features</h3>
+        <ol>
+          <li>New API functions OS_EVENT_ResetMask() added.</li>
+        </ol>
+      </div>
+      <div>
+        <h3>Improvements</h3>
+        <ol>
+          <li>It is now allowed to pass NULL to OS_TIMER_Restart() and OS_TIMER_RestartEx().<br>
+          This value indicates the current software running timer will be restarted.</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+  <div id="features" class="divider-global">
+    <div class="container">
+      <h2>Version 5.10.2 [06. Jul 2020]</h2>
+      <div>
+        <h3>Improvements</h3>
+        <ol>
+          <li>Internal cast modified in order to support compiler which do not support a 64-bit data type.</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+  <div id="features" class="divider-global">
+    <div class="container">
+      <h2>Version 5.10.1 [17. Jun 2020]</h2>
+      <div>
+        <h3>Program corrections</h3>
+        <ol>
+          <li>Call of the tickless callback function corrected.<br>
+          Under rare circumstances, the tickless callback function could be executed twice if OS_TICKLESS_Stop() was used in the application.<br>
+          The problem existed since embOS version 4.00a and is fixed with version 5.10.1.</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+  <div id="features" class="divider-global">
+    <div class="container">
+      <h2>Version 5.10.0 [05. Jun 2020]</h2>
+      <div>
+        <h3>New Features</h3>
+        <ol>
+          <li>Support for 64-Bit cores added.</li>
+          <li>New API functions OS_TICKLESS_GetPeriod() and OS_TICKLESS_IsExpired() added.</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+  </div>  <div id="features" class="divider-global">
     <div class="container">
       <h2>Version 5.8.2 [17. Dec 2019]</h2>
       <div>
@@ -722,7 +832,7 @@ div.divider-global:nth-of-type(even) {
         <h3>Program corrections</h3>
         <ol>
           <li>OS_GetTime_us() / OS_GetTime_us64() corrected.<br>
-            It could happen that OS_GetTime_us() / OS_GetTime_us64() return wrong results when the interrupt pending flag was set during function execution.
+            It could happen that OS_GetTime_us() / OS_GetTime_us64() return wrong results when the interrupt pending flag was set during function execution.<br>
             The problem existed since embOS versions 4.02 and is fixed with version 4.10a.</li>
         </ol>
       </div>
@@ -1243,7 +1353,8 @@ div.divider-global:nth-of-type(even) {
         <h3>Program corrections</h3>
         <ol>
           <li>Timeout handling for waitable objects corrected.<br>
-            When the timeout had already expired when the wait function with timeout was called, the function came back with interrupts disabled. This might have happened when other tasks with higher priority or interrupts blocked the calling task right after calling a wait functing. The application might have been kept blocked for ever when the calling task did not call any other function which re-enabled interrupts by OS_RestoreI(). The problem existed in embOS versions since version 3.86 and is fixed with version 3.86d.</li>
+            When the timeout had already expired when the wait function with timeout was called, the function came back with interrupts disabled. This might have happened when other tasks with higher priority or interrupts blocked the calling task right after calling a wait functing. The application might have been kept blocked for ever when the calling task did not call any other function which re-enabled interrupts by OS_RestoreI(). <br>
+            The problem existed in embOS versions since version 3.86 and is fixed with version 3.86d.</li>
         </ol>
       </div>
     </div>
@@ -2311,7 +2422,8 @@ div.divider-global:nth-of-type(even) {
           <li>OS_EVENT_Delete() corrected<br>
             OS_EVENT_Delete() did not work correctly. OS_LeaveRegion() was called inside the function without calling OS_EnterRegion() before.<br>
             In debug builds of embOS, the error-handler OS_Error() was called with error 151 (OS_ERR_LEAVEREGION_BEFORE_ENTERREGION).<br>
-            In release builds the system was blocked because the underflow of region count inhibits all further task switches, or system crashes, because incrementing the region count the next time allows task switches instead of blocking them. The problem existed in all previous versions and is fixed with version 3.32l.</li>
+            In release builds the system was blocked because the underflow of region count inhibits all further task switches, or system crashes, because incrementing the region count the next time allows task switches instead of blocking them. <br>
+            The problem existed in all previous versions and is fixed with version 3.32l.</li>
           <li>Round-robin task switching corrected.<br>
             Round robin task switching did not work correctly in previous version. A task which was blocked for some reason could be activated. The system crashed during task switch.<br>
             The problem existed since version 3.32j and is fixed with version 3.32l.</li>
@@ -2914,7 +3026,7 @@ div.divider-global:nth-of-type(even) {
 <div class="footer">
   <div class="container">
     <div>
-      <p>Copyright 2001-2019 SEGGER Microcontroller GmbH. All rights reserved.<br>
+      <p>Copyright 2001-2021 SEGGER Microcontroller GmbH. All rights reserved.<br>
         For more information, please visit our website&nbsp;<a href="https://www.segger.com/" target="_blank">www.segger.com</a>&nbsp;or contact us at&nbsp;<a href="mailto:support_embos@segger.com">support_embos@segger.com</a>&nbsp;</p>
     </div>
   </div>

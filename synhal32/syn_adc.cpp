@@ -40,6 +40,7 @@ void Adc::init()
     ;
 #endif
 #ifdef STM32F401xC
+#error "Unknown chip!"
 #endif
 }
 #endif

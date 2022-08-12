@@ -3,13 +3,13 @@
 *                        The Embedded Experts                        *
 **********************************************************************
 *                                                                    *
-*       (c) 1995 - 2020 SEGGER Microcontroller GmbH                  *
+*       (c) 1995 - 2021 SEGGER Microcontroller GmbH                  *
 *                                                                    *
 *       Internet: segger.com  Support: support_embos@segger.com      *
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       embOS * Real time operating system for microcontrollers      *
+*       embOS * Real time operating system                           *
 *                                                                    *
 *       Please note:                                                 *
 *                                                                    *
@@ -21,11 +21,12 @@
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       OS version: V5.8.2.0                                         *
+*       OS version: V5.16.0.0                                        *
 *                                                                    *
 **********************************************************************
 
 -------------------------- END-OF-HEADER -----------------------------
+File    : OS_Config.h
 Purpose : Configuration settings for the OS build and embOSView
 */
 

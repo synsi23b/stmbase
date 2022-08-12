@@ -44,6 +44,18 @@
             ]
         },
         {
+            "name": "Generate stm32g030f6p6",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/startproject.py",
+            "console": "integratedTerminal",
+            "args": [
+                "4",
+                "--heap",
+                "4096"
+            ]
+        },
+        {
             "name": "Generate stm8s103",
             "type": "python",
             "request": "launch",

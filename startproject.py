@@ -8,7 +8,8 @@ def main():
     chips = {
         1: 'stm32f103c8',
         2: 'stm32f401ccu6',
-        3: 'stm8s103'
+        3: 'stm8s103',
+        4: 'stm32g030f6p6'
     }
     is_stm8 = [3]
     chiphelp = "\nAvailable chips: \n"
@@ -45,6 +46,7 @@ def main():
         os.system(
             f"cp -rvf {submodule_folder}/copy_into_base/{chipname}/. {project_folder}")
 
+    workspace_template_file = None
     if args.chip in is_stm8:
         workspace_template_file = submodule_folder / \
             f"synos8/iar_workspace_template.eww"

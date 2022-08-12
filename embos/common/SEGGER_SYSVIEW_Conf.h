@@ -3,13 +3,13 @@
 *                        The Embedded Experts                        *
 **********************************************************************
 *                                                                    *
-*       (c) 1995 - 2020 SEGGER Microcontroller GmbH                  *
+*       (c) 1995 - 2021 SEGGER Microcontroller GmbH                  *
 *                                                                    *
 *       Internet: segger.com  Support: support_embos@segger.com      *
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       embOS * Real time operating system for microcontrollers      *
+*       embOS * Real time operating system                           *
 *                                                                    *
 *       Please note:                                                 *
 *                                                                    *
@@ -21,15 +21,27 @@
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       OS version: V5.8.2.0                                         *
+*       OS version: V5.16.0.0                                        *
 *                                                                    *
 **********************************************************************
 
 -------------------------- END-OF-HEADER -----------------------------
 
 File    : SEGGER_SYSVIEW_Conf.h
-Purpose : SEGGER SystemView configuration.
-Revision: $Rev: 13453 $
+Purpose : SEGGER SystemView configuration file.
+          Set defines which deviate from the defaults (see SEGGER_SYSVIEW_ConfDefaults.h) here.
+Revision: $Rev: 21292 $
+
+Additional information:
+  Required defines which must be set are:
+    SEGGER_SYSVIEW_GET_TIMESTAMP
+    SEGGER_SYSVIEW_GET_INTERRUPT_ID
+  For known compilers and cores, these might be set to good defaults
+  in SEGGER_SYSVIEW_ConfDefaults.h.
+
+  SystemView needs a (nestable) locking mechanism.
+  If not defined, the RTT locking mechanism is used,
+  which then needs to be properly configured.
 */
 
 #ifndef SEGGER_SYSVIEW_CONF_H
@@ -37,111 +49,18 @@ Revision: $Rev: 13453 $
 
 /*********************************************************************
 *
-*       Defines, fixed
-*
-**********************************************************************
-*/
-//
-// Constants for known core configuration
-//
-#define SEGGER_SYSVIEW_CORE_OTHER   0
-#define SEGGER_SYSVIEW_CORE_CM0     1 // Cortex-M0/M0+/M1
-#define SEGGER_SYSVIEW_CORE_CM3     2 // Cortex-M3/M4/M7
-#define SEGGER_SYSVIEW_CORE_RX      3 // Renesas RX
-
-#if (defined __SES_ARM) || (defined __CROSSWORKS_ARM) || (defined __GNUC__) || (defined __clang__)
-  #if (defined __ARM_ARCH_6M__) || (defined __ARM_ARCH_8M_BASE__)
-    #define SEGGER_SYSVIEW_CORE SEGGER_SYSVIEW_CORE_CM0
-  #elif (defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__) || defined(__ARM_ARCH_8M_MAIN__))
-    #define SEGGER_SYSVIEW_CORE SEGGER_SYSVIEW_CORE_CM3
-  #endif
-#elif defined(__ICCARM__)
-  #if (defined (__ARM6M__)          && (__CORE__ == __ARM6M__))          \
-   || (defined (__ARM8M_BASELINE__) && (__CORE__ == __ARM8M_BASELINE__))
-    #define SEGGER_SYSVIEW_CORE SEGGER_SYSVIEW_CORE_CM0
-  #elif (defined (__ARM7EM__)          && (__CORE__ == __ARM7EM__))          \
-     || (defined (__ARM7M__)           && (__CORE__ == __ARM7M__))           \
-     || (defined (__ARM8M_MAINLINE__)  && (__CORE__ == __ARM8M_MAINLINE__))  \
-     || (defined (__ARM8EM_MAINLINE__) && (__CORE__ == __ARM8EM_MAINLINE__))
-    #define SEGGER_SYSVIEW_CORE SEGGER_SYSVIEW_CORE_CM3
-  #endif
-#elif defined(__CC_ARM)
-  #if (defined(__TARGET_ARCH_6S_M))
-    #define SEGGER_SYSVIEW_CORE SEGGER_SYSVIEW_CORE_CM0
-  #elif (defined(__TARGET_ARCH_7_M) || defined(__TARGET_ARCH_7E_M))
-    #define SEGGER_SYSVIEW_CORE SEGGER_SYSVIEW_CORE_CM3
-  #endif
-#elif defined(__TI_ARM__)
-  #ifdef __TI_ARM_V6M0__
-    #define SEGGER_SYSVIEW_CORE SEGGER_SYSVIEW_CORE_CM0
-  #elif (defined(__TI_ARM_V7M3__) || defined(__TI_ARM_V7M4__))
-    #define SEGGER_SYSVIEW_CORE SEGGER_SYSVIEW_CORE_CM3
-  #endif
-#elif defined(__ICCRX__)
-  #define SEGGER_SYSVIEW_CORE SEGGER_SYSVIEW_CORE_RX
-#elif defined(__RX)
-  #define SEGGER_SYSVIEW_CORE SEGGER_SYSVIEW_CORE_RX
-#endif
-
-#ifndef   SEGGER_SYSVIEW_CORE
-  #define SEGGER_SYSVIEW_CORE SEGGER_SYSVIEW_CORE_OTHER
-#endif
-
-/*********************************************************************
-*
 *       Defines, configurable
 *
 **********************************************************************
 */
-/*********************************************************************
-*
-*       SystemView buffer configuration
-*/
-#define SEGGER_SYSVIEW_RTT_BUFFER_SIZE      1024                                // Number of bytes that SystemView uses for the buffer.
-#define SEGGER_SYSVIEW_RTT_CHANNEL          1                                   // The RTT channel that SystemView will use. 0: Auto selection
+extern unsigned int SystemCoreClock;
 
-#define SEGGER_SYSVIEW_USE_STATIC_BUFFER    1                                   // Use a static buffer to generate events instead of a buffer on the stack
-
-#define SEGGER_SYSVIEW_POST_MORTEM_MODE     0                                   // 1: Enable post mortem analysis mode
-
-/*********************************************************************
-*
-*       SystemView timestamp configuration
-*/
-#if SEGGER_SYSVIEW_CORE == SEGGER_SYSVIEW_CORE_CM3
-  #define SEGGER_SYSVIEW_GET_TIMESTAMP()      (*(U32 *)(0xE0001004))            // Retrieve a system timestamp. Cortex-M cycle counter.
-  #define SEGGER_SYSVIEW_TIMESTAMP_BITS       32                                // Define number of valid bits low-order delivered by clock source
-#else
-  #define SEGGER_SYSVIEW_GET_TIMESTAMP()      SEGGER_SYSVIEW_X_GetTimestamp()   // Retrieve a system timestamp via user-defined function
-  #define SEGGER_SYSVIEW_TIMESTAMP_BITS       32                                // Define number of valid bits low-order delivered by SEGGER_SYSVIEW_X_GetTimestamp()
-#endif
-
-/*********************************************************************
-*
-*       SystemView Id configuration
-*/
-#define SEGGER_SYSVIEW_ID_BASE         0x10000000                               // Default value for the lowest Id reported by the application. Can be overridden by the application via SEGGER_SYSVIEW_SetRAMBase(). (i.e. 0x20000000 when all Ids are an address in this RAM)
-#define SEGGER_SYSVIEW_ID_SHIFT        2                                        // Number of bits to shift the Id to save bandwidth. (i.e. 2 when Ids are 4 byte aligned)
-
-/*********************************************************************
-*
-*       SystemView interrupt configuration
-*/
-#if SEGGER_SYSVIEW_CORE == SEGGER_SYSVIEW_CORE_CM3
-  #define SEGGER_SYSVIEW_GET_INTERRUPT_ID()      ((*(U32*)(0xE000ED04)) & 0x1FF)    // Get the currently active interrupt Id. (i.e. read Cortex-M ICSR[8:0] = active vector)
-#elif SEGGER_SYSVIEW_CORE == SEGGER_SYSVIEW_CORE_CM0
-  #if defined(__ICCARM__)
-    #if (__VER__ > 6010000)
-      #define SEGGER_SYSVIEW_GET_INTERRUPT_ID()  (__get_IPSR())                     // Workaround for IAR, which might do a byte-access to 0xE000ED04. Read IPSR instead.
-    #else
-      #define SEGGER_SYSVIEW_GET_INTERRUPT_ID()  ((*(U32*)(0xE000ED04)) & 0x3F)     // Older versions of IAR do not include __get_IPSR, but might also not optimize to byte-access.
-    #endif
-  #else
-    #define SEGGER_SYSVIEW_GET_INTERRUPT_ID()    ((*(U32*)(0xE000ED04)) & 0x3F)     // Get the currently active interrupt Id. (i.e. read Cortex-M ICSR[5:0] = active vector)
-  #endif
-#else
-  #define SEGGER_SYSVIEW_GET_INTERRUPT_ID()      SEGGER_SYSVIEW_X_GetInterruptId()  // Get the currently active interrupt Id from the user-provided function.
-#endif
+#define SEGGER_SYSVIEW_APP_NAME        "embOS start project"
+#define SEGGER_SYSVIEW_DEVICE_NAME     "STM32G031R8"
+#define SEGGER_SYSVIEW_ID_BASE         0x20000000
+#define SEGGER_SYSVIEW_TIMESTAMP_FREQ  SystemCoreClock
+#define SEGGER_SYSVIEW_CPU_FREQ        SystemCoreClock
+#define SEGGER_SYSVIEW_SYSDESC0        "I#15=SysTick"
 
 #endif  // SEGGER_SYSVIEW_CONF_H
 

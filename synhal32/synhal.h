@@ -6,6 +6,9 @@
 #ifdef STM32F401xC
 #include "../embos/stm32f401ccu6/stm32f401xc.h"
 #endif
+#ifdef STM32G030xx
+#include "../embos/stm32g030f6p6/stm32g0xx.h"
+#endif
 
 #include "../../src/synhal_cfg.h"
 #include "mtl.h"
@@ -485,7 +488,7 @@ namespace syn
       BasePrio = stacksize;
       Priority = priority;
       TimeSliceReload = timeslice;
-      Name = name;
+      sName = name;
     }
 
     // creates the task, don't call twice. use resume after suspend instead
@@ -497,7 +500,7 @@ namespace syn
       }
       OS_CreateTaskEx(
           this,
-          Name,
+          sName,
           Priority,
           (thread_run)&Thread::runner,
           pStack,
@@ -1149,6 +1152,8 @@ namespace syn
       case MHz_2:
         break;
       }
+#elif defined(STM32G030xx)
+#error "chip not implemented!"
 #else
 #error "Unknown chip!"
 #endif
@@ -1184,6 +1189,8 @@ namespace syn
       _pPort->BRR = _bitmask;
 #elif defined(STM32F401xC)
       _pPort->BSRR = uint32_t(_bitmask) << 16;
+#elif defined(STM32G030xx)
+#error "chip not implemented!"
 #else
 #error "Unknown chip!"
 #endif
@@ -1229,6 +1236,8 @@ namespace syn
       AFIO->MAPR |= (uint32_t)map;
 #elif defined(STM32F401xC)
       map = map;
+#elif defined(STM32G030xx)
+#error "chip not implemented!"
 #else
 #error "Unknown chip!"
 #endif
@@ -1292,6 +1301,8 @@ namespace syn
       AFIO->EXTICR[extiafioreg] |= (extiselector << extiafionum);
 #elif defined(STM32F401xC)
       SYSCFG->EXTICR[extiafioreg] |= (extiselector << extiafionum);
+#elif defined(STM32G030xx)
+#error "chip not implemented!"
 #else
 #error "Unknown chip"
 #endif

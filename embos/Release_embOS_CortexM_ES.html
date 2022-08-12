@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-<title>Release notes for embOS V5.8.2.0 for Cortex-M and Embedded Studio</title>
+<title>Release notes for embOS V5.16.0.0 for Cortex-M and Embedded Studio</title>
 <meta name="robots" content="noindex,nofollow">
 <meta http-equiv="pragma" content="no-cache">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -186,7 +186,7 @@ div.divider-global:nth-of-type(even) {
           <!-- Modifiable information starts here                                 -->
           <!-- Don't forget to edit the title tag either                          -->
           <!-- ****************************************************************** -->
-          <h1>Release notes for embOS V5.8.2.0 for Cortex-M and Embedded Studio</h1>
+          <h1>Release notes for embOS V5.16.0.0 for Cortex-M and Embedded Studio</h1>
         </div>
       </div>
     </div>
@@ -203,23 +203,23 @@ div.divider-global:nth-of-type(even) {
             <tbody>
               <tr>
                 <th scope="row">Compiler: </th>
-                <td>GNU C17 (GCC) version 8.3.1 20190703 (release) [gcc-8-branch revision 273027] (arm-none-eabi)</td>
+                <td>SEGGER compiler version 13.0.0 (based on clang 13.0.0)</td>
               </tr>
               <tr>
                 <th scope="row">Assembler: </th>
-                <td>GNU assembler (GNU Binutils) 2.32.0.20190703</td>
+                <td>GNU assembler (based on arm-10.3-2021.10 GNU Binutils) 2.36.1.20210621</td>
               </tr>
               <tr>
                 <th scope="row">Linker: </th>
-                <td>GNU ld (GNU Binutils) 2.32.0.20190703</td>
+                <td>SEGGER ARM Linker 4.18.0 compiled Nov 27 2021 03:23:26</td>
               </tr>
               <tr>
                 <th scope="row">Librarian: </th>
-                <td>GNU ar (GNU Binutils) 2.32.0.20190703</td>
+                <td>GNU ar (based on arm-10.3-2021.10 GNU Binutils) 2.36.1.20210621</td>
               </tr>
               <tr>
                 <th scope="row">Workbench: </th>
-                <td>Segger Embedded Studio V4.30b</td>
+                <td>SEGGER Embedded Studio V5.68</td>
               </tr>
             </tbody>
           </table>
@@ -230,6 +230,154 @@ div.divider-global:nth-of-type(even) {
   <!-- ****************************************************************** -->
   <!-- History                                                       -->
   <!-- ****************************************************************** -->
+  <div class="divider-global">
+    <div class="container">
+      <h2>Version 5.16.0.0 [23. Dec 2021]</h2>
+      <div>
+        <h3>New Features</h3>
+        <ol>
+           <li>Update to latest embOS generic sources V5.16.0.</li>
+           <li>Update to latest SEGGER Embedded Studio V5.68.</li>
+           <li>Support for ARM TrustZone added.</li>
+           <li>Board support packages added for:<br>
+              Cypress CY8CKIT-062-WIFI-BT<br>
+              Holtek HT32F125x Development Board<br>
+              Holtek ESK32-30505 HT32F52253 Starter Kit<br>
+              Maxim Integrated MAX32570 MNKIT<br>
+              MindMotion MM32F103 MM32 MiniBoard<br>
+              L-Tek FF-LPC546xx<br>
+              RaspberryPi RP2040 Pico<br>
+              SEGGER STM32H743 NAND Flash Evaluator<br>
+              ST STM32F413ZH Discovery<br>
+              ST STM32F723E Discovery<br>
+              ST STM32G031K8 Nucleo<br>
+              ST STM32G0B1RE Nucleo<br>
+              ST STM32G431 Custom hardware<br>
+              ST STM32H745XI Discovery (M4)<br>
+              ST STM32H745XI Discovery (M7)<br>
+              ST STM32H753ZI Nucleo<br>
+              ST STM32H7B3I DK<br>
+              ST STM32H7B3I Nucleo<br>
+              ST STM32U575ZI Nucleo<br>
+              Toshiba AdBun-M3HQ<br>
+              Toshiba AdBun-M4GR<br>
+              Toshiba AdBun-M4NR<br>
+              Toshiba TMPM4KN-SBK
+          </li>
+        </ol>
+      </div>
+    </div>
+  </div>
+  <div class="divider-global">
+    <div class="container">
+      <h2>Version 5.14.0.0 [06. May 2021]</h2>
+      <div>
+        <h3>New Features</h3>
+        <ol>
+           <li>Update to latest embOS generic sources V5.14.0.</li>
+           <li>Update to latest SEGGER Embedded Studio V5.42b.</li>
+           <li>Board support packages added for:<br>
+              Microchip SAME54 XPlainedPro<br>
+              BBC Micro:Bit V2<br>
+              Nordic Semiconductor nRF5340 DK<br>
+              NXP LPC1549 LPCXpresso<br>
+              IAR LPC1766 SK<br>
+              ST STM32F413ZH Nucleo<br>
+              ST STM32H735G DK<br>
+              ST STM32L496G Discovery<br>
+              Ka-Ro QSMP on QSBASE1<br>
+              ST STM32MP15X EV1
+          </li>
+        </ol>
+      </div>
+    </div>
+  </div>
+  <div class="divider-global">
+    <div class="container">
+      <h2>Version 5.12.0.1 [16. Dec 2020]</h2>
+      <div>
+        <h3>New Features</h3>
+        <ol>
+           <li>Update to latest SEGGER Embedded Studio V5.32a.</li>
+           <li>Board support packages added for:<br>
+              SparkFun SAMD21 Mini Breakout<br>
+              ST STM32F765ZI Custom hardware
+          </li>
+        </ol>
+        <h3>Improvements</h3>
+        <ol>
+          <li>Minor issues in some BSPs improved.
+          </li>
+        </ol>
+      </div>
+    </div>
+  </div>
+  <div class="divider-global">
+    <div class="container">
+      <h2>Version 5.12.0.0 [24. Nov 2020]</h2>
+      <div>
+        <h3>New Features</h3>
+        <ol>
+          <li>Update to latest embOS generic sources V5.12.0.</li>
+          <li>New embOS libraries for Cortex-M33 devices added.</li>
+          <li>Support for ARMv8-M stack limit feature added.</li>
+          <li>J-Trace support added to those BSPs where Trace is available.</li>
+          <li>BSPs updated for SEGGER Embedded Studio V5.20a.</li>
+          <li>Board support packages added for:<br>
+              Microchip SAM4C16C EK<br>
+              Microchip SAMR21E18 XPlainedPro<br>
+              Nuvoton NUC442JI8 NuTiny SDK<br>
+              NXP iMXRT1021 Evaluation Kit<br>
+              NXP iMXRT1052 Evaluation Kit<br>
+              NXP iMXRT1062 Evaluation Kit<br>
+              NXP iMXRT595S Evaluation Kit<br>
+              NXP iMXRT685S Evaluation Kit<br>
+              NXP LPCXpresso51U68<br>
+              NXP LPC54S018 Evaluation Kit<br>
+              NXP S32K148 EVB<br>
+              Renesas R7F0E01 RE01256KB<br>
+              SEGGER QSPI Flash Evaluator<br>
+              ST STM32G431RB-Nucleo<br>
+              ST STM32H745ZI-Nucleo<br>
+              ST STM32H750B-DK<br>
+              ST STM32L562E-DK<br>
+              TI EXP432P4111 LaunchPad
+          </li>
+        </ol>
+        <h3>Program corrections</h3>
+        <ol>
+          <li>Under certain circumstances, embOS API timeouts did not work as expected.<br>
+          The problem existed since version 5.10.1.0 of embOS for Cortex-M and SEGGER Embedded Studio and is fixed with version 5.12.0.0.</li>
+          </li>
+        </ol>
+      </div>
+    </div>
+  </div>
+  </div>  <div class="divider-global">
+    <div class="container">
+      <h2>Version 5.10.1.0 [18. Jun 2020]</h2>
+      <div>
+        <h3>New Features</h3>
+        <ol>
+          <li>Update to SEGGER Embedded Studio V4.52c.</li>
+          <li>Update to SEGGER scc. <br> embOS libraries are now build using the SEGGER compiler instead of GCC.</li>
+          <li>Update to latest embOS generic sources V5.10.0.</li>
+          <li>Board support packages added for:<br>
+                Nuvoton NUC029LAN NuTiny-SDK<br>
+                NXP iMXRT1020 Evaluation Kit<br>
+                NXP iMXRT1062 Evaluation Kit<br>
+                NXP iMXRT1176 Evaluation Kit (M4)<br>
+                NXP iMXRT1176 Evaluation Kit (M7)<br>
+                NXP iMXRT685S Evaluation Kit<br>
+                NXP LPC54018M Evaluation Kit<br>
+                SEGGER NAND-Flash Eval<br>
+                ST STM32L552ZE-Eval<br>
+                ST STM32L552ZE-Nucleo
+          </li>
+        </ol>
+      </div>
+    </div>
+  </div>
   <div class="divider-global">
     <div class="container">
       <h2>Version 5.8.2.0 [07. Jan 2020]</h2>
@@ -252,7 +400,7 @@ div.divider-global:nth-of-type(even) {
         <h3>New Features</h3>
         <ol>
           <li>Update to latest embOS generic sources V5.8.1.</li>
-          <li>Update to Segger Embedded Studio V4.30b.</li>
+          <li>Update to SEGGER Embedded Studio V4.30b.</li>
           <li>Board support packages added for:<br>
                 GigaDevice GD32150R-Eval<br>
                 GigaDevice GD32190R-Eval<br>
@@ -323,7 +471,7 @@ div.divider-global:nth-of-type(even) {
         <h3>New Features</h3>
         <ol>
           <li>Update to latest embOS generic sources V5.06.</li>
-          <li>Update to Embedded Studio V4.12.</li>
+          <li>Update to SEGGER Embedded Studio V4.12.</li>
           <li>All ARMv6M/ARMv7M BSPs now use the SEGGER linker.</li>
           <li>Board support packages added for:<br>
               Infineon XMC4000 Hexagon Application Kit<br>
@@ -414,9 +562,9 @@ div.divider-global:nth-of-type(even) {
         <h3>New Features</h3>
         <ol>
           <li>Update to latest embOS generic sources V4.40.</li>
-          <li>Update to Segger Embedded Studio V3.34.</li>
+          <li>Update to SEGGER Embedded Studio V3.34.</li>
           <li>Thread local storage supported.<br>
-            embOS for Cortex-M and Embedded Studio now supports the thread local storage implementation of the Embedded Studio standard libraries.
+            embOS for Cortex-M ES now supports the thread local storage implementation of the SEGGER Embedded Studio standard libraries.
           </li>
           <li>Board support package for the BBC micro:bit added.</li>
           <li>Board support package for the NordicSemi nRF52 (Preview) Development Kit added.</li>
@@ -435,9 +583,9 @@ div.divider-global:nth-of-type(even) {
         <h3>New Features</h3>
         <ol>
           <li>Update to latest embOS generic sources V4.38.</li>
-          <li>Update to Segger Embedded Studio V3.26.</li>
+          <li>Update to SEGGER Embedded Studio V3.26.</li>
           <li>Board support package for the Infineon XMC4300 Relax EtherCat Kit added.</li>
-          <li>Board support package for the Segger Cortex-M Trace Reference Board added.</li>
+          <li>Board support package for the SEGGER Cortex-M Trace Reference Board added.</li>
         </ol>
       </div>
     </div>
@@ -449,8 +597,8 @@ div.divider-global:nth-of-type(even) {
         <h3>New Features</h3>
         <ol>
           <li>Update to latest embOS generic sources V4.36.</li>
-          <li>Update to Segger Embedded Studio V3.24a.</li>
-          <li>Dedicated project for the Embedded Studio simulator added.</li>
+          <li>Update to SEGGER Embedded Studio V3.24a.</li>
+          <li>Dedicated project for the SEGGER Embedded Studio simulator added.</li>
           <li>Board support package for the AmbiqMicro Apollo added.</li>
           <li>Board support package for the STMicro STM32F412G_Discovery added.</li>
           <li>Board support package for the STMicro STM32F769_Discovery added.</li>
@@ -465,7 +613,7 @@ div.divider-global:nth-of-type(even) {
         <h3>New Features</h3>
         <ol>
           <li>Update to latest embOS generic sources V4.34.</li>
-          <li>Update to Segger Embedded Studio V3.12.</li>
+          <li>Update to SEGGER Embedded Studio V3.12.</li>
           <li>Additional libraries using hard floating-point ABI added.</li>
           <li>Board support package for the Infineon XMC4700 added.</li>
           <li>Board support package for the NXP LPC1788 added.</li>
@@ -518,7 +666,7 @@ div.divider-global:nth-of-type(even) {
         <ol>
           <li>Applied workaround for interrupt handling with Cortex-M7 r0p1.<br>
             Erratum 837070, ARM-EPM-064408: Increasing priority using a write to BASEPRI does not take effect immediately. An appropriate workaround was applied.<br>
-            The problem, which is exclusive for Cortex-M7 r0p1, existed on all previous versions of embOS for Cortex-M and Segger Embedded Studio and is fixed with version 4.24.
+            The problem, which is exclusive for Cortex-M7 r0p1, existed on all previous versions of embOS for Cortex-M and SEGGER Embedded Studio and is fixed with version 4.24.
           </li>
         </ol>
       </div>
@@ -535,7 +683,7 @@ div.divider-global:nth-of-type(even) {
           <li>Board support package for the NXP (Freescale) TWR-K21F120M added.</li>
           <li>Board support package for the Keil MCB1700 added.</li>
           <li>Board support package for the Keil MCB4357 added.</li>
-          <li>Board support package for the Segger embOS/IP SwitchBoard added.</li>
+          <li>Board support package for the SEGGER embOS/IP SwitchBoard added.</li>
           <li>Board support package for the Silicon Labs EFM32 Happy Gecko added.</li>
         </ol>
         <h3>Improvements</h3>
@@ -552,8 +700,8 @@ div.divider-global:nth-of-type(even) {
         <h3>New Features</h3>
         <ol>
           <li>Update to latest embOS generic sources V4.14.</li>
-          <li>Added Segger SystemView to all projects.<br>
-            The Segger SystemView User Guide is available at <a href ="https://www.segger.com/systemview.html">www.segger.com</a>.
+          <li>Added SEGGER SystemView to all projects.<br>
+            The SEGGER SystemView User Guide is available at <a href ="https://www.segger.com/systemview.html">www.segger.com</a>.
           </li>
           <li>Board support package for the Atmel SAMD21_XPlainedPro added.</li>
           <li>Board support package for the Atmel SAMR21_XPlainedPro added.</li>
@@ -572,9 +720,9 @@ div.divider-global:nth-of-type(even) {
         <h3>New Features</h3>
         <ol>
           <li>Update to latest embOS generic sources V4.12.</li>
-          <li>Update to Segger Embedded Studio V2.10a.</li>
-          <li>Added Segger Real-Time Transfer (RTT) to all projects.<br>
-            Additional information on Segger RTT is available at <a href ="https://www.segger.com/products/debug-probes/j-link/technology/real-time-transfer/about-real-time-transfer/">www.segger.com</a>.
+          <li>Update to SEGGER Embedded Studio V2.10a.</li>
+          <li>Added SEGGER Real-Time Transfer (RTT) to all projects.<br>
+            Additional information on SEGGER RTT is available at <a href ="https://www.segger.com/products/debug-probes/j-link/technology/real-time-transfer/about-real-time-transfer/">www.segger.com</a>.
           </li>
           <li>Board support package for the Olimex STM32P407 added.</li>
         </ol>
@@ -618,7 +766,7 @@ div.divider-global:nth-of-type(even) {
 <div class="footer">
   <div class="container">
     <div>
-      <p>Copyright 2001-2020 SEGGER Microcontroller GmbH. All rights reserved.<br>
+      <p>Copyright 2001-2021 SEGGER Microcontroller GmbH. All rights reserved.<br>
         For more information, please visit our website&nbsp;<a href="https://www.segger.com/" target="_blank">www.segger.com</a>&nbsp;or contact us at&nbsp;<a href="mailto:support_embos@segger.com">support_embos@segger.com</a>&nbsp;</p>
     </div>
   </div>

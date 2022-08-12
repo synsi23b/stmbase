@@ -3,13 +3,13 @@
 *                        The Embedded Experts                        *
 **********************************************************************
 *                                                                    *
-*       (c) 1995 - 2020 SEGGER Microcontroller GmbH                  *
+*       (c) 1995 - 2021 SEGGER Microcontroller GmbH                  *
 *                                                                    *
 *       Internet: segger.com  Support: support_embos@segger.com      *
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       embOS * Real time operating system for microcontrollers      *
+*       embOS * Real time operating system                           *
 *                                                                    *
 *       Please note:                                                 *
 *                                                                    *
@@ -21,7 +21,7 @@
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       OS version: V5.8.2.0                                         *
+*       OS version: V5.16.0.0                                        *
 *                                                                    *
 **********************************************************************
 
@@ -31,10 +31,10 @@ Purpose : Reimplementation of printf, puts and __getchar using RTT
           in SEGGER Embedded Studio.
           To use RTT for printf output, include this file in your
           application.
-Revision: $Rev: 12804 $
+Revision: $Rev: 24316 $
 ----------------------------------------------------------------------
 */
-#if (defined __SES_ARM) || (defined __CROSSWORKS_ARM)
+#if (defined __SES_ARM) || (defined __SES_RISCV) || (defined __CROSSWORKS_ARM)
 
 #include "SEGGER_RTT.h"
 #include <stdarg.h>

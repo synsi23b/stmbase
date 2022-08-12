@@ -3,13 +3,13 @@
 *                        The Embedded Experts                        *
 **********************************************************************
 *                                                                    *
-*       (c) 1995 - 2020 SEGGER Microcontroller GmbH                  *
+*       (c) 1995 - 2021 SEGGER Microcontroller GmbH                  *
 *                                                                    *
 *       Internet: segger.com  Support: support_embos@segger.com      *
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       embOS * Real time operating system for microcontrollers      *
+*       embOS * Real time operating system                           *
 *                                                                    *
 *       Please note:                                                 *
 *                                                                    *
@@ -21,15 +21,15 @@
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       OS version: V5.8.2.0                                         *
+*       OS version: V5.16.0.0                                        *
 *                                                                    *
 **********************************************************************
 
-----------------------------------------------------------------------
+-------------------------- END-OF-HEADER -----------------------------
+
 File    : SEGGER.h
-Purpose : Global types etc & general purpose utility functions
-Revision: $Rev: 15460 $
----------------------------END-OF-HEADER------------------------------
+Purpose : Global types etc & general purpose utility functions.
+Revision: $Rev: 22733 $
 */
 
 #ifndef SEGGER_H            // Guard against multiple inclusion
@@ -50,35 +50,38 @@ extern "C" {     /* Make sure we have C-declarations in C++ programs */
 */
 
 #ifndef INLINE
-  #if (defined(__ICCARM__) || defined(__RX) || defined(__ICCRX__))
+  #if (defined(__ICCARM__) || defined(__RX) || defined(__ICCRX__) || defined(__ICC430__))
     //
-    // Other known compilers.
+    // Various known compilers.
     //
     #define INLINE  inline
   #else
-    #if (defined(_WIN32) && !defined(__clang__))
+    #if   defined(_MSC_VER)
+      #if (_MSC_VER >= 1200)
+        //
+        // Microsoft VC6 and newer.
+        // Force inlining without cost checking.
+        //
+        #define INLINE  __forceinline
+      #endif
+    #elif defined(__GNUC__) || defined(__clang__) || defined(__SEGGER_CC__)
       //
-      // Microsoft VC6 and newer.
-      // Force inlining without cost checking.
-      //
-      #define INLINE  __forceinline
-    #elif (defined(__GNUC__))
-      //
-      // Force inlining with GCC
+      // Force inlining with GCC & clang.
       //
       #define INLINE inline __attribute__((always_inline))
-    #elif (defined(__CC_ARM))
+    #elif defined(__CC_ARM)
       //
-      // Force inlining with ARMCC (Keil)
+      // Force inlining with ARMCC (Keil).
       //
       #define INLINE  __inline
-    #else
-      //
-      // Unknown compilers.
-      //
-      #define INLINE
     #endif
   #endif
+#endif
+#ifndef INLINE
+  //
+  // Unknown compiler.
+  //
+  #define INLINE
 #endif
 
 /*********************************************************************
@@ -173,7 +176,7 @@ typedef struct {
 // Memory operations.
 //
 void SEGGER_ARM_memcpy(void* pDest, const void* pSrc, int NumBytes);
-void SEGGER_memcpy    (void* pDest, const void* pSrc, int NumBytes);
+void SEGGER_memcpy    (void* pDest, const void* pSrc, unsigned NumBytes);
 void SEGGER_memxor    (void* pDest, const void* pSrc, unsigned NumBytes);
 
 //
@@ -197,13 +200,14 @@ int  SEGGER_snprintf     (char* pBuffer, int BufferSize, const char* sFormat, ..
 int  SEGGER_vsnprintf    (char* pBuffer, int BufferSize, const char* sFormat, va_list ParamList);
 int  SEGGER_vsnprintfEx  (SEGGER_SNPRINTF_CONTEXT* pContext, const char* sFormat, va_list ParamList);
 
-int  SEGGER_PRINTF_AddFormatter      (SEGGER_PRINTF_FORMATTER* pFormatter, SEGGER_pFormatter pfFormatter, char c);
-void SEGGER_PRINTF_AddDoubleFormatter(void);
-void SEGGER_PRINTF_AddIPFormatter    (void);
-void SEGGER_PRINTF_AddBLUEFormatter  (void);
-void SEGGER_PRINTF_AddSSLFormatter   (void);
-void SEGGER_PRINTF_AddSSHFormatter   (void);
-void SEGGER_PRINTF_AddHTMLFormatter  (void);
+int  SEGGER_PRINTF_AddFormatter       (SEGGER_PRINTF_FORMATTER* pFormatter, SEGGER_pFormatter pfFormatter, char c);
+void SEGGER_PRINTF_AddDoubleFormatter (void);
+void SEGGER_PRINTF_AddIPFormatter     (void);
+void SEGGER_PRINTF_AddBLUEFormatter   (void);
+void SEGGER_PRINTF_AddCONNECTFormatter(void);
+void SEGGER_PRINTF_AddSSLFormatter    (void);
+void SEGGER_PRINTF_AddSSHFormatter    (void);
+void SEGGER_PRINTF_AddHTMLFormatter   (void);
 
 //
 // BSP abstraction API.

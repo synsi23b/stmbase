@@ -3,13 +3,13 @@
 *                        The Embedded Experts                        *
 **********************************************************************
 *                                                                    *
-*       (c) 1995 - 2020 SEGGER Microcontroller GmbH                  *
+*       (c) 1995 - 2021 SEGGER Microcontroller GmbH                  *
 *                                                                    *
 *       Internet: segger.com  Support: support_embos@segger.com      *
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       embOS * Real time operating system for microcontrollers      *
+*       embOS * Real time operating system                           *
 *                                                                    *
 *       Please note:                                                 *
 *                                                                    *
@@ -21,14 +21,14 @@
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       OS version: V5.8.2.0                                         *
+*       OS version: V5.16.0.0                                        *
 *                                                                    *
 **********************************************************************
 
 -------------------------- END-OF-HEADER -----------------------------
 File    : SEGGER_SYSVIEW_Int.h
 Purpose : SEGGER SystemView internal header.
-Revision: $Rev: 12706 $
+Revision: $Rev: 21281 $
 */
 
 #ifndef SEGGER_SYSVIEW_INT_H
@@ -42,8 +42,6 @@ Revision: $Rev: 12706 $
 */
 
 #include "SEGGER_SYSVIEW.h"
-#include "SEGGER_SYSVIEW_Conf.h"
-#include "SEGGER_SYSVIEW_ConfDefaults.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -67,6 +65,7 @@ typedef enum {
   SEGGER_SYSVIEW_COMMAND_ID_GET_SYSDESC,
   SEGGER_SYSVIEW_COMMAND_ID_GET_NUMMODULES,
   SEGGER_SYSVIEW_COMMAND_ID_GET_MODULEDESC,
+  SEGGER_SYSVIEW_COMMAND_ID_HEARTBEAT = 127,
   // Extended commands: Commands >= 128 have a second parameter
   SEGGER_SYSVIEW_COMMAND_ID_GET_MODULE = 128
 } SEGGER_SYSVIEW_COMMAND_ID;

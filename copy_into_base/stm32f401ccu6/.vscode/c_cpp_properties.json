@@ -4,10 +4,9 @@
             "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/stmbase/synhal32/**",
-                "/stmbase/embos/common/**",
-                "/stmbase/embos/stm32f401ccu6/**",
-                "C:\\Program Files\\SEGGER\\SEGGER Embedded Studio for ARM 5.10b\\include\\**",
-                "/usr/share/segger_embedded_studio_for_arm_5.10b/include/**"
+                "${workspaceFolder}/stmbase/embos/common/**",
+                "${workspaceFolder}/stmbase/embos/stm32f401ccu6/**",
+                "C:\\Program Files\\SEGGER\\SEGGER Embedded Studio for ARM 6.32b\\include\\**"
             ],
             "defines": [
                 "_DEBUG",
