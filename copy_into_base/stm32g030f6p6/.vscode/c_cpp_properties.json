@@ -12,11 +12,10 @@
                 "_DEBUG",
                 "UNICODE",
                 "_UNICODE",
-                "GCC_ARMCM3",
-                "STM32G030XX",
+                "GCC_ARMCM0",
                 "OS_INT_Disable=int",
                 "OS_INT_Enable=int",
-                "STM32G030_MD"
+                "STM32G030xx"
             ],
             "intelliSenseMode": "gcc-x64"
         }

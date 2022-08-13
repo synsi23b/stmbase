@@ -66,6 +66,8 @@ LPTask lptask;
 int main(void)
 {
   syn::System::init();
+  // enable port a b and c
+  syn::Gpio::enable_ports(0x7);
   // also start the usb-synrpc handler
   //packethandler.start();
 

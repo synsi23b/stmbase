@@ -984,6 +984,15 @@ namespace syn
     {
       _pPort = 0;
     }
+
+    // enable /disable gpio ports accodring to mask
+    // bit 0 -> port a
+    // bit 1 -> port b etc
+    static void enable_ports(uint16_t mask)
+    {
+      RCC->IOPENR = mask;
+    }
+
     // port shall be 'A' 'B' or 'C'
     // pin is a number beteween and including 0 and 15
     Gpio(int8_t port, uint8_t pin)
@@ -1033,10 +1042,23 @@ namespace syn
       MHz_50 = 0x3,
       MHz_100 = 0x4
     };
-
+#if defined(STM32G030xx)
     enum Alternate
     {
-      System = 0x0,
+      AF0 = 0,
+      AF1 = 1,
+      AF2 = 2,
+      AF3 = 3,
+      AF4 = 4,
+      AF5 = 5,
+      AF6 = 6,
+      AF7 = 7,
+      Nop = 8
+    };
+#else
+    enum Alternate
+    {
+      Nop = 0x0,
       Timer_1_2 = 0x1,
       Timer_3_4_5 = 0x2,
       Timer_9_10_11 = 0x3,
@@ -1049,14 +1071,15 @@ namespace syn
       SDIO_ = 0xC,
       EVENTOUT = 0xF
     };
+#endif
 
     // defaults to input modes, if set any output mode
     // requires speed to be set anything other than Input
-    void mode(Mode m, Speed s = Input, Alternate a = System)
+    void mode(Mode m, Speed s = Input, Alternate a = Nop)
     {
       if (m == out_alt_open_drain || m == out_alt_push_pull)
       {
-        OS_ASSERT(a != System, ERR_FORBIDDEN);
+        OS_ASSERT(a != Nop, ERR_FORBIDDEN);
       }
       if (m & 0x3)
       {
@@ -1296,9 +1319,9 @@ namespace syn
 #ifdef STM32F103xB
       AFIO->MAPR |= (uint32_t)map;
 #elif defined(STM32F401xC)
-      map = map;
+      (void)(map);
 #elif defined(STM32G030xx)
-      map = map;
+      (void)(map);
 #else
 #error "Unknown chip!"
 #endif
@@ -1501,24 +1524,52 @@ namespace syn
     }
 
     // check wether this exti got triggered
-    static bool is_set(uint16_t line)
+    // returns value != 0 if triggered
+    // on rising / falling edge seperate devices, returns 1 for falling
+    // 2 for rising or 3 for both edges
+    static uint16_t is_set(uint16_t line)
     {
+      uint16_t ret = 0;
 #if defined(STM32G030xx)
       uint16_t mask = (1 << line);
-      return EXTI->FPR1 & mask || EXTI->RPR1 & mask;
+      if (EXTI->FPR1 & mask )
+      {
+        ret = 1;
+      }
+      if (EXTI->RPR1 & mask)
+      {
+        ret |= 2;
+      }
 #else
-      return EXTI->PR & (1 << line);;
+      if(EXTI->PR & (1 << line))
+      {
+        return 1;
+      }
 #endif
+      return ret;
     }
 
     // clear the pending bit for the irq line
-    static void clear(uint16_t line)
+    // for falling and rising edge devices, the line to clear
+    // should be passed as the same value obtained by is_set function
+    // val = 1 falling, val = 2 rising, val = 3 both edges
+    static void clear(uint16_t line, uint16_t val=1)
     {
+      uint16_t mask = (1 << line);
 #if defined(STM32G030xx)
-      EXTI->FPR1 = (1 << line);
-      EXTI->RPR1 = (1 << line);
+      if(val & 0x1)
+      {
+        EXTI->FPR1 = mask;
+      }
+      if(val & 0x2)
+      {
+        EXTI->RPR1 = (1 << line);
+      }
 #else
-      EXTI->PR = (1 << line);
+      if(val & 0x1)
+      {
+        EXTI->PR = mask;
+      }
 #endif
     }
   };
@@ -1886,6 +1937,11 @@ namespace syn
 
     bool busy_tx(const uint8_t *pbuffer, uint16_t size);
     bool busy_tx(const uint16_t *pbuffer, uint16_t size);
+
+    bool busy_bidi(uint8_t *pbuffer, uint16_t size);
+
+    // writes start address to spi device, than continues to read into buffer for size
+    bool busy_read_regs(uint8_t startaddress, uint8_t* pbuffer, uint16_t size);
 
   private:
     SPI_TypeDef *_pSpi;
