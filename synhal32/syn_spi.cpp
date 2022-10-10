@@ -39,7 +39,7 @@ void SpiMaster::init(uint16_t port, uint32_t frequency, bool clock_polarity, boo
   for(; baudrateselect < 8; ++baudrateselect)
   {
     uint32_t baudrate = perifreq >> baudrateselect;
-    if(baudrate < frequency)
+    if(baudrate <= frequency)
     {
       break;
     }
@@ -138,7 +138,7 @@ void SpiMaster::init(uint16_t port, uint32_t frequency, bool clock_polarity, boo
   for(; baudrateselect < 8; ++baudrateselect)
   {
     uint32_t baudrate = perifreq >> baudrateselect;
-    if(baudrate < frequency)
+    if(baudrate <= frequency)
     {
       break;
     }
