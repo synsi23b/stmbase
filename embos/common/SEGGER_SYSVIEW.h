@@ -3,7 +3,7 @@
 *                        The Embedded Experts                        *
 **********************************************************************
 *                                                                    *
-*       (c) 1995 - 2021 SEGGER Microcontroller GmbH                  *
+*       (c) 1995 - 2022 SEGGER Microcontroller GmbH                  *
 *                                                                    *
 *       Internet: segger.com  Support: support_embos@segger.com      *
 *                                                                    *
@@ -21,14 +21,14 @@
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       OS version: V5.16.0.0                                        *
+*       OS version: V5.18.0.0                                        *
 *                                                                    *
 **********************************************************************
 
 -------------------------- END-OF-HEADER -----------------------------
 File    : SEGGER_SYSVIEW.h
 Purpose : System visualization API.
-Revision: $Rev: 21292 $
+Revision: $Rev: 26226 $
 */
 
 #ifndef SEGGER_SYSVIEW_H
@@ -57,7 +57,7 @@ extern "C" {
 */
 
 #define SEGGER_SYSVIEW_MAJOR          3
-#define SEGGER_SYSVIEW_MINOR          10
+#define SEGGER_SYSVIEW_MINOR          32
 #define SEGGER_SYSVIEW_REV            0
 #define SEGGER_SYSVIEW_VERSION        ((SEGGER_SYSVIEW_MAJOR * 10000) + (SEGGER_SYSVIEW_MINOR * 100) + SEGGER_SYSVIEW_REV)
 

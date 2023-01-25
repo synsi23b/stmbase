@@ -3,7 +3,7 @@
 *                        The Embedded Experts                        *
 **********************************************************************
 *                                                                    *
-*       (c) 1995 - 2021 SEGGER Microcontroller GmbH                  *
+*       (c) 1995 - 2022 SEGGER Microcontroller GmbH                  *
 *                                                                    *
 *       Internet: segger.com  Support: support_embos@segger.com      *
 *                                                                    *
@@ -21,7 +21,7 @@
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       OS version: V5.16.0.0                                        *
+*       OS version: V5.18.0.0                                        *
 *                                                                    *
 **********************************************************************
 
@@ -47,17 +47,19 @@ Additional information:
 #ifndef SEGGER_SYSVIEW_CONF_H
 #define SEGGER_SYSVIEW_CONF_H
 
+#include <stdint.h>
+
 /*********************************************************************
 *
 *       Defines, configurable
 *
 **********************************************************************
 */
-extern unsigned int SystemCoreClock;
+extern uint32_t SystemCoreClock;
 
 #define SEGGER_SYSVIEW_APP_NAME        "embOS start project"
-#define SEGGER_SYSVIEW_DEVICE_NAME     "STM32G031R8"
-#define SEGGER_SYSVIEW_ID_BASE         0x20000000
+#define SEGGER_SYSVIEW_DEVICE_NAME     "STM32F407VE"
+#define SEGGER_SYSVIEW_ID_BASE         0x10000000
 #define SEGGER_SYSVIEW_TIMESTAMP_FREQ  SystemCoreClock
 #define SEGGER_SYSVIEW_CPU_FREQ        SystemCoreClock
 #define SEGGER_SYSVIEW_SYSDESC0        "I#15=SysTick"

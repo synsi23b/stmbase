@@ -1597,7 +1597,7 @@ uint8_t *USBD_CDC_GetDeviceQualifierDescriptor(uint16_t *length)
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
 
-void UsbRpc::init()
+void syn::UsbRpc::init()
 {
   RCC->AHB2ENR |= RCC_AHB2ENR_OTGFSEN;
   // setup the eventset
@@ -1628,7 +1628,7 @@ void UsbRpc::init()
 }
 
 // blocks until the buffer was written, or until timeout, if non-zero
-bool UsbRpc::write(const uint8_t *data, uint16_t size, uint32_t timeout)
+bool syn::UsbRpc::write(const uint8_t *data, uint16_t size, uint32_t timeout)
 {
   if (timeout != 0)
   {
@@ -1656,7 +1656,7 @@ bool UsbRpc::write(const uint8_t *data, uint16_t size, uint32_t timeout)
   return false;
 }
 
-void UsbRpc::_enable_rx()
+void syn::UsbRpc::_enable_rx()
 {
   if (usb::data_rx_off != 0 && usb::packetbuffer == 0)
   {

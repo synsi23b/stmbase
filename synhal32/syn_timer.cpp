@@ -9,7 +9,11 @@ void Timer::enableCallback(uint16_t priority)
     Atomic a;
     _pTimer->DIER = TIM_DIER_UIE;
     _pTimer->SR = 0;
+#ifdef STM32F401xC
+    Core::enable_isr(TIM1_UP_TIM10_IRQn, priority);
+#else
     Core::enable_isr(TIM1_UP_IRQn, priority);
+#endif
     return;
   }
 #endif
@@ -44,7 +48,7 @@ void Timer::enableCallback(uint16_t priority)
   }
 #endif
 }
-#include "../../synhal_isr.h"
+#include "../../src/synhal_isr.h"
 extern "C"
 {
 #if (SYN_TIMER_1_IRQ_TYPE == 1)

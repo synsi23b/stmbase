@@ -547,7 +547,6 @@ namespace syn
       OS_TASKEVENT_Clear(this);
     }
 
-  protected:
     // suspends always the calling thread!
     static void sleep(OS_TIME millisec)
     {
@@ -990,7 +989,11 @@ namespace syn
     // bit 1 -> port b etc
     static void enable_ports(uint16_t mask)
     {
+#ifdef STM32G030xx
       RCC->IOPENR = mask;
+#else
+      (void)mask;
+#endif
     }
 
     // port shall be 'A' 'B' or 'C'
@@ -1915,6 +1918,18 @@ namespace syn
     // calculate the base reg by offset / 4 (as in the register map)
     // the first CCR register is number 13 (offset 0x34)
     volatile uint16_t *enableDmaUpdate(uint16_t base_reg, uint16_t burst_count);
+
+    // start the timer again after stopping, better call only after having initialized the timers
+    void start()
+    {
+      _pTimer->CR1 |= TIM_CR1_CEN;
+    }
+
+    // stop the timer from running
+    void stop()
+    {
+      _pTimer->CR1 &= !TIM_CR1_CEN;
+    }
 
     // stop timer when debugging, careful with RC pwm
     void stopForDebug();
