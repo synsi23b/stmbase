@@ -4,7 +4,7 @@
 #include "../embos/stm32f103c8/stm32f10x.h"
 #endif
 #ifdef STM32F401xC
-#include "../embos/stm32f401ccu6/stm32f401xc.h"
+#include "../embos/stm32f401ccu6/stm32f4xx.h"
 #endif
 #ifdef STM32G030xx
 #include "../embos/stm32g030f6p6/stm32g0xx.h"
@@ -547,7 +547,6 @@ namespace syn
       OS_TASKEVENT_Clear(this);
     }
 
-  protected:
     // suspends always the calling thread!
     static void sleep(OS_TIME millisec)
     {
@@ -985,6 +984,7 @@ namespace syn
       _pPort = 0;
     }
 
+#ifdef STM32G030xx
     // enable /disable gpio ports accodring to mask
     // bit 0 -> port a
     // bit 1 -> port b etc
@@ -992,6 +992,7 @@ namespace syn
     {
       RCC->IOPENR = mask;
     }
+#endif
 
     // port shall be 'A' 'B' or 'C'
     // pin is a number beteween and including 0 and 15
@@ -1915,6 +1916,18 @@ namespace syn
     // calculate the base reg by offset / 4 (as in the register map)
     // the first CCR register is number 13 (offset 0x34)
     volatile uint16_t *enableDmaUpdate(uint16_t base_reg, uint16_t burst_count);
+
+    // start the timer again after stopping, better call only after having initialized the timers
+    void start()
+    {
+      _pTimer->CR1 |= TIM_CR1_CEN;
+    }
+
+    // stop the timer from running
+    void stop()
+    {
+      _pTimer->CR1 &= !TIM_CR1_CEN;
+    }
 
     // stop timer when debugging, careful with RC pwm
     void stopForDebug();
