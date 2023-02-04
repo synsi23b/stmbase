@@ -47,6 +47,18 @@ void Timer::enableCallback(uint16_t priority)
     return;
   }
 #endif
+#ifdef STM32F401xC
+#if (SYN_TIMER_5_IRQ_TYPE != 0)
+#endif
+  if (_pTimer == TIM5)
+  {
+    Atomic a;
+    _pTimer->DIER = TIM_DIER_UIE;
+    _pTimer->SR = 0;
+    Core::enable_isr(TIM5_IRQn, priority);
+    return;
+  }
+#endif
 }
 #include "../../src/synhal_isr.h"
 extern "C"
@@ -136,6 +148,26 @@ void Timer::configPwm(uint16_t prescaler, uint16_t reload, uint16_t startvalue)
   _pTimer->EGR |= TIM_EGR_UG;
   // Start the timer
   _pTimer->CR1 = TIM_CR1_CEN;
+}
+
+void Timer::configStepper()
+{
+  _pTimer->CNT = 0;
+  _pTimer->ARR = 2;
+  setStepperKHz(10);
+  _pTimer->CCR1 = 1;
+  _pTimer->CCR2 = 1;
+  _pTimer->CCR3 = 1;
+  _pTimer->CCR4 = 1;
+  // setup the ouput compares to PWM Mode 2 without preload
+  _pTimer->CCMR1 = TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1 | TIM_CCMR1_OC2M_0 | TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_0;
+  _pTimer->CCMR2 = TIM_CCMR2_OC4M_2 | TIM_CCMR2_OC4M_1 | TIM_CCMR2_OC4M_0 | TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1 | TIM_CCMR2_OC3M_0;
+  // enable output generation of the timer
+  _pTimer->BDTR = TIM_BDTR_MOE | TIM_BDTR_AOE;
+  // generate an update event to push the values from shadow registers in real registers
+  _pTimer->EGR |= TIM_EGR_UG;
+  // Start the timer
+  //_pTimer->CR1 = TIM_CR1_CEN;
 }
 
 void Timer::enablePwm(int8_t port, uint8_t pinnum, uint16_t channel, Gpio::Speed speed)

@@ -1825,6 +1825,23 @@ namespace syn
       return _pTimer->CCR4;
     }
 
+    void setStepperKHz(uint32_t khz)
+    {
+      if(khz == 0)
+      {
+        khz = 1;
+      }
+      khz *= 1000;
+      khz = (SystemCoreClock / 2) / khz;
+      if(khz == 0)
+      {
+        khz = 1;
+      }
+      _pTimer->PSC = khz - 1; // + 1 internally
+    }
+
+    void configStepper();
+
     // configure the timer for pwm out by setting the prescaler, reload and pwm compare startvalue
     // Timers are running with 72MHz on stm32f103 and 84MHz on stm32f401
     // the prescalers minimum value is 1, which is added internally (e.g. setting a value of 1 will result in 36MHz timer ticks (divison by 2))

@@ -46,7 +46,7 @@ void UsbRpc::Handler::run()
 }
 
 #if (SYN_USBRPC_USELED == 1)
-UsbRpc::Handler::LedTimer::LedTimer(syn::Led &led) : SoftTimer("LedTimer", 5, false), _led(led)
+UsbRpc::Handler::LedTimer::LedTimer(syn::Led &led) : SoftTimer(5, false), _led(led)
 {
   _led.off();
 }

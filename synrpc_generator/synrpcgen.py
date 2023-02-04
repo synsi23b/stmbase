@@ -180,6 +180,7 @@ def writePythonBridge(path, messages):
 class Variable:
     typepattern = re.compile(r'\b((u?int(8|(16)|(32)|(64)))|(bool)|(float)|(double)|(char))\b')
     arraypattern = re.compile(r'(\w+)\[(\d+)\]')
+    constantpattern = re.compile(r'\w+\s+\w+\s*=\s*(\w+)')
 
     # this dictionary translates variable types from the message definiton to cpp and python struct
     # it also gives the size and thus, the allignment requirements
@@ -195,17 +196,19 @@ class Variable:
                 'char' : ('char', 1, 's'), 'bool' : ('bool', 1, '?')
             }
 
-    def __init__(self, typename, varname, comments):
+    def __init__(self, typename, varname, comments, original):
         self.origname = varname
         self.comments = comments
         self.arraycount = 0
         self.name = ""
-        if not re.match(Variable.typepattern, typename):
+        # set value to other than None for constants
+        self.value = None
+        if not Variable.typepattern.match(typename):
             raise ValueError("Could not determine type of Variable: {} {}".format(typename, varname))
         self.typecpp = Variable.typedict[typename][0]
         self.sizecpp = Variable.typedict[typename][1]
         self.pypacks = Variable.typedict[typename][2]
-        if re.match(Variable.arraypattern, varname):
+        if Variable.arraypattern.match(varname):
             strsplit = varname.split('[')
             self.name = strsplit[0].lower()
             self.arraycount = int((strsplit[1]).split(']')[0])
@@ -213,6 +216,12 @@ class Variable:
                 raise ValueError("Arrays with length 0 are forbidden!")
         else:
             self.name = varname.lower()
+        ma = Variable.constantpattern.match(original)
+        if ma:
+            self.value = ma.group(1)
+
+    def is_const(self):
+        return self.value is not None
 
     def size(self):
         return self.sizecpp * self.arraycount if self.arraycount else self.sizecpp
@@ -223,20 +232,26 @@ class Variable:
         return self.arraycount if self.arraycount else 1 
     
     def genCppVardef(self):
-        if self.arraycount:
-            cppstr = f"  static const uint8_t {self.name.upper()}_SIZE = {self.arraycount};\n"
-            for c in self.comments:
-                cppstr += f"  //{c}\n"
-            cppstr += f"  {self.typecpp} {self.name}[{self.name.upper()}_SIZE];\n"
-            if self.typecpp == 'char':
-                cppstr += f"  void write_{self.name}(const char* str) {{\n"
-                cppstr += f"    strncpy({self.name}, str, {self.name.upper()}_SIZE - 1);\n"
-                cppstr += f"    {self.name}[{self.name.upper()}_SIZE - 1] = 0;\n  }}"
-        else:
+        if self.is_const():
             cppstr = ""
             for c in self.comments:
                 cppstr += f"  //{c}\n"
-            cppstr += f"  {self.typecpp} {self.name};\n"
+            cppstr += f"  static const {self.typecpp} {self.name} = {self.value};\n"
+        else:
+            if self.arraycount:
+                cppstr = f"  static const uint8_t {self.name.upper()}_SIZE = {self.arraycount};\n"
+                for c in self.comments:
+                    cppstr += f"  //{c}\n"
+                cppstr += f"  {self.typecpp} {self.name}[{self.name.upper()}_SIZE];\n"
+                if self.typecpp == 'char':
+                    cppstr += f"  void write_{self.name}(const char* str) {{\n"
+                    cppstr += f"    strncpy({self.name}, str, {self.name.upper()}_SIZE - 1);\n"
+                    cppstr += f"    {self.name}[{self.name.upper()}_SIZE - 1] = 0;\n  }}"
+            else:
+                cppstr = ""
+                for c in self.comments:
+                    cppstr += f"  //{c}\n"
+                cppstr += f"  {self.typecpp} {self.name};\n"
         return cppstr
 
     def genPyPackstr(self):
@@ -293,6 +308,10 @@ class Variable:
     def genPyFieldDsc(self):
         return '\n'.join(self.comments) + f"\n{self.typecpp} {self.origname}\n"
 
+    def genPyConstant(self):
+        com = [ f"    # {c}\n" for c in self.comments ]
+        return ''.join(com) + f"    {self.name.upper()} = {self.value}\n"
+
 class Message:
     typecounter = 1 # type 0 reserved for error messages
 
@@ -317,9 +336,9 @@ class Message:
                 line = line.strip()
                 # we calculate the sha-sum only over the varables, not the comments
                 shafunc.update(line.encode("utf-8"))
-                line = line.split()
+                sline = line.split()
                 try:
-                    self.vars.append(Variable(line[0], line[1], comments))
+                    self.vars.append(Variable(sline[0], sline[1], comments, line))
                     comments = []
                 except Exception as e:
                     print("Error parsing Message {} on line {}".format(filename, index + 1))
@@ -402,12 +421,16 @@ const char* syn::{handlername}(const syn::{msgname}& msg){{
         packstr = ""
         pyinit = ""
         msgfields = ""
+        constants = ""
         for v in self.vars:
-            access += v.genPyAccess(position)
-            packstr += v.genPyPackstr()
-            pyinit += v.genPyInit()
-            position += v.pysize()
-            msgfields += v.genPyFieldDsc()
+            if v.is_const():
+                constants += v.genPyConstant()
+            else:
+                access += v.genPyAccess(position)
+                packstr += v.genPyPackstr()
+                pyinit += v.genPyInit()
+                position += v.pysize()
+                msgfields += v.genPyFieldDsc()
         cldef = """\n\n
 class {msgname}(object):
     \"\"\"
@@ -415,6 +438,8 @@ Message fields:
 
 {msgfields}
 \"\"\"
+{const}
+
     _size = {msgsize}
     _type = {msgtype}
     _sha1 = int('{sha1}', 16)
@@ -438,7 +463,7 @@ Message fields:
         return {msgname}(buffer)
 """
         cldef = cldef.format(msgname=self.msgname, msgsize=self.size, msgtype=self.type, 
-                            sha1=self.sha1, packstr=packstr, pyinit=pyinit, msgfields=msgfields)
+                            sha1=self.sha1, packstr=packstr, pyinit=pyinit, msgfields=msgfields, const=constants)
         cldef += access
         return cldef
 
