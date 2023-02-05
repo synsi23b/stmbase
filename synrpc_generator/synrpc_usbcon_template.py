@@ -102,15 +102,20 @@ while True:
     def __init__(self):
         self._running = False
         self._usbdev = None
-        if sys.version_info < (3, 0):
-            self._recv = PacketHandler._py2_recv
-        else:
-            self._recv = PacketHandler._py3_recv
         self._recthread = threading.Thread(target=self._receiver)
 
     def start(self):
         self._running = True
         self._recthread.start()
+
+    def wait_for_ready(self):
+        sleep(0.5)
+        while self._running:
+            if self._usbdev is not None:
+                return True
+            sleep(0.5)
+        print("Wait for USB device failed, could not be found")
+        return False
 
     def shutdown(self):
         self._running = False
@@ -129,7 +134,7 @@ while True:
         return ret
 
     def _receiver(self):
-        buffer = []
+        buffer = array.array('B')
         # find and reset the usb device
         dev = usb.core.find(idVendor=0x0483, idProduct=0x5740)
         if not dev:
@@ -151,58 +156,28 @@ while True:
             # the function will return after a single bulk transfer of even less than 64 bytes
             try:
                 arr = dev.read(0x81, 64, 1000)
+                buffer.extend(arr)
             except usb.core.USBTimeoutError:
                 continue
-            if arr:
-                buffer += arr.tostring()
             if buffer:
-                buffer = self._recv(buffer)
-
-    @staticmethod
-    def _py2_recv(buffer):
-        # check buffer 0 for expected packet size and if the buffer is big enough
-        msgsize = ord(buffer[0])
-        if(msgsize < 6):
-            # if the indicated message size is below 6, there has to be an error.
-            # the meta data is at least 5 bytes and the payload is at least 1 byte.
-            buffer.pop(0)
-        elif len(buffer) >= msgsize:
-            # check if end of packet matches msgsize
-            msgsizerev = ord(buffer[msgsize - 1])
-            if (SYNRPC_MAX_MSGSIZE - msgsizerev) == msgsize:
-                msg = ''.join(buffer[:msgsize])
-                if _tryExecMessage(ord(buffer[1]), msg):
-                    buffer = buffer[msgsize:]
-                else:
+                # check buffer 0 for expected packet size and if the buffer is big enough
+                msgsize = buffer[0]
+                if(msgsize < 6):
                     buffer.pop(0)
-            else: # data missmatch, purge first byte and try again
-                buffer.pop(0)
-        else: # not enough data in yet, sleep a bit
-            # probably never happens because of lots and lots of queing in the os driver and all that
-            sleep(0.01)
-        return buffer
-    
-    @staticmethod
-    def _py3_recv(buffer):
-        # check buffer 0 for expected packet size and if the buffer is big enough
-        msgsize = buffer[0]
-        if(msgsize < 6):
-            buffer.pop(0)
-        elif len(buffer) >= msgsize:
-            # check if end of packet matches msgsize
-            msgsizerev = buffer[msgsize - 1]
-            if (SYNRPC_MAX_MSGSIZE - msgsizerev) == msgsize:
-                msg = bytes(buffer[:msgsize])
-                if _tryExecMessage(buffer[1], msg):
-                    buffer = buffer[msgsize:]
-                else:
-                    buffer.pop(0)
-            else: # data missmatch, purge first byte and try again
-                buffer.pop(0)
-        else: # not enough data in yet, sleep a bit
-            # probably never happens because of lots and lots of queing in the os driver and all that
-            sleep(0.01)
-        return buffer
+                elif len(buffer) >= msgsize:
+                    # check if end of packet matches msgsize
+                    msgsizerev = buffer[msgsize - 1]
+                    if (SYNRPC_MAX_MSGSIZE - msgsizerev) == msgsize:
+                        msg = bytes(buffer[:msgsize])
+                        if _tryExecMessage(buffer[1], msg):
+                            buffer = buffer[msgsize:]
+                        else:
+                            buffer.pop(0)
+                    else: # data missmatch, purge first byte and try again
+                        buffer.pop(0)
+                else: # not enough data in yet, sleep a bit
+                    # probably never happens because of lots and lots of queing in the os driver and all that
+                    sleep(0.01)
 
     @staticmethod
     def _errmsgHandler(synrpcerror):
