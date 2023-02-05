@@ -1,6 +1,6 @@
 #include "synhal.h"
 using namespace syn;
-#if (SYN_ENABLE_TIMER_IRQ != 0)
+#if SYN_TIMER_1_IRQ_TYPE || SYN_TIMER_2_IRQ_TYPE || SYN_TIMER_3_IRQ_TYPE || SYN_TIMER_4_IRQ_TYPE || SYN_TIMER_5_IRQ_TYPE
 void Timer::enableCallback(uint16_t priority)
 {
 #if (SYN_TIMER_1_IRQ_TYPE != 0)
@@ -63,6 +63,26 @@ void Timer::enableCallback(uint16_t priority)
 #include "../../src/synhal_isr.h"
 extern "C"
 {
+
+#ifdef STM32F401xC
+// ISR_HANDLER TIM1_BRK_TIM9_IRQHandler
+// ISR_HANDLER TIM1_UP_TIM10_IRQHandler
+// ISR_HANDLER TIM1_TRG_COM_TIM11_IRQHandler
+// ISR_HANDLER TIM1_CC_IRQHandler
+#if (SYN_TIMER_1_IRQ_TYPE == 1)
+  void TIM1_UP_TIM10_IRQHandler()
+  {
+    Core::enter_isr();
+    syn_timer_1_isr();
+    Core::leave_isr();
+  }
+#elif (SYN_TIMER_1_IRQ_TYPE == 2)
+  void TIM1_UP_TIM10_IRQHandler()
+  {
+    syn_timer_1_isr();
+  }
+#endif
+#else
 #if (SYN_TIMER_1_IRQ_TYPE == 1)
   void TIM1_UP_IRQHandler()
   {
@@ -75,6 +95,8 @@ extern "C"
   {
     syn_timer_1_isr();
   }
+#endif
+
 #endif
 #if (SYN_TIMER_2_IRQ_TYPE == 1)
   void TIM2_IRQHandler()
@@ -164,6 +186,8 @@ void Timer::configStepper()
   _pTimer->CCMR2 = TIM_CCMR2_OC4M_2 | TIM_CCMR2_OC4M_1 | TIM_CCMR2_OC4M_0 | TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1 | TIM_CCMR2_OC3M_0;
   // enable output generation of the timer
   _pTimer->BDTR = TIM_BDTR_MOE | TIM_BDTR_AOE;
+  // set the URS bit to not generate an interrupt when using the event gernation bit
+  _pTimer->CR1 = TIM_CR1_URS;
   // generate an update event to push the values from shadow registers in real registers
   _pTimer->EGR |= TIM_EGR_UG;
   // Start the timer

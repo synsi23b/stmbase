@@ -14,7 +14,6 @@
 #define SYN_ENABLE_UART_3     0
 #define SYN_ENABLE_SPI_1      0
 #define SYN_ENABLE_SPI_2      0
-#define SYN_ENABLE_TIMER_IRQ  0
 #define SYN_ENABLE_USBRPC     0
 #define SYN_ENABLE_EEPROM     0
 
