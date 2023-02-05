@@ -80,11 +80,13 @@ namespace syn
     class LedTimer : public syn::SoftTimer
     {{
     public:
-      LedTimer(syn::Led &led);
+      LedTimer();
+
+      void on();
 
     private:
       void execute();
-      syn::Led &_led;
+      syn::Led _led;
     }};
 #endif
   }};

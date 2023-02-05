@@ -15,16 +15,14 @@ const char *handlePacket(const UsbRpc::Packet &p);
 void UsbRpc::Handler::run()
 {
 #if (SYN_USBRPC_USELED == 1)
-  Led led;
-  LedTimer ledtimer(led);
+  LedTimer ledtimer;
 #endif
   Packet *pmsg;
   while (true)
   {
     _mailbox.peek(&pmsg);
 #if (SYN_USBRPC_USELED == 1)
-    led.on();
-    ledtimer.start();
+    ledtimer.on();
 #endif
     const char *err = handlePacket(*pmsg);
     if (err)
@@ -46,9 +44,15 @@ void UsbRpc::Handler::run()
 }
 
 #if (SYN_USBRPC_USELED == 1)
-UsbRpc::Handler::LedTimer::LedTimer(syn::Led &led) : SoftTimer(5, false), _led(led)
+UsbRpc::Handler::LedTimer::LedTimer() : SoftTimer(5, false)
 {
   _led.off();
+}
+
+void UsbRpc::Handler::LedTimer::on()
+{
+  _led.on();
+  start();
 }
 
 void UsbRpc::Handler::LedTimer::execute()

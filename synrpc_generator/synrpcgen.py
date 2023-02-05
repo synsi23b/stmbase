@@ -347,8 +347,9 @@ class Message:
         self.size = 0
         self.pysize = 0
         for v in self.vars:
-            self.size += v.size()
-            self.pysize += v.pysize()
+            if not v.is_const():
+                self.size += v.size()
+                self.pysize += v.pysize()
         self.size += 5 # add meta data
         if self.size > SYNRPC_MAX_MSGSIZE:
             raise RuntimeError(f"Msg: {filename} -> is bigger than {SYNRPC_MAX_MSGSIZE} bytes.")
