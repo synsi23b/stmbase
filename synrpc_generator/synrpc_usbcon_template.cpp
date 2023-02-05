@@ -14,6 +14,7 @@ const char *handlePacket(const UsbRpc::Packet &p);
 
 void UsbRpc::Handler::run()
 {
+  UsbRpc::_start_usb();
 #if (SYN_USBRPC_USELED == 1)
   LedTimer ledtimer;
 #endif

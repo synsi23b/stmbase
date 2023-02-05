@@ -129,7 +129,7 @@ while True:
         ret = False
         if self._usbdev:
             msg = array.array('B', message._serialize())
-            ret = self._usbdev.write(0x80, msg, 1000)
+            ret = self._usbdev.write(0x01, msg, 1000)
             ret = (ret - 5) == message._size
         return ret
 

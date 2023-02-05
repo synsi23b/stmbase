@@ -1933,6 +1933,17 @@ namespace syn
     // and return void upon completition
     void enableCallback(uint16_t priority = 8);
 
+    uint32_t irq_status() const
+    {
+      return _pTimer->SR;
+    }
+
+    // clear interrupt status register. If its not done, will be an interrupt loop
+    void clear_irq(uint32_t mask = 0xFFFF)
+    {
+      _pTimer->SR &= ~mask; 
+    }
+
     // enable DMA request at Update Event
     // also set from which register to start (offset)
     // and the burst count for how many registers to transfers
