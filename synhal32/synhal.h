@@ -485,6 +485,7 @@ namespace syn
            uint32_t *pstack = 0, uint8_t timeslice = 20)
     {
       pStack = (OS_REGS OS_STACKPTR *)pstack;
+      // use BasePrio field to store stacksize until start() is called
       BasePrio = stacksize;
       Priority = priority;
       TimeSliceReload = timeslice;
@@ -494,9 +495,11 @@ namespace syn
     // creates the task, don't call twice. use resume after suspend instead
     void start()
     {
+      uint32_t stacksize = BasePrio;
+      BasePrio = Priority;
       if (pStack == 0)
       {
-        pStack = (OS_REGS OS_STACKPTR *)new int32_t[BasePrio];
+        pStack = (OS_REGS OS_STACKPTR *)new int32_t[stacksize];
       }
       OS_CreateTaskEx(
           this,
@@ -504,7 +507,7 @@ namespace syn
           Priority,
           (thread_run)&Thread::runner,
           pStack,
-          BasePrio * sizeof(int32_t), // stacksize is in byte, not in registers
+          stacksize * sizeof(int32_t), // stacksize is in byte, not in registers
           TimeSliceReload,
           (void *)this);
     }
@@ -2006,6 +2009,7 @@ namespace syn
     static bool write(const uint8_t *data, uint16_t size, uint32_t timeout = 0);
 
   private:
+    static void _start_usb();
     static void _enable_rx();
   };
 

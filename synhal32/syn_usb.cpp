@@ -1604,8 +1604,6 @@ void syn::UsbRpc::init()
   usb::sig_tx_ready.init();
   // setup incoming packet buffer
   Handler::_mailbox.init();
-  Handler::_mailbox.reserve((Packet **)&usb::packetbuffer);
-  *usb::packetbuffer = 0; // make sure to completely wipe packetheader
   usb::packetbuffer_rx_remaining = 0;
   /**USB_OTG_FS GPIO Configuration    
     PA11     ------> USB_OTG_FS_DM
@@ -1623,8 +1621,6 @@ void syn::UsbRpc::init()
   {
     OS_ASSERT(true == false, ERR_CUBE_HAL_SUCKS);
   }
-
-  HAL_PCD_Start();
 }
 
 // blocks until the buffer was written, or until timeout, if non-zero
@@ -1654,6 +1650,13 @@ bool syn::UsbRpc::write(const uint8_t *data, uint16_t size, uint32_t timeout)
     usb::sig_tx_ready.set();
   }
   return false;
+}
+
+void syn::UsbRpc::_start_usb()
+{
+  Handler::_mailbox.reserve((Packet **)&usb::packetbuffer);
+  *usb::packetbuffer = 0; // make sure to completely wipe packetheader
+  HAL_PCD_Start();
 }
 
 void syn::UsbRpc::_enable_rx()

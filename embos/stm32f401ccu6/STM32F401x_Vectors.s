@@ -1,625 +1,318 @@
-/*****************************************************************************
- *                   SEGGER Microcontroller GmbH & Co. KG                    *
- *            Solutions for real time microcontroller applications           *
- *****************************************************************************
- *                                                                           *
- *               (c) 2017 SEGGER Microcontroller GmbH & Co. KG               *
- *                                                                           *
- *           Internet: www.segger.com   Support: support@segger.com          *
- *                                                                           *
- *****************************************************************************/
+/*********************************************************************
+*                    SEGGER Microcontroller GmbH                     *
+*                        The Embedded Experts                        *
+**********************************************************************
+*                                                                    *
+*            (c) 2014 - 2023 SEGGER Microcontroller GmbH             *
+*                                                                    *
+*       www.segger.com     Support: support@segger.com               *
+*                                                                    *
+**********************************************************************
+*                                                                    *
+* All rights reserved.                                               *
+*                                                                    *
+* Redistribution and use in source and binary forms, with or         *
+* without modification, are permitted provided that the following    *
+* condition is met:                                                  *
+*                                                                    *
+* - Redistributions of source code must retain the above copyright   *
+*   notice, this condition and the following disclaimer.             *
+*                                                                    *
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND             *
+* CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,        *
+* INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF           *
+* MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE           *
+* DISCLAIMED. IN NO EVENT SHALL SEGGER Microcontroller BE LIABLE FOR *
+* ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR           *
+* CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT  *
+* OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;    *
+* OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF      *
+* LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT          *
+* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE  *
+* USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH   *
+* DAMAGE.                                                            *
+*                                                                    *
+**********************************************************************
 
-/*****************************************************************************
- *                         Preprocessor Definitions                          *
- *                         ------------------------                          *
- * VECTORS_IN_RAM                                                            *
- *                                                                           *
- *   If defined, an area of RAM will large enough to store the vector table  *
- *   will be reserved.                                                       *
- *                                                                           *
- *****************************************************************************/
+-------------------------- END-OF-HEADER -----------------------------
 
-  .syntax unified
-  .code 16
+File      : stm32f401x_Vectors.s
+Purpose   : Exception and interrupt vectors for stm32f401x devices.
 
-  .section .init, "ax"
-  .align 0
+Additional information:
+  Preprocessor Definitions
+    __NO_EXTERNAL_INTERRUPTS
+      If defined,
+        the vector table will contain only the internal exceptions
+        and interrupts.
+    __VECTORS_IN_RAM
+      If defined,
+        an area of RAM, large enough to store the vector table,
+        will be reserved.
 
-/*****************************************************************************
- * Default Exception Handlers                                                *
- *****************************************************************************/
+    __OPTIMIZATION_SMALL
+      If defined,
+        all weak definitions of interrupt handlers will share the
+        same implementation.
+      If not defined,
+        all weak definitions of interrupt handlers will be defined
+        with their own implementation.
+*/
+        .syntax unified
 
-  .thumb_func
-  .weak NMI_Handler
-NMI_Handler:
-  b .
+/*********************************************************************
+*
+*       Macros
+*
+**********************************************************************
+*/
 
-  .thumb_func
-  .weak HardFault_Handler
-HardFault_Handler:
-  b .
+//
+// Directly place a vector (word) in the vector table
+//
+.macro VECTOR Name=
+        .section .vectors, "ax"
+        .code 16
+        .word \Name
+.endm
 
-  .thumb_func
-  .weak SVC_Handler
-SVC_Handler:
-  b .
+//
+// Declare an exception handler with a weak definition
+//
+.macro EXC_HANDLER Name=
+        //
+        // Insert vector in vector table
+        //
+        .section .vectors, "ax"
+        .word \Name
+        //
+        // Insert dummy handler in init section
+        //
+        .section .init.\Name, "ax"
+        .thumb_func
+        .weak \Name
+        .balign 2
+\Name:
+        1: b 1b   // Endless loop
+.endm
 
-  .thumb_func
-  .weak PendSV_Handler
-PendSV_Handler:
-  b .
-
-  .thumb_func
-  .weak SysTick_Handler
-SysTick_Handler:
-  b .
-
-  .thumb_func
-Dummy_Handler:
-  b .
-
+//
+// Declare an interrupt handler with a weak definition
+//
+.macro ISR_HANDLER Name=
+        //
+        // Insert vector in vector table
+        //
+        .section .vectors, "ax"
+        .word \Name
+        //
+        // Insert dummy handler in init section
+        //
 #if defined(__OPTIMIZATION_SMALL)
-
-  .weak WWDG_IRQHandler
-  .thumb_set WWDG_IRQHandler,Dummy_Handler
-
-  .weak PVD_IRQHandler
-  .thumb_set PVD_IRQHandler,Dummy_Handler
-
-  .weak TAMP_STAMP_IRQHandler
-  .thumb_set TAMP_STAMP_IRQHandler,Dummy_Handler
-
-  .weak RTC_WKUP_IRQHandler
-  .thumb_set RTC_WKUP_IRQHandler,Dummy_Handler
-
-  .weak FLASH_IRQHandler
-  .thumb_set FLASH_IRQHandler,Dummy_Handler
-
-  .weak RCC_IRQHandler
-  .thumb_set RCC_IRQHandler,Dummy_Handler
-
-  .weak EXTI0_IRQHandler
-  .thumb_set EXTI0_IRQHandler,Dummy_Handler
-
-  .weak EXTI1_IRQHandler
-  .thumb_set EXTI1_IRQHandler,Dummy_Handler
-
-  .weak EXTI2_IRQHandler
-  .thumb_set EXTI2_IRQHandler,Dummy_Handler
-
-  .weak EXTI3_IRQHandler
-  .thumb_set EXTI3_IRQHandler,Dummy_Handler
-
-  .weak EXTI4_IRQHandler
-  .thumb_set EXTI4_IRQHandler,Dummy_Handler
-
-  .weak DMA1_Stream0_IRQHandler
-  .thumb_set DMA1_Stream0_IRQHandler,Dummy_Handler
-
-  .weak DMA1_Stream1_IRQHandler
-  .thumb_set DMA1_Stream1_IRQHandler,Dummy_Handler
-
-  .weak DMA1_Stream2_IRQHandler
-  .thumb_set DMA1_Stream2_IRQHandler,Dummy_Handler
-
-  .weak DMA1_Stream3_IRQHandler
-  .thumb_set DMA1_Stream3_IRQHandler,Dummy_Handler
-
-  .weak DMA1_Stream4_IRQHandler
-  .thumb_set DMA1_Stream4_IRQHandler,Dummy_Handler
-
-  .weak DMA1_Stream5_IRQHandler
-  .thumb_set DMA1_Stream5_IRQHandler,Dummy_Handler
-
-  .weak DMA1_Stream6_IRQHandler
-  .thumb_set DMA1_Stream6_IRQHandler,Dummy_Handler
-
-  .weak ADC_IRQHandler
-  .thumb_set ADC_IRQHandler,Dummy_Handler
-
-  .weak EXTI9_5_IRQHandler
-  .thumb_set EXTI9_5_IRQHandler,Dummy_Handler
-
-  .weak TIM1_BRK_TIM9_IRQHandler
-  .thumb_set TIM1_BRK_TIM9_IRQHandler,Dummy_Handler
-
-  .weak TIM1_UP_TIM10_IRQHandler
-  .thumb_set TIM1_UP_TIM10_IRQHandler,Dummy_Handler
-
-  .weak TIM1_TRG_COM_TIM11_IRQHandler
-  .thumb_set TIM1_TRG_COM_TIM11_IRQHandler,Dummy_Handler
-
-  .weak TIM1_CC_IRQHandler
-  .thumb_set TIM1_CC_IRQHandler,Dummy_Handler
-
-  .weak TIM2_IRQHandler
-  .thumb_set TIM2_IRQHandler,Dummy_Handler
-
-  .weak TIM3_IRQHandler
-  .thumb_set TIM3_IRQHandler,Dummy_Handler
-
-  .weak TIM4_IRQHandler
-  .thumb_set TIM4_IRQHandler,Dummy_Handler
-
-  .weak I2C1_EV_IRQHandler
-  .thumb_set I2C1_EV_IRQHandler,Dummy_Handler
-
-  .weak I2C1_ER_IRQHandler
-  .thumb_set I2C1_ER_IRQHandler,Dummy_Handler
-
-  .weak I2C2_EV_IRQHandler
-  .thumb_set I2C2_EV_IRQHandler,Dummy_Handler
-
-  .weak I2C2_ER_IRQHandler
-  .thumb_set I2C2_ER_IRQHandler,Dummy_Handler
-
-  .weak SPI1_IRQHandler
-  .thumb_set SPI1_IRQHandler,Dummy_Handler
-
-  .weak SPI2_IRQHandler
-  .thumb_set SPI2_IRQHandler,Dummy_Handler
-
-  .weak USART1_IRQHandler
-  .thumb_set USART1_IRQHandler,Dummy_Handler
-
-  .weak USART2_IRQHandler
-  .thumb_set USART2_IRQHandler,Dummy_Handler
-
-  .weak EXTI15_10_IRQHandler
-  .thumb_set EXTI15_10_IRQHandler,Dummy_Handler
-
-  .weak RTC_Alarm_IRQHandler
-  .thumb_set RTC_Alarm_IRQHandler,Dummy_Handler
-
-  .weak OTG_FS_WKUP_IRQHandler
-  .thumb_set OTG_FS_WKUP_IRQHandler,Dummy_Handler
-
-  .weak DMA1_Stream7_IRQHandler
-  .thumb_set DMA1_Stream7_IRQHandler,Dummy_Handler
-
-  .weak SDIO_IRQHandler
-  .thumb_set SDIO_IRQHandler,Dummy_Handler
-
-  .weak TIM5_IRQHandler
-  .thumb_set TIM5_IRQHandler,Dummy_Handler
-
-  .weak SPI3_IRQHandler
-  .thumb_set SPI3_IRQHandler,Dummy_Handler
-
-  .weak DMA2_Stream0_IRQHandler
-  .thumb_set DMA2_Stream0_IRQHandler,Dummy_Handler
-
-  .weak DMA2_Stream1_IRQHandler
-  .thumb_set DMA2_Stream1_IRQHandler,Dummy_Handler
-
-  .weak DMA2_Stream2_IRQHandler
-  .thumb_set DMA2_Stream2_IRQHandler,Dummy_Handler
-
-  .weak DMA2_Stream3_IRQHandler
-  .thumb_set DMA2_Stream3_IRQHandler,Dummy_Handler
-
-  .weak DMA2_Stream4_IRQHandler
-  .thumb_set DMA2_Stream4_IRQHandler,Dummy_Handler
-
-  .weak OTG_FS_IRQHandler
-  .thumb_set OTG_FS_IRQHandler,Dummy_Handler
-
-  .weak DMA2_Stream5_IRQHandler
-  .thumb_set DMA2_Stream5_IRQHandler,Dummy_Handler
-
-  .weak DMA2_Stream6_IRQHandler
-  .thumb_set DMA2_Stream6_IRQHandler,Dummy_Handler
-
-  .weak DMA2_Stream7_IRQHandler
-  .thumb_set DMA2_Stream7_IRQHandler,Dummy_Handler
-
-  .weak USART6_IRQHandler
-  .thumb_set USART6_IRQHandler,Dummy_Handler
-
-  .weak I2C3_EV_IRQHandler
-  .thumb_set I2C3_EV_IRQHandler,Dummy_Handler
-
-  .weak I2C3_ER_IRQHandler
-  .thumb_set I2C3_ER_IRQHandler,Dummy_Handler
-
-  .weak FPU_IRQHandler
-  .thumb_set FPU_IRQHandler,Dummy_Handler
-
+        .section .init, "ax"
+        .weak \Name
+        .thumb_set \Name,Dummy_Handler
 #else
-
-  .thumb_func
-  .weak WWDG_IRQHandler
-WWDG_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak PVD_IRQHandler
-PVD_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak TAMP_STAMP_IRQHandler
-TAMP_STAMP_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak RTC_WKUP_IRQHandler
-RTC_WKUP_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak FLASH_IRQHandler
-FLASH_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak RCC_IRQHandler
-RCC_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak EXTI0_IRQHandler
-EXTI0_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak EXTI1_IRQHandler
-EXTI1_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak EXTI2_IRQHandler
-EXTI2_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak EXTI3_IRQHandler
-EXTI3_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak EXTI4_IRQHandler
-EXTI4_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak DMA1_Stream0_IRQHandler
-DMA1_Stream0_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak DMA1_Stream1_IRQHandler
-DMA1_Stream1_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak DMA1_Stream2_IRQHandler
-DMA1_Stream2_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak DMA1_Stream3_IRQHandler
-DMA1_Stream3_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak DMA1_Stream4_IRQHandler
-DMA1_Stream4_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak DMA1_Stream5_IRQHandler
-DMA1_Stream5_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak DMA1_Stream6_IRQHandler
-DMA1_Stream6_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak ADC_IRQHandler
-ADC_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak EXTI9_5_IRQHandler
-EXTI9_5_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak TIM1_BRK_TIM9_IRQHandler
-TIM1_BRK_TIM9_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak TIM1_UP_TIM10_IRQHandler
-TIM1_UP_TIM10_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak TIM1_TRG_COM_TIM11_IRQHandler
-TIM1_TRG_COM_TIM11_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak TIM1_CC_IRQHandler
-TIM1_CC_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak TIM2_IRQHandler
-TIM2_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak TIM3_IRQHandler
-TIM3_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak TIM4_IRQHandler
-TIM4_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak I2C1_EV_IRQHandler
-I2C1_EV_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak I2C1_ER_IRQHandler
-I2C1_ER_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak I2C2_EV_IRQHandler
-I2C2_EV_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak I2C2_ER_IRQHandler
-I2C2_ER_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak SPI1_IRQHandler
-SPI1_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak SPI2_IRQHandler
-SPI2_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak USART1_IRQHandler
-USART1_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak USART2_IRQHandler
-USART2_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak EXTI15_10_IRQHandler
-EXTI15_10_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak RTC_Alarm_IRQHandler
-RTC_Alarm_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak OTG_FS_WKUP_IRQHandler
-OTG_FS_WKUP_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak DMA1_Stream7_IRQHandler
-DMA1_Stream7_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak SDIO_IRQHandler
-SDIO_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak TIM5_IRQHandler
-TIM5_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak SPI3_IRQHandler
-SPI3_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak DMA2_Stream0_IRQHandler
-DMA2_Stream0_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak DMA2_Stream1_IRQHandler
-DMA2_Stream1_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak DMA2_Stream2_IRQHandler
-DMA2_Stream2_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak DMA2_Stream3_IRQHandler
-DMA2_Stream3_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak DMA2_Stream4_IRQHandler
-DMA2_Stream4_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak OTG_FS_IRQHandler
-OTG_FS_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak DMA2_Stream5_IRQHandler
-DMA2_Stream5_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak DMA2_Stream6_IRQHandler
-DMA2_Stream6_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak DMA2_Stream7_IRQHandler
-DMA2_Stream7_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak USART6_IRQHandler
-USART6_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak I2C3_EV_IRQHandler
-I2C3_EV_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak I2C3_ER_IRQHandler
-I2C3_ER_IRQHandler:
-  b .
-
-  .thumb_func
-  .weak FPU_IRQHandler
-FPU_IRQHandler:
-  b .
-
+        .section .init.\Name, "ax"
+        .thumb_func
+        .weak \Name
+        .balign 2
+\Name:
+        1: b 1b   // Endless loop
 #endif
+.endm
 
-/*****************************************************************************
- * Vector Table                                                              *
- *****************************************************************************/
+//
+// Place a reserved vector in vector table
+//
+.macro ISR_RESERVED
+        .section .vectors, "ax"
+        .word 0
+.endm
 
-  .section .vectors, "ax"
-  .align 0
-  .global _vectors
-  .extern __stack_end__
-  .extern Reset_Handler
+//
+// Place a reserved vector in vector table
+//
+.macro ISR_RESERVED_DUMMY
+        .section .vectors, "ax"
+        .word Dummy_Handler
+.endm
 
+/*********************************************************************
+*
+*       Externals
+*
+**********************************************************************
+*/
+        .extern __stack_end__
+        .extern Reset_Handler
+        .extern HardFault_Handler
+
+/*********************************************************************
+*
+*       Global functions
+*
+**********************************************************************
+*/
+
+/*********************************************************************
+*
+*  Setup of the vector table and weak definition of interrupt handlers
+*
+*/
+        .section .vectors, "ax"
+        .code 16
+        .balign 512
+        .global _vectors
 _vectors:
-  .word __stack_end__
-  .word Reset_Handler
-  .word NMI_Handler
-  .word HardFault_Handler
-  .word 0 /* Reserved */
-  .word 0 /* Reserved */
-  .word 0 /* Reserved */
-  .word 0 /* Reserved */
-  .word 0 /* Reserved */
-  .word 0 /* Reserved */
-  .word 0 /* Reserved */
-  .word SVC_Handler
-  .word 0 /* Reserved */
-  .word 0 /* Reserved */
-  .word PendSV_Handler
-  .word SysTick_Handler
-  .word WWDG_IRQHandler
-  .word PVD_IRQHandler
-  .word TAMP_STAMP_IRQHandler
-  .word RTC_WKUP_IRQHandler
-  .word FLASH_IRQHandler
-  .word RCC_IRQHandler
-  .word EXTI0_IRQHandler
-  .word EXTI1_IRQHandler
-  .word EXTI2_IRQHandler
-  .word EXTI3_IRQHandler
-  .word EXTI4_IRQHandler
-  .word DMA1_Stream0_IRQHandler
-  .word DMA1_Stream1_IRQHandler
-  .word DMA1_Stream2_IRQHandler
-  .word DMA1_Stream3_IRQHandler
-  .word DMA1_Stream4_IRQHandler
-  .word DMA1_Stream5_IRQHandler
-  .word DMA1_Stream6_IRQHandler
-  .word ADC_IRQHandler
-  .word Dummy_Handler /* Reserved */
-  .word Dummy_Handler /* Reserved */
-  .word Dummy_Handler /* Reserved */
-  .word Dummy_Handler /* Reserved */
-  .word EXTI9_5_IRQHandler
-  .word TIM1_BRK_TIM9_IRQHandler
-  .word TIM1_UP_TIM10_IRQHandler
-  .word TIM1_TRG_COM_TIM11_IRQHandler
-  .word TIM1_CC_IRQHandler
-  .word TIM2_IRQHandler
-  .word TIM3_IRQHandler
-  .word TIM4_IRQHandler
-  .word I2C1_EV_IRQHandler
-  .word I2C1_ER_IRQHandler
-  .word I2C2_EV_IRQHandler
-  .word I2C2_ER_IRQHandler
-  .word SPI1_IRQHandler
-  .word SPI2_IRQHandler
-  .word USART1_IRQHandler
-  .word USART2_IRQHandler
-  .word Dummy_Handler /* Reserved */
-  .word EXTI15_10_IRQHandler
-  .word RTC_Alarm_IRQHandler
-  .word OTG_FS_WKUP_IRQHandler
-  .word Dummy_Handler /* Reserved */
-  .word Dummy_Handler /* Reserved */
-  .word Dummy_Handler /* Reserved */
-  .word Dummy_Handler /* Reserved */
-  .word DMA1_Stream7_IRQHandler
-  .word Dummy_Handler /* Reserved */
-  .word SDIO_IRQHandler
-  .word TIM5_IRQHandler
-  .word SPI3_IRQHandler
-  .word Dummy_Handler /* Reserved */
-  .word Dummy_Handler /* Reserved */
-  .word Dummy_Handler /* Reserved */
-  .word Dummy_Handler /* Reserved */
-  .word DMA2_Stream0_IRQHandler
-  .word DMA2_Stream1_IRQHandler
-  .word DMA2_Stream2_IRQHandler
-  .word DMA2_Stream3_IRQHandler
-  .word DMA2_Stream4_IRQHandler
-  .word Dummy_Handler /* Reserved */
-  .word Dummy_Handler /* Reserved */
-  .word Dummy_Handler /* Reserved */
-  .word Dummy_Handler /* Reserved */
-  .word Dummy_Handler /* Reserved */
-  .word Dummy_Handler /* Reserved */
-  .word OTG_FS_IRQHandler
-  .word DMA2_Stream5_IRQHandler
-  .word DMA2_Stream6_IRQHandler
-  .word DMA2_Stream7_IRQHandler
-  .word USART6_IRQHandler
-  .word I2C3_EV_IRQHandler
-  .word I2C3_ER_IRQHandler
-  .word Dummy_Handler /* Reserved */
-  .word Dummy_Handler /* Reserved */
-  .word Dummy_Handler /* Reserved */
-  .word Dummy_Handler /* Reserved */
-  .word Dummy_Handler /* Reserved */
-  .word Dummy_Handler /* Reserved */
-  .word Dummy_Handler /* Reserved */
-  .word FPU_IRQHandler
+        //
+        // Internal exceptions and interrupts
+        //
+        VECTOR __stack_end__
+        VECTOR Reset_Handler
+        EXC_HANDLER NMI_Handler
+        VECTOR HardFault_Handler
+#ifdef __ARM_ARCH_6M__
+        ISR_RESERVED
+        ISR_RESERVED
+        ISR_RESERVED
+#else
+        EXC_HANDLER MemManage_Handler
+        EXC_HANDLER BusFault_Handler
+        EXC_HANDLER UsageFault_Handler
+#endif
+        ISR_RESERVED
+        ISR_RESERVED
+        ISR_RESERVED
+        ISR_RESERVED
+        EXC_HANDLER SVC_Handler
+#ifdef __ARM_ARCH_6M__
+        ISR_RESERVED
+#else
+        EXC_HANDLER DebugMon_Handler
+#endif
+        ISR_RESERVED
+        EXC_HANDLER PendSV_Handler
+        EXC_HANDLER SysTick_Handler
+        //
+        // External interrupts
+        //
+#ifndef __NO_EXTERNAL_INTERRUPTS
+        ISR_HANDLER WWDG_IRQHandler
+        ISR_HANDLER PVD_IRQHandler
+        ISR_HANDLER TAMP_STAMP_IRQHandler
+        ISR_HANDLER RTC_WKUP_IRQHandler
+        ISR_HANDLER FLASH_IRQHandler
+        ISR_HANDLER RCC_IRQHandler
+        ISR_HANDLER EXTI0_IRQHandler
+        ISR_HANDLER EXTI1_IRQHandler
+        ISR_HANDLER EXTI2_IRQHandler
+        ISR_HANDLER EXTI3_IRQHandler
+        ISR_HANDLER EXTI4_IRQHandler
+        ISR_HANDLER DMA1_Stream0_IRQHandler
+        ISR_HANDLER DMA1_Stream1_IRQHandler
+        ISR_HANDLER DMA1_Stream2_IRQHandler
+        ISR_HANDLER DMA1_Stream3_IRQHandler
+        ISR_HANDLER DMA1_Stream4_IRQHandler
+        ISR_HANDLER DMA1_Stream5_IRQHandler
+        ISR_HANDLER DMA1_Stream6_IRQHandler
+        ISR_HANDLER ADC_IRQHandler
+        ISR_RESERVED_DUMMY
+        ISR_RESERVED_DUMMY
+        ISR_RESERVED_DUMMY
+        ISR_RESERVED_DUMMY
+        ISR_HANDLER EXTI9_5_IRQHandler
+        ISR_HANDLER TIM1_BRK_TIM9_IRQHandler
+        ISR_HANDLER TIM1_UP_TIM10_IRQHandler
+        ISR_HANDLER TIM1_TRG_COM_TIM11_IRQHandler
+        ISR_HANDLER TIM1_CC_IRQHandler
+        ISR_HANDLER TIM2_IRQHandler
+        ISR_HANDLER TIM3_IRQHandler
+        ISR_HANDLER TIM4_IRQHandler
+        ISR_HANDLER I2C1_EV_IRQHandler
+        ISR_HANDLER I2C1_ER_IRQHandler
+        ISR_HANDLER I2C2_EV_IRQHandler
+        ISR_HANDLER I2C2_ER_IRQHandler
+        ISR_HANDLER SPI1_IRQHandler
+        ISR_HANDLER SPI2_IRQHandler
+        ISR_HANDLER USART1_IRQHandler
+        ISR_HANDLER USART2_IRQHandler
+        ISR_RESERVED_DUMMY
+        ISR_HANDLER EXTI15_10_IRQHandler
+        ISR_HANDLER RTC_Alarm_IRQHandler
+        ISR_HANDLER OTG_FS_WKUP_IRQHandler
+        ISR_RESERVED_DUMMY
+        ISR_RESERVED_DUMMY
+        ISR_RESERVED_DUMMY
+        ISR_RESERVED_DUMMY
+        ISR_HANDLER DMA1_Stream7_IRQHandler
+        ISR_RESERVED_DUMMY
+        ISR_HANDLER SDIO_IRQHandler
+        ISR_HANDLER TIM5_IRQHandler
+        ISR_HANDLER SPI3_IRQHandler
+        ISR_RESERVED_DUMMY
+        ISR_RESERVED_DUMMY
+        ISR_RESERVED_DUMMY
+        ISR_RESERVED_DUMMY
+        ISR_HANDLER DMA2_Stream0_IRQHandler
+        ISR_HANDLER DMA2_Stream1_IRQHandler
+        ISR_HANDLER DMA2_Stream2_IRQHandler
+        ISR_HANDLER DMA2_Stream3_IRQHandler
+        ISR_HANDLER DMA2_Stream4_IRQHandler
+        ISR_RESERVED_DUMMY
+        ISR_RESERVED_DUMMY
+        ISR_RESERVED_DUMMY
+        ISR_RESERVED_DUMMY
+        ISR_RESERVED_DUMMY
+        ISR_RESERVED_DUMMY
+        ISR_HANDLER OTG_FS_IRQHandler
+        ISR_HANDLER DMA2_Stream5_IRQHandler
+        ISR_HANDLER DMA2_Stream6_IRQHandler
+        ISR_HANDLER DMA2_Stream7_IRQHandler
+        ISR_HANDLER USART6_IRQHandler
+        ISR_HANDLER I2C3_EV_IRQHandler
+        ISR_HANDLER I2C3_ER_IRQHandler
+        ISR_RESERVED_DUMMY
+        ISR_RESERVED_DUMMY
+        ISR_RESERVED_DUMMY
+        ISR_RESERVED_DUMMY
+        ISR_RESERVED_DUMMY
+        ISR_RESERVED_DUMMY
+        ISR_RESERVED_DUMMY
+        ISR_HANDLER FPU_IRQHandler
+        ISR_RESERVED_DUMMY
+        ISR_RESERVED_DUMMY
+        ISR_HANDLER SPI4_IRQHandler
+#endif
+        //
+        .section .vectors, "ax"
 _vectors_end:
 
-#ifdef VECTORS_IN_RAM
-  .section .vectors_ram, "ax"
-  .align 0
-  .global _vectors_ram
+#ifdef __VECTORS_IN_RAM
+        //
+        // Reserve space with the size of the vector table
+        // in the designated RAM section.
+        //
+        .section .vectors_ram, "ax"
+        .balign 512
+        .global _vectors_ram
 
 _vectors_ram:
-  .space _vectors_end - _vectors, 0
+        .space _vectors_end - _vectors, 0
 #endif
+
+/*********************************************************************
+*
+*  Dummy handler to be used for reserved interrupt vectors
+*  and weak implementation of interrupts.
+*
+*/
+        .section .init.Dummy_Handler, "ax"
+        .thumb_func
+        .weak Dummy_Handler
+        .balign 2
+Dummy_Handler:
+        1: b 1b   // Endless loop
+
+
+/*************************** End of file ****************************/
