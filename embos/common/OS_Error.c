@@ -3,13 +3,13 @@
 *                        The Embedded Experts                        *
 **********************************************************************
 *                                                                    *
-*       (c) 1995 - 2020 SEGGER Microcontroller GmbH                  *
+*       (c) 1995 - 2022 SEGGER Microcontroller GmbH                  *
 *                                                                    *
 *       Internet: segger.com  Support: support_embos@segger.com      *
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       embOS * Real time operating system for microcontrollers      *
+*       embOS * Real time operating system                           *
 *                                                                    *
 *       Please note:                                                 *
 *                                                                    *
@@ -21,11 +21,12 @@
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       OS version: V5.8.2.0                                         *
+*       OS version: V5.18.0.0                                        *
 *                                                                    *
 **********************************************************************
 
 -------------------------- END-OF-HEADER -----------------------------
+File    : OS_Error.c
 Purpose : embOS error handler.
           Feel free to modify this file according to your needs.
 */
@@ -38,7 +39,7 @@ Purpose : embOS error handler.
 *
 **********************************************************************
 
-  OS_OK                                  =   (0u),  // No error, everything ok.
+  OS_OK                                  =   (0u),  // No error, everything okay.
 // User 1..99  ***********************************
 
 // Port 100..109 *********************************
@@ -84,7 +85,7 @@ Purpose : embOS error handler.
   OS_ERR_SEMAPHORE_DELETE                = (137u),  // OS_SEMAPHORE_Delete() was called on a semaphore with waiting tasks.
   OS_ERR_MUTEX_DELETE                    = (138u),  // OS_MUTEX_Delete() was called on a mutex which is claimed by a task.
 
-// internal errors, please contact SEGGER Microcontroller Systems
+// internal errors, please contact SEGGER Microcontroller
   OS_ERR_MAILBOX_NOT_IN_LIST             = (140u),  // The mailbox is not in the list of mailboxes as expected. Possible reasons may be that one mailbox data structure was overwritten.
   OS_ERR_TASKLIST_CORRUPT                = (142u),  // The OS internal task list is destroyed.
 
@@ -92,7 +93,7 @@ Purpose : embOS error handler.
   OS_ERR_QUEUE_INUSE                     = (143u),  // Queue in use.
   OS_ERR_QUEUE_NOT_INUSE                 = (144u),  // Queue not in use.
   OS_ERR_QUEUE_INVALID                   = (145u),  // Queue invalid.
-  OS_ERR_QUEUE_DELETE                    = (146u),  // A queue was deleted by a call of OS_QUEUE_Delete()  while tasks are waiting at the queue.
+  OS_ERR_QUEUE_DELETE                    = (146u),  // A queue was deleted by a call of OS_QUEUE_Delete() while tasks are waiting at the queue.
 
 // Mailbox errors
   OS_ERR_MB_INUSE                        = (147u),  // Mailbox in use.
@@ -105,23 +106,23 @@ Purpose : embOS error handler.
   OS_ERR_UNUSE_BEFORE_USE                = (150u),  // OS_MUTEX_Unlock() has been called on a mutex that hasn't been locked before.
   OS_ERR_LEAVEREGION_BEFORE_ENTERREGION  = (151u),  // OS_TASK_LeaveRegion() has been called before OS_TASK_EnterRegion().
   OS_ERR_LEAVEINT                        = (152u),  // Error in OS_INT_Leave().
-  OS_ERR_DICNT                           = (153u),  // The interrupt disable counter ( OS_Global.Counters.Cnt.DI ) is out of range (0-15).
+  OS_ERR_DICNT_OVERFLOW                  = (153u),  // The interrupt disable counter ( OS_Global.Counters.Cnt.DI ) is out of range (0-15). The counter is affected by the API calls OS_INT_IncDI(), OS_INT_DecRI(), OS_INT_Enter() and OS_INT_Leave().
   OS_ERR_INTERRUPT_DISABLED              = (154u),  // OS_TASK_Delay() or OS_TASK_DelayUntil() called from inside a critical region with interrupts disabled.
-  OS_ERR_TASK_ENDS_WITHOUT_TERMINATE     = (155u),  // Task routine returns without 0S_TASK_Terminate().
+  OS_ERR_TASK_ENDS_WITHOUT_TERMINATE     = (155u),  // Task routine returns without OS_TASK_Terminate().
   OS_ERR_MUTEX_OWNER                     = (156u),  // OS_MUTEX_Unlock() has been called from a task which does not own the mutex.
   OS_ERR_REGIONCNT                       = (157u),  // The Region counter overflows (>255).
-  OS_ERR_DELAYUS_INTERRUPT_DISABLED      = (158u),  // OS_TASK_Delayus() called with interrupts disabled.
-  OS_ERR_MUTEX_OVERFLOW                  = (159u),  // OS_MUTEX_Lock(), OS_MUTEX_LockBlocked() or OS_MUTEX_LockTimed() has been called to often from the same task.
+  OS_ERR_DELAYUS_INTERRUPT_DISABLED      = (158u),  // OS_TASK_Delay_us() called with interrupts disabled.
+  OS_ERR_MUTEX_OVERFLOW                  = (159u),  // OS_MUTEX_Lock(), OS_MUTEX_LockBlocked() or OS_MUTEX_LockTimed() has been called too often from the same task.
 
   OS_ERR_ILLEGAL_IN_ISR                  = (160u),  // Illegal function call in an interrupt service routine: A routine that must not be called from within an ISR has been called from within an ISR.
   OS_ERR_ILLEGAL_IN_TIMER                = (161u),  // Illegal function call in a software timer: A routine that must not be called from within a software timer has been called from within a timer.
   OS_ERR_ILLEGAL_OUT_ISR                 = (162u),  // Not a legal API outside interrupt.
-  OS_ERR_NOT_IN_ISR                      = (163u),  // OS_INT_Enter() has been called, but CPU is not in ISR state.
-  OS_ERR_IN_ISR                          = (164u),  // OS_INT_Enter() has not been called, but CPU is in ISR state.
+  OS_ERR_OS_INT_ENTER_CALLED             = (163u),  // OS_INT_Enter() has been called, but CPU is not in ISR state.
+  OS_ERR_OS_INT_ENTER_NOT_CALLED         = (164u),  // OS_INT_Enter() has not been called, but CPU is in ISR state.
 
   OS_ERR_INIT_NOT_CALLED                 = (165u),  // OS_Init() was not called.
 
-  OS_ERR_ISR_PRIORITY_INVALID            = (166u),  // ISR does not use a valid embOS interrupt priority.
+  OS_ERR_ISR_PRIORITY_INVALID            = (166u),  // embOS API called from ISR with an invalid priority.
   OS_ERR_CPU_STATE_ILLEGAL               = (167u),  // CPU runs in illegal mode.
   OS_ERR_CPU_STATE_UNKNOWN               = (168u),  // CPU runs in unknown mode or mode could not be read.
 
@@ -141,23 +142,27 @@ Purpose : embOS error handler.
 // Communication errors
   OS_ERR_NESTED_RX_INT                   = (180u),  // OS_Rx interrupt handler for embOSView is nested. Disable nestable interrupts.
 
+// Low power
+  OS_ERR_ISR_ENTRY_FUNC_INVALID          = (181u),  // Invalid function pointer for ISR entry callback
+
 // Spinlock
   OS_ERR_SPINLOCK_INV_CORE               = (185u),  // Invalid core ID specified for accessing a OS_SPINLOCK_SW struct.
 
 // Fixed block memory pool
   OS_ERR_MEMF_INV                        = (190u),  // Fixed size memory block control structure not created before use.
   OS_ERR_MEMF_INV_PTR                    = (191u),  // Pointer to memory block does not belong to memory pool on Release.
-  OS_ERR_MEMF_PTR_FREE                   = (192u),  // Pointer to memory block is already free when calling OS_MEMPOOL_Release(). Possibly, same pointer was released twice.
-  OS_ERR_MEMF_RELEASE                    = (193u),  // OS_MEMPOOL_Release() was called for a memory pool, that had no memory block allocated (all available blocks were already free before).
+  OS_ERR_MEMF_PTR_FREE                   = (192u),  // Pointer to memory block is already free when calling OS_MEMPOOL_Free() or OS_MEMPOOL_FreeEx(). Possibly, same pointer was released twice.
+  OS_ERR_MEMF_RELEASE                    = (193u),  // OS_MEMPOOL_Free() or OS_MEMPOOL_FreeEx() was called for a memory pool, that had no memory block allocated (all available blocks were already free before).
   OS_ERR_MEMF_POOLADDR                   = (194u),  // OS_MEMPOOL_Create() was called with a memory pool base address which is not located at a word aligned base address.
   OS_ERR_MEMF_BLOCKSIZE                  = (195u),  // OS_MEMPOOL_Create() was called with a data block size which is not a multiple of processors word size.
+  OS_ERR_MEMF_DELETE                     = (196u),  // OS_MEMPOOL_Delete() was called on a memory pool with waiting tasks.
 
 // Task suspend / resume errors
   OS_ERR_SUSPEND_TOO_OFTEN               = (200u),  // Number of nested calls to OS_TASK_Suspend() exceeded 3.
   OS_ERR_RESUME_BEFORE_SUSPEND           = (201u),  // OS_TASK_Resume() called on a task that was not suspended.
 
 // Other task related errors
-  OS_ERR_TASK_PRIORITY                   = (202u),  // OS_TASK_Create()  was called with a task priority which is already assigned to another task. This error can only occur when embOS was compiled without round-robin support.
+  OS_ERR_TASK_PRIORITY                   = (202u),  // OS_TASK_Create() was called with a task priority which is already assigned to another task. This error can only occur when embOS was compiled without round-robin support.
   OS_ERR_TASK_PRIORITY_INVALID           = (203u),  // The value 0 was used as task priority.
 
 // Timer related errors
@@ -183,6 +188,7 @@ Purpose : embOS error handler.
   OS_ERR_ILLEGAL_IN_MAIN                 = (226u),  // Not a legal API call from main().
   OS_ERR_ILLEGAL_IN_TASK                 = (227u),  // Not a legal API after OS_Start().
   OS_ERR_ILLEGAL_AFTER_OSSTART           = (228u),  // Not a legal API after OS_Start().
+  OS_ERR_ILLEGAL_IN_IDLE                 = (229u),  // Not a legal API call from OS_Idle().
 
 // Cache related
   OS_ERR_NON_ALIGNED_INVALIDATE          = (230u),  // Cache invalidation needs to be cache line aligned.
@@ -191,10 +197,11 @@ Purpose : embOS error handler.
   OS_ERR_HW_NOT_AVAILABLE                = (234u),  // Hardware unit is not implemented or enabled.
 
 // System timer config related
-  OS_ERR_NON_TIMERCYCLES_FUNC            = (235u),  // OS_TIME_ConfigSysTimer() has not been called. Callback function for timer counter value has not been set.
-  OS_ERR_NON_TIMERINTPENDING_FUNC        = (236u),  // OS_TIME_ConfigSysTimer() has not been called. Callback function for timer interrupt pending flag has not been set.
+  OS_ERR_NON_TIMERCYCLES_FUNC            = (235u),  // OS_TIME_ConfigSysTimer() not called or called with NULL pointer for function to read timer counter value.
+  OS_ERR_NON_TIMERINTPENDING_FUNC        = (236u),  // OS_TIME_ConfigSysTimer() not called or called with NULL pointer for function to read timer interrupt pending.
   OS_ERR_FRACTIONAL_TICK                 = (237u),  // embOS API function called with fractional tick to interrupt ratio.
-  OS_ERR_ZERO_TIMER_INT_FREQ             = (238u),  // OS_TIME_ConfigSysTimer() not called or called with zero interrupt frequency.
+  OS_ERR_ZERO_TIMER_INT_FREQ             = (238u),  // OS_TIME_ConfigSysTimer() not called or called with an interrupt frequency of 0.
+  OS_ERR_COUNTER_FREQ_ZERO               = (239u),  // OS_TIME_ConfigSysTimer() not called or called with a counter frequency of 0.
 
 // embOS MPU related
   OS_ERR_MPU_NOT_PRESENT                 = (240u),  // MPU unit not present in the device.
@@ -204,13 +211,38 @@ Purpose : embOS error handler.
   OS_ERR_MPU_INVALID_ALIGNMENT           = (244u),  // Invalid MPU region alignment.
   OS_ERR_MPU_INVALID_OBJECT              = (245u),  // OS object is directly accessible from the task which is not allowed.
   OS_ERR_MPU_PRIVSTATE_INVALID           = (246u),  // Invalid call from a privileged task.
+  OS_ERR_MPU_NOINIT                      = (247u),  // OS_MPU_Init() not called.
+  OS_ERR_MPU_DEVICE_INDEX                = (248u),  // Invalid device driver index.
+  OS_ERR_MPU_INV_DEVICE_LIST             = (249u),  // Invalid device driver list.
 
 // Buffer to small to keep a backup copy of the CSTACK
   OS_ERR_CONFIG_OSSTOP                   = (250u),  // OS_Stop() is called without using OS_ConfigStop() before.
   OS_ERR_OSSTOP_BUFFER                   = (251u),  // Buffer is too small to hold a copy of the main() stack.
 
+// 252 is used as special value to send the status to embOSView as a 16-Bit value.
+  OS_EMBOSVIEW_SEND_STATUS_16BIT         = (252u),
+
 // OS version mismatch between library and RTOS.h
-  OS_ERR_VERSION_MISMATCH                = (253u)   // OS library and RTOS have different version numbers. Please ensure both are from the same embOS shipment.
+  OS_ERR_VERSION_MISMATCH                = (253u),  // OS library and RTOS.h have different version numbers. Please ensure both are from the same embOS shipment.
+
+// Incompatible embOS library
+  OS_ERR_LIB_INCOMPATIBLE                = (254u),  // Incompatible OS library is used.
+// Invalid parameter value
+  OS_ERR_INV_PARAMETER_VALUE             = (255u),  // An invalid value was passed to the called function (see call stack). Check the API description for valid values.
+
+// Wrong Tick handler function
+  OS_ERR_TICKHANDLE_WITH_FRACTIONAL_TICK = (256u),  // OS_TICK_Handle() or OS_TICK_HandleNoHook() was called after OS_TICK_Config() was used for an interrupt to tick ratio other than 1:1.
+
+// RW Lock error
+  OS_ERR_RWLOCK_INVALID                  = (257u),  // RWLock control block invalid, not initialized or overwritten.
+  OS_ERR_2USE_RWLOCK                     = (258u),  // RWLock has been initialized by calling a create function twice.
+
+// Unaligned stacks
+  OS_ERR_UNALIGNED_IRQ_STACK             = (260u),  // Unaligned IRQ stack.
+  OS_ERR_UNALIGNED_MAIN_STACK            = (261u),  // Unaligned main stack.
+
+// FPU not enabled
+  OS_ERR_FPU_NOT_ENABLED                 = (262u)   // FPU was not enabled before embOS is initialized.
 
 */
 
@@ -232,23 +264,52 @@ Purpose : embOS error handler.
 *    embOS.
 *
 *    This routine can be modified to suit your needs, e.g. a red LED could
-*    light up. When using an emulator, you may set a breakpoint here.
-*    In the release builds of the library (R, XR), this routine is not
-*    required (as no checks are performed).
-*    In the stack check builds (S/SP), only error 120 may occur.
-*    In the debug builds(D/DP,DT), all of the listed errors may occur.
+*    light up. When using a debugger, you may set a breakpoint here.
+*    Your debugger call stack shows what caused the error. When no call
+*    stack is available you can set ErrCode back to OS_OK (0) and step out of
+*    OS_Error() in order to detect the cause for the error.
+*
+*    In the release builds of the library (OS_LIBMODE_R, OS_LIBMODE_XR),
+*    this routine is not required (as no checks are performed).
+*    In the stack check builds (OS_LIBMODE_S, OS_LIBMODE_SP), only error
+*    OS_ERR_TASK_STACK (120), OS_ERR_SYS_STACK (125) and OS_ERR_INT_STACK (126)
+*    may occur.
+*    In the debug builds (OS_LIBMODE_D, OS_LIBMODE_DP, OS_LIBMODE_DT), all
+*    of the listed errors may occur.
 *
 *  Parameters
 *    ErrCode: embOS error code
 */
 void OS_Error(OS_STATUS ErrCode) {
-  OS_TASK_EnterRegion();           // Avoid further task switches
-  OS_Global.Counters.Cnt.DI = 0u;  // Allow interrupts so we can communicate with embOSView
+  //
+  // With embOS-MPU we need to enter privileged state because otherwise
+  // we can't enter the critical region and enable interrupts when
+  // called from an unprivileged task.
+  //
+  OS_MPU_PRIVSTATE_ENTER();
+  //
+  // Disabling preemptive task switches avoids that other higher priority
+  // tasks preempt OS_Error() which makes debugging easier.
+  //
+  OS_TASK_EnterRegion();
+  //
+  // Enable interrupts for embOSView communication.
+  //
+  OS_Global.Counters.Cnt.DI = 0u;
   OS_INT_Enable();
+  //
+  // OS_Global.Status will be shown in e.g. embOSView and IDE plugins.
+  // It is available in debug and stack check builds only.
+  //
+#if (OS_DEBUG != 0) || (OS_SUPPORT_STACKCHECK != 0)
   OS_Global.Status = ErrCode;
-  while (OS_Global.Status) {
-    // Endless loop may be left by setting OS_Status to 0
+#endif
+  //
+  // Endless loop may be left by setting ErrCode to OS_OK (0).
+  //
+  while (ErrCode != OS_OK) {
   }
+  OS_MPU_PRIVSTATE_LEAVE();
 }
 
 /*************************** End of file ****************************/

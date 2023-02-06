@@ -3,7 +3,7 @@
 *                        The Embedded Experts                        *
 **********************************************************************
 *                                                                    *
-*       (c) 1995 - 2021 SEGGER Microcontroller GmbH                  *
+*       (c) 1995 - 2022 SEGGER Microcontroller GmbH                  *
 *                                                                    *
 *       Internet: segger.com  Support: support_embos@segger.com      *
 *                                                                    *
@@ -21,7 +21,7 @@
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       OS version: V5.16.0.0                                        *
+*       OS version: V5.18.0.0                                        *
 *                                                                    *
 **********************************************************************
 
@@ -63,10 +63,10 @@ Purpose : Configuration settings for the OS build and embOSView
 
 /*********************************************************************
 *
-*       Additional embOS compile time configuration defines when using
-*       embOS sources in your project or rebuilding the embOS libraries
-*       can be added here, e.g.:
-*       #define OS_SUPPORT_TICKLESS  0  // Disable tickless support
+*  Additional embOS compile time configuration defines when using
+*  embOS sources in your project or rebuilding the embOS libraries
+*  can be added here, e.g.:
+*    #define OS_SUPPORT_TICKLESS  0  // Disable tickless support
 */
 
 #endif  // OS_CONFIG_H

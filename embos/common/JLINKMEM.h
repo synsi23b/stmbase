@@ -3,7 +3,7 @@
 *                        The Embedded Experts                        *
 **********************************************************************
 *                                                                    *
-*       (c) 1995 - 2021 SEGGER Microcontroller GmbH                  *
+*       (c) 1995 - 2022 SEGGER Microcontroller GmbH                  *
 *                                                                    *
 *       Internet: segger.com  Support: support_embos@segger.com      *
 *                                                                    *
@@ -21,7 +21,7 @@
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       OS version: V5.16.0.0                                        *
+*       OS version: V5.18.0.0                                        *
 *                                                                    *
 **********************************************************************
 
@@ -37,11 +37,11 @@ Purpose : Header file for J-Link ARM communication using memory
 extern "C" {
 #endif
 
-void JLINKMEM_Process(void);
-void JLINKMEM_SetpfOnRx(void (* pf)(unsigned char Data));
-void JLINKMEM_SetpfOnTx(unsigned char (* pf)(void));
-void JLINKMEM_SetpfGetNextChar(OS_INT (* pf)(void));
-void JLINKMEM_SendChar(unsigned char Data);
+void JLINKMEM_Process         (void);
+void JLINKMEM_SetpfOnRx       (void (*pfOnRx)(OS_U8 Data));
+void JLINKMEM_SetpfOnTx       (OS_U8 (*pfOnTx)(void));
+void JLINKMEM_SetpfGetNextChar(OS_INT (*pfGetNextChar)(void));
+void JLINKMEM_SendChar        (OS_U8 Data);
 
 #ifdef __cplusplus
 }

@@ -3,7 +3,7 @@
 *                        The Embedded Experts                        *
 **********************************************************************
 *                                                                    *
-*       (c) 1995 - 2021 SEGGER Microcontroller GmbH                  *
+*       (c) 1995 - 2022 SEGGER Microcontroller GmbH                  *
 *                                                                    *
 *       Internet: segger.com  Support: support_embos@segger.com      *
 *                                                                    *
@@ -21,7 +21,7 @@
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       OS version: V5.16.0.0                                        *
+*       OS version: V5.18.0.0                                        *
 *                                                                    *
 **********************************************************************
 
@@ -56,6 +56,9 @@ Literature:
 #define OS_IDLE()                                                // Overrides call of OS_Idle()
 #define OS_EI_ON_LEAVE()                     OS_INT_Enable()     // Required for CPUs which do not restore DI-flag by RETI.
 #define OS_ENABLE_INTS_SAVE_IPL()                                // Not required with Cortex-M, avoid call of OS_INT_Enable()
+#ifndef   OS_IPL_THRESHOLD
+  #define OS_IPL_THRESHOLD                   128                 // Can be overwritten as preprocessor setting
+#endif
 #define OS_TEXT_SECTION_ATTRIBUTE(name)
 
 //
@@ -86,10 +89,6 @@ Literature:
 #define OS_INT_DisableAll()      { __asm volatile ("cpsid i" : : : "memory"); }
 #define OS_INT_EnableAll()       { __asm volatile ("cpsie i" : : : "memory"); }
 
-//
-// The NOPs (__no_operation()) should flush the pipeline to ensure that
-// interrupts are disabled before the next instruction is executed.
-//
 #if (defined __ARM_ARCH_6M__) || (defined __ARM_ARCH_8M_BASE__)
   //
   // Cortex-M0/M0+/M1/M23
@@ -103,153 +102,127 @@ Literature:
   // Using machine constraint "l", since only lower registers r0-r7
   // can be encoded in ldr and str instruction for ARMv6-M.
   //
-  #define OS_INT_PreserveAll(p)  { __asm volatile ("mrs  r1, primask \n\t"  \
-                                                   "str  r1, [%0]    \n\t"  \
-                                                   :                        \
-                                                   : "l" (p)                \
-                                                   : "r1","memory"          \
-                                                   );                       \
+  #define OS_INT_PreserveAll(p)  { __asm volatile ("mrs  %[Para], primask \n\t" \
+                                                   : [Para] "=l" (*(p))         \
+                                                   :                            \
+                                                   : "memory"                   \
+                                                   );                           \
                                  }
-  #define OS_INT_RestoreAll(p)   { __asm volatile ("ldr  r1, [%0]     \n\t" \
-                                                   "msr  primask, r1  \n\t" \
-                                                   :                        \
-                                                   : "l" (p)                \
-                                                   : "r1","memory"          \
-                                                   );                       \
+  #define OS_INT_RestoreAll(p)   { __asm volatile ("msr  primask, %[Para] \n\t" \
+                                                   :                            \
+                                                   : [Para] "l" (*(p))          \
+                                                   : "memory"                   \
+                                                   );                           \
                                  }
 #elif (((defined __ARM_ARCH_7M__) || (defined __ARM_ARCH_7EM__) || (defined __ARM_ARCH_8M_MAIN__)) && (USE_ERRATUM_837070 == 0))
   //
   // Cortex-M3/M4/M4F/M7/M7F/M33 w/o workaround
   //
-  #define OS_INT_Disable()       { __asm volatile ("mov  r0, #128    \n\t"  \
-                                                   "msr  basepri, r0 \n\t"  \
-                                                   "nop              \n\t"  \
-                                                   "nop              \n\t"  \
-                                                   :                        \
-                                                   :                        \
-                                                   : "r0","memory"          \
-                                                   );                       \
+  #define OS_INT_Disable()       { __asm volatile ("msr  basepri, %[IPL] \n\t"    \
+                                                   :                              \
+                                                   : [IPL] "r" (OS_IPL_THRESHOLD) \
+                                                   : "memory"                     \
+                                                   );                             \
                                  }
-  #define OS_INT_Enable()        { __asm volatile ("mov  r0, #0      \n\t"  \
-                                                   "msr  basepri, r0 \n\t"  \
-                                                   :                        \
-                                                   :                        \
-                                                   : "r0","memory"          \
-                                                   );                       \
+  #define OS_INT_Enable()        { __asm volatile ("msr  basepri, %[IPL] \n\t" \
+                                                   :                           \
+                                                   : [IPL] "r" (0)             \
+                                                   : "memory"                  \
+                                                   );                          \
                                  }
-  #define OS_INT_Preserve(p)     { __asm volatile ("mrs  r1, basepri  \n\t" \
-                                                   "str  r1, [%0]     \n\t" \
-                                                   :                        \
-                                                   : "r" (p)                \
-                                                   : "r1","memory"          \
-                                                   );                       \
+  #define OS_INT_Preserve(p)     { __asm volatile ("mrs  %[Para], basepri \n\t" \
+                                                   : [Para] "=r" (*(p))         \
+                                                   :                            \
+                                                   : "memory"                   \
+                                                   );                           \
                                  }
-  #define OS_INT_Restore(p)      { __asm volatile ("ldr  r1, [%0]     \n\t" \
-                                                   "msr  basepri, r1  \n\t" \
-                                                   "nop               \n\t" \
-                                                   "nop               \n\t" \
-                                                   :                        \
-                                                   : "r" (p)                \
-                                                   : "r1","memory"          \
-                                                   );                       \
+  #define OS_INT_Restore(p)      { __asm volatile ("msr  basepri, %[Para]  \n\t" \
+                                                   :                             \
+                                                   : [Para] "r" (*(p))           \
+                                                   : "memory"                    \
+                                                   );                            \
                                  }
-  #define OS_INT_PreserveAll(p)  { __asm volatile ("mrs  r1, primask \n\t"  \
-                                                   "str  r1, [%0]    \n\t"  \
-                                                   :                        \
-                                                   : "r" (p)                \
-                                                   : "r1","memory"          \
-                                                   );                       \
+  #define OS_INT_PreserveAll(p)  { __asm volatile ("mrs  %[Para], primask \n\t" \
+                                                   : [Para] "=r" (*(p))         \
+                                                   :                            \
+                                                   : "memory"                   \
+                                                   );                           \
                                  }
-  #define OS_INT_RestoreAll(p)   { __asm volatile ("ldr  r1, [%0]     \n\t" \
-                                                   "msr  primask, r1  \n\t" \
-                                                   :                        \
-                                                   : "r" (p)                \
-                                                   : "r1","memory"          \
-                                                   );                       \
+  #define OS_INT_RestoreAll(p)   { __asm volatile ("msr  primask, %[Para] \n\t" \
+                                                   :                            \
+                                                   : [Para] "r" (*(p))          \
+                                                   : "memory"                   \
+                                                   );                           \
                                  }
 #elif (((defined __ARM_ARCH_7M__) || (defined __ARM_ARCH_7EM__) || (defined __ARM_ARCH_8M_MAIN__)) && (USE_ERRATUM_837070 == 1))
   //
   // Cortex-M3/M4/M4F/M7/M7F/M33 with workaround
   //
   #if (OS_PRESERVE_PRIMASK == 1)
-    #define OS_INT_Disable()     { __asm volatile ("mov  r0, #128     \n\t" \
-                                                   "mrs  r1, primask  \n\t" \
-                                                   "cpsid i           \n\t" \
-                                                   "msr  basepri, r0  \n\t" \
-                                                   "msr  primask, r1  \n\t" \
-                                                   "nop               \n\t" \
-                                                   "nop               \n\t" \
-                                                   :                        \
-                                                   :                        \
-                                                   : "r0", "r1","memory"    \
-                                                   );                       \
+    #define OS_INT_Disable()     { OS_U32 reg;                                    \
+                                   __asm volatile ("mrs  %[PMask], primask \n\t"  \
+                                                   "cpsid i                \n\t"  \
+                                                   "msr  basepri, %[IPL]   \n\t"  \
+                                                   "msr  primask, %[PMask] \n\t"  \
+                                                   : [PMask] "=&r" (reg)          \
+                                                   : [IPL] "r" (OS_IPL_THRESHOLD) \
+                                                   : "memory"                     \
+                                                   );                             \
                                  }
   #else
-    #define OS_INT_Disable()     { __asm volatile ("mov  r0, #128     \n\t" \
-                                                   "cpsid i           \n\t" \
-                                                   "msr  basepri, r0  \n\t" \
-                                                   "cpsie i           \n\t" \
-                                                   "nop               \n\t" \
-                                                   "nop               \n\t" \
-                                                   :                        \
-                                                   :                        \
-                                                   : "r0","memory"          \
-                                                   );                       \
+    #define OS_INT_Disable()     { __asm volatile ("cpsid i              \n\t"    \
+                                                   "msr  basepri, %[IPL] \n\t"    \
+                                                   "cpsie i              \n\t"    \
+                                                   :                              \
+                                                   : [IPL] "r" (OS_IPL_THRESHOLD) \
+                                                   : "memory"                     \
+                                                   );                             \
                                  }
   #endif
-  #define OS_INT_Enable()        { __asm volatile ("mov  r0, #0       \n\t" \
-                                                   "msr  basepri, r0  \n\t" \
-                                                   :                        \
-                                                   :                        \
-                                                   : "r0","memory"          \
-                                                   );                       \
+  #define OS_INT_Enable()        { __asm volatile ("msr  basepri, %[IPL] \n\t" \
+                                                   :                           \
+                                                   : [IPL] "r" (0)             \
+                                                   : "memory"                  \
+                                                   );                          \
                                  }
-  #define OS_INT_Preserve(p)     { __asm volatile ("mrs  r1, basepri  \n\t" \
-                                                   "str  r1, [%0]     \n\t" \
-                                                   :                        \
-                                                   : "r" (p)                \
-                                                   : "r1", "memory"         \
-                                                   );                       \
+  #define OS_INT_Preserve(p)     { __asm volatile ("mrs  %[Para], basepri \n\t" \
+                                                   : [Para] "=r" (*(p))         \
+                                                   :                            \
+                                                   : "memory"                   \
+                                                   );                           \
                                  }
   #if (OS_PRESERVE_PRIMASK == 1)
-    #define OS_INT_Restore(p)    { __asm volatile ("ldr  r1, [%0]     \n\t" \
-                                                   "mrs  r0, primask  \n\t" \
-                                                   "cpsid i           \n\t" \
-                                                   "msr  basepri, r1  \n\t" \
-                                                   "msr  primask, r0  \n\t" \
-                                                   "nop               \n\t" \
-                                                   "nop               \n\t" \
-                                                   :                        \
-                                                   : "r" (p)                \
-                                                   : "r0", "r1","memory"    \
-                                                   );                       \
+    #define OS_INT_Restore(p)    { OS_U32 reg;                                   \
+                                   __asm volatile ("mrs  %[PMask], primask \n\t" \
+                                                   "cpsid i                \n\t" \
+                                                   "msr  basepri, %[Para]  \n\t" \
+                                                   "msr  primask, %[PMask] \n\t" \
+                                                   : [PMask] "=&r" (reg)         \
+                                                   : [Para] "r" (*(p))           \
+                                                   : "memory"                    \
+                                                   );                            \
                                  }
   #else
-    #define OS_INT_Restore(p)    { __asm volatile ("ldr  r1, [%0]     \n\t" \
-                                                   "cpsid i           \n\t" \
-                                                   "msr  basepri, r1  \n\t" \
-                                                   "cpsie i           \n\t" \
-                                                   "nop               \n\t" \
-                                                   "nop               \n\t" \
-                                                   :                        \
-                                                   : "r" (p)                \
-                                                   : "r1","memory"          \
-                                                   );                       \
+    #define OS_INT_Restore(p)    { __asm volatile ("cpsid i                \n\t" \
+                                                   "msr  basepri, %[Para]  \n\t" \
+                                                   "cpsie i                \n\t" \
+                                                   :                             \
+                                                   : [Para] "r" (*(p))           \
+                                                   : "memory"                    \
+                                                   );                            \
                                  }
   #endif
-  #define OS_INT_PreserveAll(p)  { __asm volatile ("mrs  r1, primask \n\t"  \
-                                                   "str  r1, [%0]    \n\t"  \
-                                                   :                        \
-                                                   : "r" (p)                \
-                                                   : "r1","memory"          \
-                                                   );                       \
+  #define OS_INT_PreserveAll(p)  { __asm volatile ("mrs  %[Para], primask \n\t" \
+                                                   : [Para] "=r" (*(p))         \
+                                                   :                            \
+                                                   : "memory"                   \
+                                                   );                           \
                                  }
-  #define OS_INT_RestoreAll(p)   { __asm volatile ("ldr  r1, [%0]     \n\t" \
-                                                   "msr  primask, r1  \n\t" \
-                                                   :                        \
-                                                   : "r" (p)                \
-                                                   : "r1","memory"          \
-                                                   );                       \
+  #define OS_INT_RestoreAll(p)   { __asm volatile ("msr  primask, %[Para] \n\t" \
+                                                   :                            \
+                                                   : [Para] "r" (*(p))          \
+                                                   : "memory"                   \
+                                                   );                           \
                                  }
 #else
   #error "Please check that __ARM_ARCH_6M__, __ARM_ARCH_7M__, __ARM_ARCH_7EM__, __ARM_ARCH_8M_BASE__, or __ARM_ARCH_8M_MAIN__ is defined!"
@@ -364,7 +337,6 @@ void SysTick_Handler(void);
 */
 typedef void OS_ISR_HANDLER(void);
 #define __Vectors _vectors
-extern int _vectors;
 
 void            OS_ARM_ISRInit          (OS_U32 IsVectorTableInRAM, OS_U32 NumInterrupts, OS_ISR_HANDLER* VectorTableBaseAddr[], OS_ISR_HANDLER* RAMVectorTableBaseAddr[]) OS_TEXT_SECTION_ATTRIBUTE(OS_ARM_ISRInit);
 OS_ISR_HANDLER* OS_ARM_InstallISRHandler(int ISRIndex, OS_ISR_HANDLER* pISRHandler)                                                                                        OS_TEXT_SECTION_ATTRIBUTE(OS_ARM_InstallISRHandler);
@@ -376,16 +348,10 @@ int             OS_ARM_ISRSetPrio       (int ISRIndex, int Prio)                
 *
 *       Compiler specific implementation for thread safety
 */
-void OS_HeapLock             (void) OS_TEXT_SECTION_ATTRIBUTE(OS_HeapLock);
-void OS_HeapUnlock           (void) OS_TEXT_SECTION_ATTRIBUTE(OS_HeapUnlock);
-void OS_PrintfLock           (void) OS_TEXT_SECTION_ATTRIBUTE(OS_PrintfLock);
-void OS_PrintfUnlock         (void) OS_TEXT_SECTION_ATTRIBUTE(OS_PrintfUnlock);
-void OS_ScanfLock            (void) OS_TEXT_SECTION_ATTRIBUTE(OS_ScanfLock);
-void OS_ScanfUnlock          (void) OS_TEXT_SECTION_ATTRIBUTE(OS_ScanfUnlock);
-void OS_DebugIOLock          (void) OS_TEXT_SECTION_ATTRIBUTE(OS_DebugIOLock);
-void OS_DebugIOUnlock        (void) OS_TEXT_SECTION_ATTRIBUTE(OS_DebugIOUnlock);
-void OS_InterruptSafetyLock  (void) OS_TEXT_SECTION_ATTRIBUTE(OS_InterruptSafetyLock);
-void OS_InterruptSafetyUnlock(void) OS_TEXT_SECTION_ATTRIBUTE(OS_InterruptSafetyUnlock);
+void OS_ThreadSafe_Lock     (void) OS_TEXT_SECTION_ATTRIBUTE(OS_ThreadSafe_Lock);
+void OS_ThreadSafe_Unlock   (void) OS_TEXT_SECTION_ATTRIBUTE(OS_ThreadSafe_Unlock);
+void OS_InterruptSafe_Lock  (void) OS_TEXT_SECTION_ATTRIBUTE(OS_InterruptSafe_Lock);
+void OS_InterruptSafe_Unlock(void) OS_TEXT_SECTION_ATTRIBUTE(OS_InterruptSafe_Unlock);
 
 /*********************************************************************
 *
@@ -498,7 +464,7 @@ file for embOS.
   #define OS_PORT_REVISION  (0u)
 #endif
 
-#define OS_VERSION_GENERIC  51600u
+#define OS_VERSION_GENERIC  51800u
 #define OS_VERSION          (OS_VERSION_GENERIC + (OS_PORT_REVISION * 25u))
 
 /*********************************************************************
@@ -642,7 +608,7 @@ file for embOS.
   #define OS_SUPPORT_PROFILE_DEFAULT           (1)
   #define OS_SUPPORT_TICKSTEP_DEFAULT          (0)
   #define OS_SUPPORT_TRACE_DEFAULT             (0)
-  #define OS_SUPPORT_TRACE_API_DEFAULT         (0)
+  #define OS_SUPPORT_TRACE_API_DEFAULT         (1)
   #define OS_SUPPORT_RR_DEFAULT                (1)
   #define OS_SUPPORT_TRACKNAME_DEFAULT         (1)
   #define OS_SUPPORT_SAVE_RESTORE_HOOK_DEFAULT (1)
@@ -875,14 +841,13 @@ file for embOS.
 **********************************************************************
 */
 //
-// OS_CONST_PTR allow overriding of "const" declaration for const pointer.
-// Required for CPUs with data in near and const in far memory area (like M16C in near memory model).
+// OS_CONST_PTR allow overriding of "const" declaration for pointer to const data.
+// Required for CPUs where "const" memory addresses ROM instead of RAM.
+// Also required for CPUs with data in near and const in far memory area (like M16C in near memory model).
+// In such cases the "const" keyword must not be used.
 //
 #ifndef   OS_CONST_PTR
-  #define OS_CONST_PTR   const  // Default: const pointer declared as const
-#else
-  #undef  OS_CONST_PTR          // May have been overwritten for CPUs where "const" memory addresses ROM instead of RAM
-  #define OS_CONST_PTR
+  #define OS_CONST_PTR  const  // Default: pointer to const data declared as const
 #endif
 //
 // OS_ROM_DATA allows to store strings explicit in ROM.
@@ -1248,6 +1213,10 @@ file for embOS.
 *
 *       Error codes
 *
+*  Used when the debug assertions call OS_Error().
+*  We use an enum because most watch windows are able to show the text
+*  instead of the number which makes debugging easier.
+*
 **********************************************************************
 */
 
@@ -1338,8 +1307,8 @@ typedef enum {
   OS_ERR_ILLEGAL_IN_ISR                  = (160u),  // Illegal function call in an interrupt service routine: A routine that must not be called from within an ISR has been called from within an ISR.
   OS_ERR_ILLEGAL_IN_TIMER                = (161u),  // Illegal function call in a software timer: A routine that must not be called from within a software timer has been called from within a timer.
   OS_ERR_ILLEGAL_OUT_ISR                 = (162u),  // Not a legal API outside interrupt.
-  OS_ERR_NOT_IN_ISR                      = (163u),  // OS_INT_Enter() has been called, but CPU is not in ISR state.
-  OS_ERR_IN_ISR                          = (164u),  // OS_INT_Enter() has not been called, but CPU is in ISR state.
+  OS_ERR_OS_INT_ENTER_CALLED             = (163u),  // OS_INT_Enter() has been called, but CPU is not in ISR state.
+  OS_ERR_OS_INT_ENTER_NOT_CALLED         = (164u),  // OS_INT_Enter() has not been called, but CPU is in ISR state.
 
   OS_ERR_INIT_NOT_CALLED                 = (165u),  // OS_Init() was not called.
 
@@ -1372,10 +1341,11 @@ typedef enum {
 // Fixed block memory pool
   OS_ERR_MEMF_INV                        = (190u),  // Fixed size memory block control structure not created before use.
   OS_ERR_MEMF_INV_PTR                    = (191u),  // Pointer to memory block does not belong to memory pool on Release.
-  OS_ERR_MEMF_PTR_FREE                   = (192u),  // Pointer to memory block is already free when calling OS_MEMPOOL_Release(). Possibly, same pointer was released twice.
-  OS_ERR_MEMF_RELEASE                    = (193u),  // OS_MEMPOOL_Release() was called for a memory pool, that had no memory block allocated (all available blocks were already free before).
+  OS_ERR_MEMF_PTR_FREE                   = (192u),  // Pointer to memory block is already free when calling OS_MEMPOOL_Free() or OS_MEMPOOL_FreeEx(). Possibly, same pointer was released twice.
+  OS_ERR_MEMF_RELEASE                    = (193u),  // OS_MEMPOOL_Free() or OS_MEMPOOL_FreeEx() was called for a memory pool, that had no memory block allocated (all available blocks were already free before).
   OS_ERR_MEMF_POOLADDR                   = (194u),  // OS_MEMPOOL_Create() was called with a memory pool base address which is not located at a word aligned base address.
   OS_ERR_MEMF_BLOCKSIZE                  = (195u),  // OS_MEMPOOL_Create() was called with a data block size which is not a multiple of processors word size.
+  OS_ERR_MEMF_DELETE                     = (196u),  // OS_MEMPOOL_Delete() was called on a memory pool with waiting tasks.
 
 // Task suspend / resume errors
   OS_ERR_SUSPEND_TOO_OFTEN               = (200u),  // Number of nested calls to OS_TASK_Suspend() exceeded 3.
@@ -1432,6 +1402,8 @@ typedef enum {
   OS_ERR_MPU_INVALID_OBJECT              = (245u),  // OS object is directly accessible from the task which is not allowed.
   OS_ERR_MPU_PRIVSTATE_INVALID           = (246u),  // Invalid call from a privileged task.
   OS_ERR_MPU_NOINIT                      = (247u),  // OS_MPU_Init() not called.
+  OS_ERR_MPU_DEVICE_INDEX                = (248u),  // Invalid device driver index.
+  OS_ERR_MPU_INV_DEVICE_LIST             = (249u),  // Invalid device driver list.
 
 // Buffer to small to keep a backup copy of the CSTACK
   OS_ERR_CONFIG_OSSTOP                   = (250u),  // OS_Stop() is called without using OS_ConfigStop() before.
@@ -1457,22 +1429,30 @@ typedef enum {
 
 // Unaligned stacks
   OS_ERR_UNALIGNED_IRQ_STACK             = (260u),  // Unaligned IRQ stack.
-  OS_ERR_UNALIGNED_MAIN_STACK            = (261u)   // Unaligned main stack.
+  OS_ERR_UNALIGNED_MAIN_STACK            = (261u),  // Unaligned main stack.
+
+// FPU not enabled
+  OS_ERR_FPU_NOT_ENABLED                 = (262u)   // FPU was not enabled before embOS gets initialized.
 } OS_STATUS;
 
 /*********************************************************************
 *
-*       Assertions
+*       Assertions for debug build
 *
-*  Assertions are used to generate code in the debug version
-*  of embOS in order catch programming faults like
-*  bad pointers or uninitialized data structures
+*  Assertions are used to generate code in the debug version of embOS
+*  in order catch programming faults like bad pointers or uninitialized
+*  data structures.
+*
+*  OS_Error() is called either directly in the source code as well as
+*  with the following assertions.
 *
 **********************************************************************
 */
-
 #if (OS_DEBUG != 0)
-  #define OS_ASSERT(Exp, ErrCode)  { if (!(Exp)) {OS_Error(ErrCode); }}
+  #define OS_ASSERT(Exp, ErrCode)  { if (!(Exp)) {         \
+                                       OS_Error(ErrCode);  \
+                                     }                     \
+                                   }
 #else
   #define OS_ASSERT(Exp, ErrCode)
 #endif
@@ -1482,7 +1462,8 @@ typedef enum {
 
 #if (OS_DEBUG != 0)
   //
-  // OS_ASSERT_CPU_IN_ISR_MODE is typically called from OS_INT_Enter() and checks the hardware state of the CPU
+  // OS_ASSERT_CPU_IN_ISR_MODE is called from OS_INT_Enter()/OS_INT_EnterNestable() only and
+  // checks whether OS_INT_Enter()/OS_INT_EnterNestable() was called from an embOS ISR.
   //
   #define OS_ASSERT_CPU_IN_ISR_MODE()  OS_AssertCPUInISRMode()
 #else
@@ -1498,7 +1479,7 @@ typedef enum {
 //
 // Identifier from 0 to 99 and 128 to 255 are reserved for the OS.
 // Identifier from 100 to 127 are reserved for the application.
-// Even when not all of those are currently used, they may be defined in the future
+// Even when not all of those are currently used, they may be defined in the future.
 //
 #define OS_TRACE_ID_DEACTIVATE                         (1u)
 #define OS_TRACE_ID_ACTIVATE                           (2u)
@@ -1704,7 +1685,7 @@ typedef enum {
 #define OS_TRACE_ID_MPU_SETALLOWEDOBJECTS            (274u)
 #define OS_TRACE_ID_MPU_CONFIGMEM                    (275u)
 #define OS_TRACE_ID_MPU_ADDREGION                    (276u)
-#define OS_TRACE_ID_MPU_ENABLEEX                     (277u)
+#define OS_TRACE_ID_MPU_INIT                         (277u)
 #define OS_TRACE_ID_MPU_SETDEVICEDRIVERLIST          (278u)
 #define OS_TRACE_ID_MPU_EXTENDTASKCONTEXT            (279u)
 #define OS_TRACE_ID_MPU_SETERRORCALLBACK             (280u)
@@ -1746,7 +1727,10 @@ typedef enum {
 #define OS_TRACE_ID_TICKLESS_GETPERIOD               (316u)
 #define OS_TRACE_ID_TICKLESS_ISEXPIRED               (317u)
 #define OS_TRACE_ID_INFO_GETFREQ                     (318u)
-
+#define OS_TRACE_ID_DEBUG_GETERROR                   (319u)
+#define OS_TRACE_ID_TASK_GETSTATUS                   (320u)
+#define OS_TRACE_ID_START                            (321u)
+#define OS_TRACE_ID_TIME_GETRESULT                   (322u)
 //
 // SystemView API IDs start at offset 32 whereas embOSView IDs starts at offset 0.
 // The first 32 SystemView IDs are generic IDs.
@@ -1817,6 +1801,38 @@ typedef enum {
   #define TRACE_ON_TASK_TERMINATED(TaskId)
   #define TRACE_RECORD_OBJNAME(Id, Para0)
 #endif  // OS_SUPPORT_TRACE_API
+
+/*********************************************************************
+*
+*       Task stati used with OS_TASK_GetStatus()
+*/
+typedef enum {
+  READY_FOR_EXECUTION,
+  DELAYED,
+  WAITS_FOR_TASKEVENT,
+  WAITS_FOR_TASKEVENT_WITH_TIMEOUT,
+  WAITS_FOR_MUTEX,
+  WAITS_FOR_MUTEX_WITH_TIMEOUT,
+  WAITS_FOR_COMMUNICATION,               // Waiting for communication available, e.g. embOSView
+  WAITS_FOR_COMMUNICATION_WITH_TIMEOUT,  // Not currently used
+  WAITS_FOR_SEMAPHORE,
+  WAITS_FOR_SEMAPHORE_WITH_TIMEOUT,
+  WAITS_FOR_MEMPOOL,
+  WAITS_FOR_MEMPOOL_WITH_TIMEOUT,
+  WAITS_FOR_MESSAGE_IN_QUEUE,
+  WAITS_FOR_MESSAGE_IN_QUEUE_WITH_TIMEOUT,
+  WAITS_FOR_SPACE_IN_MAILBOX,
+  WAITS_FOR_SPACE_IN_MAILBOX_WITH_TIMEOUT,
+  WAITS_FOR_MESSAGE_IN_MAILBOX,
+  WAITS_FOR_MESSAGE_IN_MAILBOX_WITH_TIMEOUT,
+  WAITS_FOR_EVENTOBJECT,
+  WAITS_FOR_EVENTOBJECT_WITH_TIMEOUT,
+  WAITS_FOR_SPACE_IN_QUEUE,
+  WAITS_FOR_SPACE_IN_QUEUE_WITH_TIMEOUT,
+  RUNNING,
+  SUSPENDED
+} OS_TASK_STATUS;
+
 
 #ifdef __cplusplus
   extern "C" {
@@ -1979,14 +1995,14 @@ typedef struct {
 
 typedef struct OS_MPU_API_LIST_STRUCT {
   void   (*pfInit)                (void);
-  void   (*pfSwitchToUnprivState) (OS_ROUTINE_VOID* pfRoutine);
+  void   (*pfSwitchToUnprivState) (void);
   void   (*pfEnterPrivilegedState)(void);
   void   (*pfLeavePrivilegedState)(void);
   OS_U32 (*pfGetPrivilegedState)  (void);
-  void   (*pfCallDeviceDriver)    (OS_U32 Id, void* Param);
+  void   (*pfCallDeviceDriver)    (OS_ROUTINE_VOID_PTR* pfRoutine, void* Param);
   void*  (*pfSaveAll)             (void* pStack);
   void*  (*pfRestoreAll)          (const void* pStack);
-  void   (*pfFlushCache)          (void);
+  void   (*pfDeInit)              (void);
 #ifdef OS_LIBMODE_SAFE
   OS_BOOL (*pfSanityCheck)        (const OS_TASK* pTask);
 #endif
@@ -1995,12 +2011,25 @@ typedef struct OS_MPU_API_LIST_STRUCT {
 typedef void (*OS_MPU_DEVICE_DRIVER_FUNC) (void* p);
 typedef void OS_ROUTINE_TASK_PTR_ERRORCODE(OS_TASK* pTask, OS_MPU_ERRORCODE ErrorCode);
 
+extern const struct OS_EXTEND_TASK_CONTEXT_STRUCT OS_MPU_ContextExtension;
+#define OS_MPU_ExtendContext  OS_MPU_ContextExtension
+
 #ifndef   OS_MPU_ASSERT_PRIVSTATE
   #define OS_MPU_ASSERT_PRIVSTATE()  OS_MPU_AssertPrivilegedState()
 #endif
 
+#ifndef   OS_MPU_PRIVSTATE_ENTER
+  #define OS_MPU_PRIVSTATE_ENTER()   {OS_U32 State; State = OS_MPU_GetPrivilegedState(); OS_MPU_EnterPrivilegedState();
+#endif
+
+#ifndef   OS_MPU_PRIVSTATE_LEAVE
+  #define OS_MPU_PRIVSTATE_LEAVE()   OS_MPU_LeavePrivilegedState(State); }
+#endif
+
 #else
   #define OS_MPU_ASSERT_PRIVSTATE()
+  #define OS_MPU_PRIVSTATE_ENTER()
+  #define OS_MPU_PRIVSTATE_LEAVE()
 #endif // OS_SUPPORT_MPU
 
 /*********************************************************************
@@ -2399,31 +2428,26 @@ typedef struct {
 
 /*********************************************************************
 *
-*       OS Counters
+*       OS_COUNTERS and OS_PENDING
 *
-**********************************************************************
+*  Make sure the size of both structs are a full integer.
+*  16 bit on 8/16-bit CPUs and 32 bit on 32-bit CPUs.
+*  This makes it more efficient to push/pop OS_Global.Counters in the
+*  assembly sources and to access OS_Global.Pending.All from the C sources..
 */
 typedef union {
-  int Dummy;             // Make sure a full integer (32 bit on 32-bit CPUs) is used.
+  unsigned int All;
   struct {
-    volatile OS_U8 Region;
-    volatile OS_U8 DI;
+    OS_U8 Region;
+    OS_U8 DI;
   } Cnt;
 } OS_COUNTERS;
 
-//
-// Currently used in embOS TeakLite SmartNCode only
-//
-#ifndef   PENDING_DUMMY_BYTES
-  #define PENDING_DUMMY_BYTES OS_U8 aDummy[2];
-#endif
-
 typedef union {
-  volatile OS_U32 All;   // Make sure a full integer (32 bit on 32-bit CPUs) is used.
+  unsigned int All;
   struct {
     OS_U8 RoundRobin;
     OS_U8 TaskSwitch;
-    PENDING_DUMMY_BYTES
   } Flag;
 } OS_PENDING;
 
@@ -2434,7 +2458,11 @@ typedef union {
 **********************************************************************
 */
 struct OS_GLOBAL_STRUCT {
-  OS_COUNTERS                  Counters;                      // Region and interrupt disable counter
+//
+// Counters, pCurrentTask, and Ipl_DI/Ipl_EI are referenced by the assembler part,
+// thus if their order is changed all assembly files needs to be updated accordingly.
+//
+  volatile OS_COUNTERS         Counters;                      // Region and interrupt disable counter
   volatile OS_PENDING          Pending;                       // Task switch and round robin pending flags
   OS_TASK*                     pCurrentTask;                  // Pointer to the current task
   OS_MAIN_CONTEXT*             pMainContext;                  // Pointer to the saved main() context used by OS_Stop()
@@ -2442,9 +2470,6 @@ struct OS_GLOBAL_STRUCT {
   OS_IPL_DI_TYPE               Ipl_DI;                        // Interrupt disable priority level
   OS_IPL_EI_TYPE               Ipl_EI;                        // Interrupt enable priority level
 #endif
-//
-// Variables above are referenced by the assembler part, thus if their order is changed all assembly files needs to be updated accordingly.
-//
 #ifdef OS_U64
   OS_U64                       TickCnt;                       // Number of hardware timer interrupts, used for OS_TIME_Get_Cycles()
 #endif
@@ -2488,7 +2513,9 @@ struct OS_GLOBAL_STRUCT {
 #if (OS_SUPPORT_TICKSTEP != 0)
   volatile int                 TickStepTime;                  // Used for tick step feature used by embOSView
 #endif
-  volatile OS_STATUS           Status;                        // RTOS status
+#if (OS_DEBUG != 0) || (OS_SUPPORT_STACKCHECK != 0)
+  OS_STATUS                    Status;                        // RTOS status
+#endif
   OS_BOOL                      IsRunning;                     // Defines whether OS_Start() was called and the RTOS is running
 #if ((OS_DEBUG != 0) || (OS_SUPPORT_TRACE != 0))
   OS_BOOL                      InInt;                         // Defines whether an embOS interrupt gets currently executed
@@ -2624,49 +2651,40 @@ void     OS_Stop      (void)                                               OS_TE
 *
 **********************************************************************
 */
-void     OS_TASK_AddTerminateHook          (OS_ON_TERMINATE_HOOK* pHook, OS_ROUTINE_TASK_PTR* pfRoutine)                                                                                                                     OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_AddTerminateHook);
-void     OS_TASK_Create                    (OS_TASK* pTask, OS_ROM_DATA const char* sName, OS_PRIO Priority, OS_ROUTINE_VOID*     pfRoutine, void OS_STACKPTR* pStack, OS_UINT StackSize, OS_UINT TimeSlice)                 OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_Create);
-void     OS_TASK_CreateEx                  (OS_TASK* pTask, OS_ROM_DATA const char* sName, OS_PRIO Priority, OS_ROUTINE_VOID_PTR* pfRoutine, void OS_STACKPTR* pStack, OS_UINT StackSize, OS_UINT TimeSlice, void* pContext) OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_CreateEx);
-void     OS_TASK_Delay                     (OS_TIME t)                                                                                                                                                                       OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_Delay);
-void     OS_TASK_DelayUntil                (OS_TIME t)                                                                                                                                                                       OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_DelayUntil);
-void     OS_TASK_Delay_us                  (OS_U16  us)                                                                                                                                                                      OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_Delay_us);
-OS_TASK* OS_TASK_GetID                     (void)                                                                                                                                                                            OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_GetID);
-int      OS_TASK_GetNumTasks               (void)                                                                                                                                                                            OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_GetNumTasks);
-OS_PRIO  OS_TASK_GetPriority               (OS_CONST_PTR OS_TASK* pTask)                                                                                                                                                     OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_GetPriority);
-OS_U8    OS_TASK_GetSuspendCnt             (OS_CONST_PTR OS_TASK* pTask)                                                                                                                                                     OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_GetSuspendCnt);
-OS_BOOL  OS_TASK_IsTask                    (OS_CONST_PTR OS_TASK* pTask)                                                                                                                                                     OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_IsTask);
-OS_TASK* OS_TASK_Index2Ptr                 (int TaskIndex)                                                                                                                                                                   OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_Index2Ptr);
-void     OS_TASK_RemoveAllTerminateHooks   (void)                                                                                                                                                                            OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_RemoveAllTerminateHooks);
-void     OS_TASK_RemoveTerminateHook       (OS_CONST_PTR OS_ON_TERMINATE_HOOK* pHook)                                                                                                                                        OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_RemoveTerminateHook);
-void     OS_TASK_Resume                    (OS_TASK* pTask)                                                                                                                                                                  OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_Resume);
-void     OS_TASK_ResumeAll                 (void)                                                                                                                                                                            OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_ResumeAll);
-void     OS_TASK_SetDefaultStartHook       (OS_ROUTINE_VOID* pfRoutine)                                                                                                                                                      OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_SetDefaultStartHook);
-void     OS_TASK_SetInitialSuspendCnt      (OS_U8 SuspendCnt)                                                                                                                                                                OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_SetInitialSuspendCnt);
-void     OS_TASK_SetName                   (OS_TASK* pTask, OS_ROM_DATA const char* sName)                                                                                                                                   OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_SetName);
-void     OS_TASK_SetPriority               (OS_TASK* pTask, OS_PRIO Priority)                                                                                                                                                OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_SetPriority);
-void     OS_TASK_Suspend                   (OS_TASK* pTask)                                                                                                                                                                  OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_Suspend);
-void     OS_TASK_SuspendAll                (void)                                                                                                                                                                            OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_SuspendAll);
-void     OS_TASK_Terminate                 (OS_TASK* pTask)                                                                                                                                                                  OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_Terminate);
-void     OS_TASK_Wake                      (OS_TASK* pTask)                                                                                                                                                                  OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_Wake);
-void     OS_TASK_Yield                     (void)                                                                                                                                                                            OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_Yield);
+void                    OS_TASK_AddTerminateHook          (OS_ON_TERMINATE_HOOK* pHook, OS_ROUTINE_TASK_PTR* pfRoutine)                                                                                                                     OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_AddTerminateHook);
+void                    OS_TASK_Create                    (OS_TASK* pTask, OS_ROM_DATA const char* sName, OS_PRIO Priority, OS_ROUTINE_VOID*     pfRoutine, void OS_STACKPTR* pStack, OS_UINT StackSize, OS_UINT TimeSlice)                 OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_Create);
+void                    OS_TASK_CreateEx                  (OS_TASK* pTask, OS_ROM_DATA const char* sName, OS_PRIO Priority, OS_ROUTINE_VOID_PTR* pfRoutine, void OS_STACKPTR* pStack, OS_UINT StackSize, OS_UINT TimeSlice, void* pContext) OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_CreateEx);
+void                    OS_TASK_Delay                     (OS_TIME t)                                                                                                                                                                       OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_Delay);
+void                    OS_TASK_DelayUntil                (OS_TIME t)                                                                                                                                                                       OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_DelayUntil);
+void                    OS_TASK_Delay_us                  (OS_U16  us)                                                                                                                                                                      OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_Delay_us);
+OS_TASK*                OS_TASK_GetID                     (void)                                                                                                                                                                            OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_GetID);
+OS_ROM_DATA const char* OS_TASK_GetName                   (OS_CONST_PTR OS_TASK* pTask)                                                                                                                                                     OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_GetName);
+int                     OS_TASK_GetNumTasks               (void)                                                                                                                                                                            OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_GetNumTasks);
+OS_PRIO                 OS_TASK_GetPriority               (OS_CONST_PTR OS_TASK* pTask)                                                                                                                                                     OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_GetPriority);
+OS_TASK_STATUS          OS_TASK_GetStatus                 (OS_CONST_PTR OS_TASK* pTask)                                                                                                                                                     OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_GetStatus);
+OS_U8                   OS_TASK_GetSuspendCnt             (OS_CONST_PTR OS_TASK* pTask)                                                                                                                                                     OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_GetSuspendCnt);
+OS_U8                   OS_TASK_SetTimeSlice              (OS_TASK* pTask, OS_U8 TimeSlice)                                                                                                                                                 OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_SetTimeSlice);
+OS_U8                   OS_TASK_GetTimeSliceRem           (OS_CONST_PTR OS_TASK* pTask)                                                                                                                                                     OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_GetTimeSliceRem);
+OS_BOOL                 OS_TASK_IsTask                    (OS_CONST_PTR OS_TASK* pTask)                                                                                                                                                     OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_IsTask);
+OS_TASK*                OS_TASK_Index2Ptr                 (int TaskIndex)                                                                                                                                                                   OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_Index2Ptr);
+void                    OS_TASK_RemoveAllTerminateHooks   (void)                                                                                                                                                                            OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_RemoveAllTerminateHooks);
+void                    OS_TASK_RemoveTerminateHook       (OS_CONST_PTR OS_ON_TERMINATE_HOOK* pHook)                                                                                                                                        OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_RemoveTerminateHook);
+void                    OS_TASK_Resume                    (OS_TASK* pTask)                                                                                                                                                                  OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_Resume);
+void                    OS_TASK_ResumeAll                 (void)                                                                                                                                                                            OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_ResumeAll);
+void                    OS_TASK_SetDefaultStartHook       (OS_ROUTINE_VOID* pfRoutine)                                                                                                                                                      OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_SetDefaultStartHook);
+void                    OS_TASK_SetInitialSuspendCnt      (OS_U8 SuspendCnt)                                                                                                                                                                OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_SetInitialSuspendCnt);
+void                    OS_TASK_SetName                   (OS_TASK* pTask, OS_ROM_DATA const char* sName)                                                                                                                                   OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_SetName);
+void                    OS_TASK_SetPriority               (OS_TASK* pTask, OS_PRIO Priority)                                                                                                                                                OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_SetPriority);
+void                    OS_TASK_Suspend                   (OS_TASK* pTask)                                                                                                                                                                  OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_Suspend);
+void                    OS_TASK_SuspendAll                (void)                                                                                                                                                                            OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_SuspendAll);
+void                    OS_TASK_Terminate                 (OS_TASK* pTask)                                                                                                                                                                  OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_Terminate);
+void                    OS_TASK_Wake                      (OS_TASK* pTask)                                                                                                                                                                  OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_Wake);
+void                    OS_TASK_Yield                     (void)                                                                                                                                                                            OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_Yield);
 #if (OS_SUPPORT_SAVE_RESTORE_HOOK != 0)
-void     OS_TASK_AddContextExtension       (OS_EXTEND_TASK_CONTEXT_LINK* pExtendContextLink, OS_CONST_PTR OS_EXTEND_TASK_CONTEXT* pExtendContext)                                                                            OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_AddContextExtension);
-void     OS_TASK_SetContextExtension       (OS_CONST_PTR OS_EXTEND_TASK_CONTEXT* pExtendContext)                                                                                                                             OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_SetContextExtension);
-void     OS_TASK_SetDefaultContextExtension(OS_CONST_PTR OS_EXTEND_TASK_CONTEXT* pExtendContext)                                                                                                                             OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_SetDefaultContextExtension);
+void                    OS_TASK_AddContextExtension       (OS_EXTEND_TASK_CONTEXT_LINK* pExtendContextLink, OS_CONST_PTR OS_EXTEND_TASK_CONTEXT* pExtendContext)                                                                            OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_AddContextExtension);
+void                    OS_TASK_SetContextExtension       (OS_CONST_PTR OS_EXTEND_TASK_CONTEXT* pExtendContext)                                                                                                                             OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_SetContextExtension);
+void                    OS_TASK_SetDefaultContextExtension(OS_CONST_PTR OS_EXTEND_TASK_CONTEXT* pExtendContext)                                                                                                                             OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_SetDefaultContextExtension);
 #endif
-#if (OS_SUPPORT_RR != 0)
-OS_U8    OS_TASK_SetTimeSlice              (OS_TASK* pTask, OS_U8 TimeSlice)                                                                                                                                                 OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_SetTimeSlice);
-OS_U8    OS_TASK_GetTimeSliceRem           (OS_CONST_PTR OS_TASK* pTask)                                                                                                                                                     OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_GetTimeSliceRem);
-#else
-  #define OS_TASK_SetTimeSlice(pTask, TimeSlice)  (0u)
-  #define OS_TASK_GetTimeSliceRem(pTask)          (0u)
-#endif
-#if (OS_SUPPORT_TRACKNAME != 0)
-OS_ROM_DATA const char* OS_TASK_GetName    (OS_CONST_PTR OS_TASK* pTask)                                                                                                                                                     OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_GetName);
-#else
-  #define OS_TASK_GetName(pt)  ("n/a")
-#endif
-
 
 #define OS_TASK_CREATE(pTask, sName, Priority, pfRoutine, pStack)             \
   OS_TASK_Create ((pTask),                                                    \
@@ -2984,11 +3002,11 @@ void OS_SPINLOCK_SW_Unlock(OS_SPINLOCK_SW* pSpinlock, OS_UINT Id) OS_TEXT_SECTIO
 //
 #define OS_INT_IncDI()                   { OS_ASSERT_DICNT();                                                      \
                                            OS_INT_Disable();                                                       \
-                                           OS_Global.Counters.Cnt.DI++;                                            \
+                                           OS_Global.Counters.Cnt.DI = (OS_U8)(OS_Global.Counters.Cnt.DI + 1u);    \
                                          }
 
 #define OS_INT_DecRI()                   { OS_ASSERT_DICNT();                                                      \
-                                           OS_Global.Counters.Cnt.DI--;                                            \
+                                           OS_Global.Counters.Cnt.DI = (OS_U8)(OS_Global.Counters.Cnt.DI - 1u);    \
                                            if (OS_Global.Counters.Cnt.DI == 0u) {  /*lint !e548 No else required*/ \
                                              OS_INT_Enable();                                                      \
                                            }                                                                       \
@@ -3005,7 +3023,8 @@ void OS_SPINLOCK_SW_Unlock(OS_SPINLOCK_SW* pSpinlock, OS_UINT Id) OS_TEXT_SECTIO
                                          }
 
 #define OS_INT_PreserveAndDisableAll(p)  { OS_INT_PreserveAll(p);                                                  \
-                                           OS_INT_DisableAll(); }
+                                           OS_INT_DisableAll();                                                    \
+                                         }
 
 OS_BOOL OS_INT_InInterrupt(void) OS_TEXT_SECTION_ATTRIBUTE(OS_INT_InInterrupt);
 
@@ -3074,12 +3093,12 @@ void OS_INT_CallNestable(void (*pfRoutine)(void)) OS_TEXT_SECTION_ATTRIBUTE(OS_I
   #endif
 
   #if (OS_SWITCH_FROM_INT_MODIFIES_STACK != 0)
-    #define OS_HANDLE_REGION_CNT_ON_LI() \
-        OS_Global.Counters.Cnt.Region--; \
+    #define OS_HANDLE_REGION_CNT_ON_LI()                                             \
+        OS_Global.Counters.Cnt.Region = (OS_U8)(OS_Global.Counters.Cnt.Region - 1u); \
       }
   #else
-    #define OS_HANDLE_REGION_CNT_ON_LI() \
-      } OS_Global.Counters.Cnt.Region--;
+    #define OS_HANDLE_REGION_CNT_ON_LI()                                             \
+      } OS_Global.Counters.Cnt.Region = (OS_U8)(OS_Global.Counters.Cnt.Region - 1u);
   #endif
 
   #ifndef   OS_DI_ON_LEAVE_NESTABLE
@@ -3108,23 +3127,23 @@ void OS_INT_CallNestable(void (*pfRoutine)(void)) OS_TEXT_SECTION_ATTRIBUTE(OS_I
     #define OS_TRACE_ISR_EXIT()
   #endif
 
-  #define OS_INT_Enter() {           \
-    OS_ASSERT_INIT_CALLED();         \
-    OS_MARK_IN_ISR();                \
-    OS_ASSERT_CPU_IN_ISR_MODE();     \
-    OS_DI_ON_ENTRY();                \
-    OS_EI_HP_ON_ENTRY();             \
-    OS_Global.Counters.Cnt.Region++; \
-    OS_Global.Counters.Cnt.DI++;     \
-    TRACE_ON_ISR_ENTER();            \
+  #define OS_INT_Enter() {                                                       \
+    OS_ASSERT_INIT_CALLED();                                                     \
+    OS_MARK_IN_ISR();                                                            \
+    OS_ASSERT_CPU_IN_ISR_MODE();                                                 \
+    OS_DI_ON_ENTRY();                                                            \
+    OS_EI_HP_ON_ENTRY();                                                         \
+    OS_Global.Counters.Cnt.Region = (OS_U8)(OS_Global.Counters.Cnt.Region + 1u); \
+    OS_Global.Counters.Cnt.DI = (OS_U8)(OS_Global.Counters.Cnt.DI + 1u);         \
+    TRACE_ON_ISR_ENTER();                                                        \
   }
 
-  #define OS_INT_Leave() {           \
-    OS_TRACE_ISR_EXIT();             \
-    OS_Global.Counters.Cnt.DI--;     \
-    OS_SWITCH_FROM_INT_IF_REQUIRED() \
-    OS_HANDLE_REGION_CNT_ON_LI();    \
-    OS_EI_ON_LEAVE();                \
+  #define OS_INT_Leave() {                                               \
+    OS_TRACE_ISR_EXIT();                                                 \
+    OS_Global.Counters.Cnt.DI = (OS_U8)(OS_Global.Counters.Cnt.DI - 1u); \
+    OS_SWITCH_FROM_INT_IF_REQUIRED()                                     \
+    OS_HANDLE_REGION_CNT_ON_LI();                                        \
+    OS_EI_ON_LEAVE();                                                    \
   }
 
   #define OS_INT_EnterNestable() {   \
@@ -3193,12 +3212,12 @@ void OS_INT_SetPriorityThreshold(OS_UINT Priority) OS_TEXT_SECTION_ATTRIBUTE(OS_
 // instead of the macro. To do so please add the following line to OSCHIP.h:
 // #define OS_TASK_EnterRegion OS_EnterRegionFunc
 //
-#ifndef OS_TASK_EnterRegion
-  #if (OS_DEBUG > 1)
-    #define OS_TASK_EnterRegion() {if (OS_Global.Counters.Cnt.Region == 0xFFu) OS_Error(OS_ERR_REGIONCNT); else OS_Global.Counters.Cnt.Region++; }
-  #else
-    #define OS_TASK_EnterRegion() {OS_Global.Counters.Cnt.Region++; }
-  #endif
+#ifndef   OS_TASK_EnterRegion
+  #define OS_TASK_EnterRegion() {                                                 \
+    OS_ASSERT((OS_Global.Counters.Cnt.Region != 0xFFu), OS_ERR_REGIONCNT);        \
+    OS_MPU_ASSERT_PRIVSTATE();                                                    \
+    OS_Global.Counters.Cnt.Region = (OS_U8)(OS_Global.Counters.Cnt.Region + 1u);  \
+  }
 #endif
 
 //
@@ -3207,7 +3226,10 @@ void OS_INT_SetPriorityThreshold(OS_UINT Priority) OS_TEXT_SECTION_ATTRIBUTE(OS_
 // #define OS_IntEnterRegion OS_EnterRegionFunc
 //
 #ifndef   OS_IntEnterRegion
-  #define OS_IntEnterRegion() {OS_Global.Counters.Cnt.Region++;}
+  #define OS_IntEnterRegion() {                                                   \
+    OS_ASSERT((OS_Global.Counters.Cnt.Region != 0xFFu), OS_ERR_REGIONCNT);        \
+    OS_Global.Counters.Cnt.Region = (OS_U8)(OS_Global.Counters.Cnt.Region + 1u);  \
+  }
 #endif
 
 void OS_EnterRegionFunc (void) OS_TEXT_SECTION_ATTRIBUTE(OS_EnterRegionFunc);
@@ -3242,8 +3264,8 @@ OS_I32  OS_TIME_GetTicks32      (void)                              OS_TEXT_SECT
 #endif
 void    OS_TIME_StartMeasurement(OS_U32* pCycle)                    OS_TEXT_SECTION_ATTRIBUTE(OS_TIME_StartMeasurement);
 void    OS_TIME_StopMeasurement (OS_U32* pCycle)                    OS_TEXT_SECTION_ATTRIBUTE(OS_TIME_StopMeasurement);
+OS_U32  OS_TIME_GetResult       (OS_CONST_PTR OS_U32* pCycle)       OS_TEXT_SECTION_ATTRIBUTE(OS_TIME_GetResult);
 OS_U32  OS_TIME_GetResult_us    (OS_CONST_PTR OS_U32* pCycle)       OS_TEXT_SECTION_ATTRIBUTE(OS_TIME_GetResult_us);
-#define OS_TIME_GetResult(pPara)  (*(pPara))
 
 /*********************************************************************
 *
@@ -3322,7 +3344,8 @@ void OS_TICK_RemoveHook  (OS_CONST_PTR OS_TICK_HOOK* pHook)                OS_TE
 *
 **********************************************************************
 */
-void OS_Error(OS_STATUS ErrCode) OS_TEXT_SECTION_ATTRIBUTE(OS_Error);
+void      OS_Error         (OS_STATUS ErrCode) OS_TEXT_SECTION_ATTRIBUTE(OS_Error);
+OS_STATUS OS_DEBUG_GetError(void)              OS_TEXT_SECTION_ATTRIBUTE(OS_DEBUG_GetError);
 
 /*********************************************************************
 *
@@ -3330,15 +3353,9 @@ void OS_Error(OS_STATUS ErrCode) OS_TEXT_SECTION_ATTRIBUTE(OS_Error);
 *
 **********************************************************************
 */
-#if (OS_SUPPORT_TRACKNAME != 0)
-void                    OS_DEBUG_SetObjName   (OS_OBJNAME* pObjName, OS_CONST_PTR void* pOSObjID, OS_CONST_PTR char* sName) OS_TEXT_SECTION_ATTRIBUTE(OS_DEBUG_SetObjName);
-OS_ROM_DATA const char* OS_DEBUG_GetObjName   (OS_CONST_PTR void* pOSObjID)                                                 OS_TEXT_SECTION_ATTRIBUTE(OS_DEBUG_GetObjName);
-void                    OS_DEBUG_RemoveObjName(OS_CONST_PTR OS_OBJNAME* pObjName)                                           OS_TEXT_SECTION_ATTRIBUTE(OS_DEBUG_RemoveObjName);
-#else
-  #define OS_DEBUG_SetObjName(a,b,c)
-  #define OS_DEBUG_GetObjName(a)      NULL
-  #define OS_DEBUG_RemoveObjName(a)
-#endif
+OS_ROM_DATA const char* OS_DEBUG_GetObjName   (OS_CONST_PTR void* pOSObj)                                                 OS_TEXT_SECTION_ATTRIBUTE(OS_DEBUG_GetObjName);
+void                    OS_DEBUG_RemoveObjName(OS_CONST_PTR OS_OBJNAME* pObjName)                                         OS_TEXT_SECTION_ATTRIBUTE(OS_DEBUG_RemoveObjName);
+void                    OS_DEBUG_SetObjName   (OS_OBJNAME* pObjName, OS_CONST_PTR void* pOSObj, OS_CONST_PTR char* sName) OS_TEXT_SECTION_ATTRIBUTE(OS_DEBUG_SetObjName);
 
 /*********************************************************************
 *
@@ -3469,16 +3486,20 @@ OS_ROUTINE_CHAR* OS_COM_SetRxCallback (OS_ROUTINE_CHAR* pfRXCallback)           
 void                OS_MPU_AddRegion            (OS_TASK* pTask, void* BaseAddr, OS_U32 Size, OS_U32 Permissions, OS_U32 Attributes)                           OS_TEXT_SECTION_ATTRIBUTE(OS_MPU_AddRegion);
 void                OS_MPU_AssertPrivilegedState(void)                                                                                                         OS_TEXT_SECTION_ATTRIBUTE(OS_MPU_AssertPrivilegedState);
 void                OS_MPU_CallDeviceDriver     (OS_U32 Index, void* Param)                                                                                    OS_TEXT_SECTION_ATTRIBUTE(OS_MPU_CallDeviceDriver);
+void                OS_MPU_CallDeviceDriverEx   (OS_ROUTINE_VOID_PTR* pfRoutine, void* Param)                                                                  OS_TEXT_SECTION_ATTRIBUTE(OS_MPU_CallDeviceDriverEx);
 void                OS_MPU_ConfigMem            (void* ROM_BaseAddr, OS_U32 ROM_Size, void* RAM_BaseAddr, OS_U32 RAM_Size, void* OS_BaseAddr, OS_U32 OS_Size)  OS_TEXT_SECTION_ATTRIBUTE(OS_MPU_ConfigMem);
-void                OS_MPU_Enable               (void)                                                                                                         OS_TEXT_SECTION_ATTRIBUTE(OS_MPU_Enable);
-void                OS_MPU_EnableEx             (OS_CONST_PTR OS_MPU_API_LIST* pAPIList)                                                                       OS_TEXT_SECTION_ATTRIBUTE(OS_MPU_EnableEx);
+void                OS_MPU_EnterPrivilegedState (void)                                                                                                         OS_TEXT_SECTION_ATTRIBUTE(OS_MPU_EnterPrivilegedState);
+#if (OS_SUPPORT_SAVE_RESTORE_HOOK != 0)
 void                OS_MPU_ExtendTaskContext    (void)                                                                                                         OS_TEXT_SECTION_ATTRIBUTE(OS_MPU_ExtendTaskContext);
+#endif
+OS_U32              OS_MPU_GetPrivilegedState   (void)                                                                                                         OS_TEXT_SECTION_ATTRIBUTE(OS_MPU_GetPrivilegedState);
 OS_MPU_THREAD_STATE OS_MPU_GetThreadState       (void)                                                                                                         OS_TEXT_SECTION_ATTRIBUTE(OS_MPU_GetThreadState);
+void                OS_MPU_Init                 (OS_CONST_PTR OS_MPU_API_LIST* pAPIList)                                                                       OS_TEXT_SECTION_ATTRIBUTE(OS_MPU_Init);
+void                OS_MPU_LeavePrivilegedState (OS_U32 State)                                                                                                 OS_TEXT_SECTION_ATTRIBUTE(OS_MPU_LeavePrivilegedState);
 void                OS_MPU_SetAllowedObjects    (OS_TASK* pTask, OS_CONST_PTR OS_MPU_OBJ* pObjList)                                                            OS_TEXT_SECTION_ATTRIBUTE(OS_MPU_SetAllowedObjects);
-void                OS_MPU_SetDeviceDriverList  (OS_CONST_PTR OS_MPU_DEVICE_DRIVER_FUNC* pList)                                                                OS_TEXT_SECTION_ATTRIBUTE(OS_MPU_SetDeviceDriverList);
+void                OS_MPU_SetDeviceDriverList  (OS_ROUTINE_VOID_PTR* OS_CONST_PTR* pList)                                                                     OS_TEXT_SECTION_ATTRIBUTE(OS_MPU_SetDeviceDriverList);
 void                OS_MPU_SetErrorCallback     (OS_ROUTINE_TASK_PTR_ERRORCODE* pfRoutine)                                                                     OS_TEXT_SECTION_ATTRIBUTE(OS_MPU_SetErrorCallback);
 void                OS_MPU_SwitchToUnprivState  (void)                                                                                                         OS_TEXT_SECTION_ATTRIBUTE(OS_MPU_SwitchToUnprivState);
-void                OS_MPU_SwitchToUnprivStateEx(OS_ROUTINE_VOID* pfRoutine, void OS_STACKPTR* pStack, OS_UINT StackSize)                                      OS_TEXT_SECTION_ATTRIBUTE(OS_MPU_SwitchToUnprivStateEx);
 #ifdef OS_LIBMODE_SAFE
 void                OS_MPU_SetSanityCheckBuffer (OS_TASK* pTask, void* p)                                                                                      OS_TEXT_SECTION_ATTRIBUTE(OS_MPU_SetSanityCheckBuffer);
 OS_BOOL             OS_MPU_SanityCheck          (void)                                                                                                         OS_TEXT_SECTION_ATTRIBUTE(OS_MPU_SanityCheck);
@@ -3491,17 +3512,14 @@ OS_BOOL             OS_MPU_SanityCheck          (void)                          
 *
 **********************************************************************
 */
-#if (OS_SUPPORT_STACKCHECK != 0)
-  unsigned int      OS_STACK_GetTaskStackSpace(OS_CONST_PTR OS_TASK* pTask) OS_TEXT_SECTION_ATTRIBUTE(OS_STACK_GetTaskStackSpace);
-  unsigned int      OS_STACK_GetTaskStackUsed (OS_CONST_PTR OS_TASK* pTask) OS_TEXT_SECTION_ATTRIBUTE(OS_STACK_GetTaskStackUsed);
-  unsigned int      OS_STACK_GetTaskStackSize (OS_CONST_PTR OS_TASK* pTask) OS_TEXT_SECTION_ATTRIBUTE(OS_STACK_GetTaskStackSize);
-  void OS_STACKPTR* OS_STACK_GetTaskStackBase (OS_CONST_PTR OS_TASK* pTask) OS_TEXT_SECTION_ATTRIBUTE(OS_STACK_GetTaskStackBase);
-#else
-  #define OS_STACK_GetTaskStackSpace(pt)  (0u)
-  #define OS_STACK_GetTaskStackUsed(pt)   (0u)
-  #define OS_STACK_GetTaskStackSize(pt)   (0u)
-  #define OS_STACK_GetTaskStackBase(pt)   (0u)
-#endif
+unsigned int      OS_STACK_GetIntStackSpace (void)                        OS_TEXT_SECTION_ATTRIBUTE(OS_STACK_GetIntStackSpace);
+unsigned int      OS_STACK_GetIntStackUsed  (void)                        OS_TEXT_SECTION_ATTRIBUTE(OS_STACK_GetIntStackUsed);
+unsigned int      OS_STACK_GetSysStackSpace (void)                        OS_TEXT_SECTION_ATTRIBUTE(OS_STACK_GetSysStackSpace);
+unsigned int      OS_STACK_GetSysStackUsed  (void)                        OS_TEXT_SECTION_ATTRIBUTE(OS_STACK_GetSysStackUsed);
+void OS_STACKPTR* OS_STACK_GetTaskStackBase (OS_CONST_PTR OS_TASK* pTask) OS_TEXT_SECTION_ATTRIBUTE(OS_STACK_GetTaskStackBase);
+unsigned int      OS_STACK_GetTaskStackSize (OS_CONST_PTR OS_TASK* pTask) OS_TEXT_SECTION_ATTRIBUTE(OS_STACK_GetTaskStackSize);
+unsigned int      OS_STACK_GetTaskStackSpace(OS_CONST_PTR OS_TASK* pTask) OS_TEXT_SECTION_ATTRIBUTE(OS_STACK_GetTaskStackSpace);
+unsigned int      OS_STACK_GetTaskStackUsed (OS_CONST_PTR OS_TASK* pTask) OS_TEXT_SECTION_ATTRIBUTE(OS_STACK_GetTaskStackUsed);
 
 #if (OS_SUPPORT_SYSSTACK_INFO != 0)
   void OS_STACKPTR* OS_STACK_GetSysStackBase (void) OS_TEXT_SECTION_ATTRIBUTE(OS_STACK_GetSysStackBase);
@@ -3509,14 +3527,6 @@ OS_BOOL             OS_MPU_SanityCheck          (void)                          
 #else
   #define OS_STACK_GetSysStackBase()  (0)
   #define OS_STACK_GetSysStackSize()  (0u)
-#endif
-
-#if ((OS_SUPPORT_STACKCHECK != 0) && (OS_SUPPORT_SYSSTACK_INFO != 0))
-  unsigned int OS_STACK_GetSysStackSpace(void) OS_TEXT_SECTION_ATTRIBUTE(OS_STACK_GetSysStackSpace);
-  unsigned int OS_STACK_GetSysStackUsed (void) OS_TEXT_SECTION_ATTRIBUTE(OS_STACK_GetSysStackUsed);
-#else
-  #define OS_STACK_GetSysStackSpace()  (0u)
-  #define OS_STACK_GetSysStackUsed()   (0u)
 #endif
 
 #if (OS_SUPPORT_INTSTACK_INFO != 0)
@@ -3527,17 +3537,9 @@ OS_BOOL             OS_MPU_SanityCheck          (void)                          
   #define OS_STACK_GetIntStackSize()   (0u)
 #endif
 
-#if ((OS_SUPPORT_STACKCHECK != 0) && (OS_SUPPORT_INTSTACK_INFO != 0))
-  unsigned int OS_STACK_GetIntStackSpace(void) OS_TEXT_SECTION_ATTRIBUTE(OS_STACK_GetIntStackSpace);
-  unsigned int OS_STACK_GetIntStackUsed (void) OS_TEXT_SECTION_ATTRIBUTE(OS_STACK_GetIntStackUsed);
-#else
-  #define OS_STACK_GetIntStackSpace()  (0u)
-  #define OS_STACK_GetIntStackUsed()   (0u)
-#endif
-
 #if (OS_SUPPORT_STACKCHECK == 2)
-  void  OS_STACK_SetCheckLimit(OS_U8 Limit);
   OS_U8 OS_STACK_GetCheckLimit(void);
+  void  OS_STACK_SetCheckLimit(OS_U8 Limit);
 #endif
 
 /*********************************************************************
@@ -3571,8 +3573,8 @@ OS_UINT                 OS_INFO_GetVersion  (void) OS_TEXT_SECTION_ATTRIBUTE(OS_
 *
 **********************************************************************
 */
-OS_INTERWORK void OS_StartASM     (void)                                       OS_TEXT_SECTION_ATTRIBUTE(OS_StartASM);
-OS_INTERWORK void OS_StopASM      (void)                                       OS_TEXT_SECTION_ATTRIBUTE(OS_StopASM);
+OS_INTERWORK void OS_StartASM     (OS_MAIN_CONTEXT* pMainContext)              OS_TEXT_SECTION_ATTRIBUTE(OS_StartASM);
+OS_INTERWORK void OS_StopASM      (OS_MAIN_CONTEXT* pMainContext)              OS_TEXT_SECTION_ATTRIBUTE(OS_StopASM);
 OS_INTERWORK int  OS_SwitchFromInt(void)                                       OS_TEXT_SECTION_ATTRIBUTE(OS_SwitchFromInt);
 #if (OS_SUPPORT_MPU != 0)
 OS_INTERWORK void OS_MPU_ErrorASM (OS_TASK* pTask, OS_MPU_ERRORCODE ErrorCode) OS_TEXT_SECTION_ATTRIBUTE(OS_MPU_ErrorASM);
@@ -3885,6 +3887,31 @@ OS_INTERWORK void OS_MPU_ErrorASM (OS_TASK* pTask, OS_MPU_ERRORCODE ErrorCode) O
 #define OS_TIMER_EX_ROUTINE                 OS_ROUTINE_VOID_PTR
 #define OS_TIMER_HANDLER                    OS_ROUTINE_OSGLOBAL_PTR
 #define OS_TIMING                           OS_U32
+#define OS_pMainContext                     OS_Global.pMainContext
+#define OS_pMutexRoot                       OS_Global.pMutexRoot
+#define OS_pMEMFRoot                        OS_Global.pMEMFRoot
+#define OS_pTickHookRoot                    OS_Global.pTickHookRoot
+#define OS_pWDRoot                          OS_Global.pWDRoot
+#define OS_pMailboxRoot                     OS_Global.pMailboxRoot
+#define OS_pSemaRoot                        OS_Global.pSemaRoot
+#define OS_pEventRoot                       OS_Global.pEventRoot
+#define OS_pRWLockRoot                      OS_Global.pRWLockRoot
+#define OS_pObjNameRoot                     OS_Global.pObjNameRoot
+#define OS_pfTaskStartHook                  OS_Global.pfTaskStartHook
+#define OS_pDefaultTaskContextExtension     OS_Global.pDefaultTaskContextExtension
+#define OS_TS_ExecStart                     OS_Global.ExecStart
+#define OS_TickStepTime                     OS_Global.TickStepTime
+#define OS_Status                           OS_Global.Status
+#define OS_Running                          OS_Global.IsRunning
+#define OS_InitCalled                       OS_Global.InitCalled
+#define OS_StackCheckLimit                  OS_Global.StackCheckLimit
+#define OS_InitialSuspendCnt                OS_Global.InitialSuspendCnt
+#define TicklessFactor                      TicklessPeriod
+//
+// Compatibility with pre V5.18.0 versions, renamed function and types
+//
+#define OS_MPU_Enable()                     OS_MPU_Init(&OS_MPU_DEFAULT_APILIST)
+#define OS_MPU_EnableEx                     OS_MPU_Init
 
 /********************************************************************/
 

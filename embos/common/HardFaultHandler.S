@@ -8,7 +8,7 @@
 ;
 ;File    : HardFaultHandler.S
 ;Purpose : HardFault exception handler for IAR, Keil and GNU assembler.
-;          Evaluates used stack (MSP, PSP) and passes appropiate stack
+;          Evaluates used stack (MSP, PSP) and passes appropriate stack
 ;          pointer to the HardFaultHandler "C"-routine.
 ;*/
 
@@ -94,6 +94,7 @@
 
 #if (defined(__clang__) || defined(__GNUC__))
 
+        .eabi_attribute Tag_ABI_align_preserved, 1
         .syntax unified
         .thumb
         .balign 4

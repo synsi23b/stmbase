@@ -3,13 +3,13 @@
 *                        The Embedded Experts                        *
 **********************************************************************
 *                                                                    *
-*       (c) 1995 - 2020 SEGGER Microcontroller GmbH                  *
+*       (c) 1995 - 2022 SEGGER Microcontroller GmbH                  *
 *                                                                    *
 *       Internet: segger.com  Support: support_embos@segger.com      *
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       embOS * Real time operating system for microcontrollers      *
+*       embOS * Real time operating system                           *
 *                                                                    *
 *       Please note:                                                 *
 *                                                                    *
@@ -21,7 +21,7 @@
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       OS version: V5.8.2.0                                         *
+*       OS version: V5.18.0.0                                        *
 *                                                                    *
 **********************************************************************
 
@@ -71,7 +71,7 @@ Purpose : Initializes and handles the hardware for embOS
 **********************************************************************
 */
 #if (OS_VIEW_IFSELECT == OS_VIEW_IF_JLINK)
-  const OS_U32 OS_JLINKMEM_BufferSize = 64u;  // Size of the communication buffer for JLINKMEM
+  const OS_U32 OS_JLINKMEM_BufferSize = 32u;  // Size of the communication buffer for JLINKMEM
 #else
   const OS_U32 OS_JLINKMEM_BufferSize = 0u;   // Buffer not used
 #endif
@@ -92,7 +92,7 @@ Purpose : Initializes and handles the hardware for embOS
 *    Callback wrapper function for BSP UART module.
 */
 static void _OS_OnRX(unsigned int Unit, unsigned char c) {
-  OS_USEPARA(Unit);
+  OS_USE_PARA(Unit);
   OS_COM_OnRx(c);
 }
 
@@ -104,7 +104,7 @@ static void _OS_OnRX(unsigned int Unit, unsigned char c) {
 *    Callback wrapper function for BSP UART module.
 */
 static int _OS_OnTX(unsigned int Unit) {
-  OS_USEPARA(Unit);
+  OS_USE_PARA(Unit);
   return (int)OS_COM_OnTx();
 }
 #endif
@@ -153,7 +153,7 @@ static unsigned int _OS_GetHWTimer_IntPending(void) {
 *    This is the hardware timer exception handler.
 */
 void SysTick_Handler(void) {
-#if (OS_PROFILE != 0)
+#if (OS_SUPPORT_TRACE_API != 0)
   if (SEGGER_SYSVIEW_DWT_IS_ENABLED() == 0u) {
     SEGGER_SYSVIEW_TickCnt++;
   }
@@ -180,6 +180,7 @@ void OS_InitHW(void) {
   // Might be necessary for RAM targets or application not running from 0x00.
   //
 #if (defined(__VTOR_PRESENT) && __VTOR_PRESENT == 1)
+  extern int __Vectors;
   SCB->VTOR = (OS_U32)&__Vectors;
 #endif
   //
@@ -209,7 +210,7 @@ void OS_InitHW(void) {
   //
   // Configure and initialize SEGGER SystemView
   //
-#if (OS_PROFILE != 0)
+#if (OS_SUPPORT_TRACE_API != 0)
   SEGGER_SYSVIEW_Conf();
 #endif
   //
@@ -273,7 +274,7 @@ void OS_COM_Send1(OS_U8 c) {
 #elif (OS_VIEW_IFSELECT == OS_VIEW_IF_UART)
   BSP_UART_Write1(OS_UART, c);
 #elif (OS_VIEW_IFSELECT == OS_VIEW_DISABLED)
-  OS_USEPARA(c);           // Avoid compiler warning
+  OS_USE_PARA(c);          // Avoid compiler warning
   OS_COM_ClearTxActive();  // Let embOS know that Tx is not busy
 #endif
 }
