@@ -175,7 +175,7 @@ void Timer::configPwm(uint16_t prescaler, uint16_t reload, uint16_t startvalue)
 void Timer::configStepper()
 {
   _pTimer->CNT = 0;
-  _pTimer->ARR = 2;
+  _pTimer->ARR = 1;
   setStepperKHz(10);
   _pTimer->CCR1 = 1;
   _pTimer->CCR2 = 1;
