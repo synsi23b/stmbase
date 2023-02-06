@@ -53,7 +53,7 @@ UsbRpc::Handler::LedTimer::LedTimer() : SoftTimer(5, false)
 void UsbRpc::Handler::LedTimer::on()
 {
   _led.on();
-  start();
+  restart();
 }
 
 void UsbRpc::Handler::LedTimer::execute()
