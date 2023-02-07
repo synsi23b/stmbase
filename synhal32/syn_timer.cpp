@@ -175,12 +175,12 @@ void Timer::configPwm(uint16_t prescaler, uint16_t reload, uint16_t startvalue)
 void Timer::configStepper()
 {
   _pTimer->CNT = 0;
-  _pTimer->ARR = 1;
-  setStepperKHz(10);
-  _pTimer->CCR1 = 1;
-  _pTimer->CCR2 = 1;
-  _pTimer->CCR3 = 1;
-  _pTimer->CCR4 = 1;
+  _pTimer->ARR = 119;
+  setStepperHz(5000);
+  _pTimer->CCR1 = 60;
+  _pTimer->CCR2 = 60;
+  _pTimer->CCR3 = 60;
+  _pTimer->CCR4 = 60;
   // setup the ouput compares to PWM Mode 2 without preload
   _pTimer->CCMR1 = TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1 | TIM_CCMR1_OC2M_0 | TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_0;
   _pTimer->CCMR2 = TIM_CCMR2_OC4M_2 | TIM_CCMR2_OC4M_1 | TIM_CCMR2_OC4M_0 | TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1 | TIM_CCMR2_OC3M_0;

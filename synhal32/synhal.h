@@ -1828,19 +1828,17 @@ namespace syn
       return _pTimer->CCR4;
     }
 
-    void setStepperKHz(uint32_t khz)
+    void setStepperHz(uint16_t hz)
     {
-      if(khz == 0)
+      // this is to maintain the limit of 16bit integer math.
+      // the lowest value possible is 11 hertz with a base timer of 120 ticks per period
+      // its a tradeoff between precission at high and low levels if not modifing the arr / ccr registers
+      if(hz < 11)
       {
-        khz = 1;
+        hz = 11;
       }
-      khz *= 1000;
-      khz = (SystemCoreClock / 2) / khz;
-      if(khz == 0)
-      {
-        khz = 1;
-      }
-      _pTimer->PSC = khz - 1; // + 1 internally
+      uint16_t psc = (SystemCoreClock / 120) / hz;
+      _pTimer->PSC = psc - 1; // + 1 internally
     }
 
     void configStepper();
