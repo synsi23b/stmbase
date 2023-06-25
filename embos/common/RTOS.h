@@ -3,13 +3,13 @@
 *                        The Embedded Experts                        *
 **********************************************************************
 *                                                                    *
-*       (c) 1995 - 2022 SEGGER Microcontroller GmbH                  *
+*       (c) 1995 - 2023 SEGGER Microcontroller GmbH                  *
 *                                                                    *
 *       Internet: segger.com  Support: support_embos@segger.com      *
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       embOS * Real time operating system                           *
+*       embOS-Ultra * Real time operating system                     *
 *                                                                    *
 *       Please note:                                                 *
 *                                                                    *
@@ -68,18 +68,17 @@ Literature:
 // not affected, this define may be used to switch on this workaround.
 //
 #ifndef   USE_ERRATUM_837070
-  #define USE_ERRATUM_837070      (0)                        // 0: do not use workaround (default), 1: use workaround
+  #define USE_ERRATUM_837070     (0)                             // 0: do not use workaround (default), 1: use workaround
 #endif
 
 //
 // With the above workaround, zero-latency ISRs will be enabled after each call to
 // OS_INT_Disable() or OS_INT_Restore(). If this is not desired, this define may be used
 // to preserve and restore the state of PRIMASK with these calls.
-// When modifying this define, the respective define in RTOS_CM3.s / RTOS_CM4F.s must be changed as well.
 //
 #if (USE_ERRATUM_837070 == 1)
   #ifndef   OS_PRESERVE_PRIMASK
-    #define OS_PRESERVE_PRIMASK     (0)                      // 0: PRIMASK is not preserved (default), 1: PRIMASK is preserved
+    #define OS_PRESERVE_PRIMASK  (1)                             // 0: PRIMASK is not preserved, 1: PRIMASK is preserved (default)
   #endif
 #endif
 
@@ -797,10 +796,10 @@ file for embOS.
 #endif
 
 //
-// Support for embOS tickless mode
+// Support for ISR entry callback
 //
-#ifndef   OS_SUPPORT_TICKLESS
-  #define OS_SUPPORT_TICKLESS               (1)
+#ifndef   OS_SUPPORT_ISRENTRY_CALLBACK
+  #define OS_SUPPORT_ISRENTRY_CALLBACK      (1)
 #endif
 
 //
@@ -822,6 +821,21 @@ file for embOS.
 //
 #ifndef   OS_SPINLOCK_MAX_CORES
   #define OS_SPINLOCK_MAX_CORES             (4u)
+#endif
+
+//
+// Support for embOS compatibility mode (delays and timer periods aliged to full milliseconds)
+//
+#ifndef   OS_SUPPORT_ALIGNED_TIMEOUTS
+  #define OS_SUPPORT_ALIGNED_TIMEOUTS       (1)
+#endif
+//
+// Defines whether conversions from cycles to millisecond are done in 32 or 64 bit.
+// If 32-bit conversion is used, the scheduler needs to do some of the work by calculating saddle points. These are then used in the 32-bit conversions that are done inside timed API functions. This accelerates timed API functions, but decelerates the scheduler.
+// If 64-bit conversion is used, timed API functions can call library implementations for any 64-bit conversions that are done inside timed API functions. This accelerates the scheduler, but decelerates timed API functions.
+//
+#ifndef   OS_USE_64BIT_CONVERSION
+  #define OS_USE_64BIT_CONVERSION            (0)
 #endif
 
 /*********************************************************************
@@ -1163,7 +1177,7 @@ file for embOS.
 #endif
 
 #ifndef   OS_TIME
-  #define OS_TIME       int
+  #define OS_TIME       long long
 #endif
 
 #ifndef   OS_STAT
@@ -1485,7 +1499,7 @@ typedef enum {
 #define OS_TRACE_ID_ACTIVATE                           (2u)
 #define OS_TRACE_ID_TIMERCALLBACK                      (3u)
 #define OS_TRACE_ID_TASK_DELAY                        (10u)
-#define OS_TRACE_ID_TASK_DELAYUNTIL                   (11u)
+#define OS_TRACE_ID_TASK_DELAYUNTIL_MS                (11u)
 #define OS_TRACE_ID_TASK_SETPRIORITY                  (12u)
 #define OS_TRACE_ID_TASK_WAKE                         (13u)
 #define OS_TRACE_ID_TASK_CREATE                       (14u)
@@ -1591,8 +1605,8 @@ typedef enum {
 #define OS_TRACE_ID_POWER_USAGEDEC                   (178u)
 #define OS_TRACE_ID_POWER_GETMASK                    (179u)
 #define OS_TRACE_ID_TASK_SETINITIALSUSPENDCNT        (180u)
-#define OS_TRACE_ID_TIME_GETUS                       (181u)
-#define OS_TRACE_ID_TIME_GETUS64                     (182u)
+#define OS_TRACE_ID_TIME_GET_US                      (181u)
+#define OS_TRACE_ID_TIME_GET_US64                    (182u)
 #define OS_TRACE_ID_TICK_ADDHOOK                     (185u)
 #define OS_TRACE_ID_TICK_REMOVEHOOK                  (186u)
 #define OS_TRACE_ID_TICKLESS_START                   (187u)
@@ -1605,9 +1619,9 @@ typedef enum {
 #define OS_TRACE_ID_QUEUE_ISINUSE                    (194u)
 #define OS_TRACE_ID_TASK_SETTIMESLICE                (195u)
 #define OS_TRACE_ID_MUTEX_GETOWNER                   (196u)
-#define OS_TRACE_ID_TIMER_GETPERIOD                  (197u)
+#define OS_TRACE_ID_TIMER_GETPERIOD_MS               (197u)
 #define OS_TRACE_ID_TIMER_GETSTATUS                  (198u)
-#define OS_TRACE_ID_TIMER_GETREMAININGPERIOD         (199u)
+#define OS_TRACE_ID_TIMER_GETREM_MS                  (199u)
 #define OS_TRACE_ID_TIME_STARTMEASUREMENT            (200u)
 #define OS_TRACE_ID_TIME_STOPMEASUREMENT             (201u)
 #define OS_TRACE_ID_TIME_GETRESULTUS                 (202u)
@@ -1647,7 +1661,7 @@ typedef enum {
 #define OS_TRACE_ID_TASK_SETDEFAULTSTARTHOOK         (236u)
 #define OS_TRACE_ID_DEINIT                           (237u)
 #define OS_TRACE_ID_DEBUG_REMOVEOBJNAME              (238u)
-#define OS_TRACE_ID_TIME_GETCYCLES                   (239u)
+#define OS_TRACE_ID_TIME_GET_CYCLES                  (239u)
 #define OS_TRACE_ID_TIME_CVT_CYCL_TO_USEC            (240u)
 #define OS_TRACE_ID_TIME_CVT_USEC_TO_CYCLES          (241u)
 #define OS_TRACE_ID_TIME_CVT_CYCL_TO_NSEC            (242u)
@@ -1719,18 +1733,35 @@ typedef enum {
 #define OS_TRACE_ID_RWLOCK_WRUNLOCK                  (308u)
 #define OS_TRACE_ID_TIME_CVT_CYCL_TO_MSEC            (309u)
 #define OS_TRACE_ID_TIME_CVT_MSEC_TO_CYCL            (310u)
-#define OS_TRACE_ID_MAILBOX_ISINUSE                  (311u)
-#define OS_TRACE_ID_ISRUNNING                        (312u)
-#define OS_TRACE_ID_GETID                            (313u)
-#define OS_TRACE_ID_TIMER_GETCURRENT                 (314u)
-#define OS_TRACE_ID_TIME_GETINTS                     (315u)
-#define OS_TRACE_ID_TICKLESS_GETPERIOD               (316u)
-#define OS_TRACE_ID_TICKLESS_ISEXPIRED               (317u)
-#define OS_TRACE_ID_INFO_GETFREQ                     (318u)
-#define OS_TRACE_ID_DEBUG_GETERROR                   (319u)
-#define OS_TRACE_ID_TASK_GETSTATUS                   (320u)
-#define OS_TRACE_ID_START                            (321u)
-#define OS_TRACE_ID_TIME_GETRESULT                   (322u)
+#define OS_TRACE_ID_TASK_DELAYUNTIL_US               (311u)
+#define OS_TRACE_ID_TASK_DELAY_CYCLES                (312u)
+#define OS_TRACE_ID_TASK_DELAYUNTIL_CYCLES           (313u)
+#define OS_TRACE_ID_SET_ISR_CALLBACK                 (314u)
+#define OS_TRACE_ID_TIMER_CREATE_MS                  (315u)
+#define OS_TRACE_ID_TIMER_CREATE_US                  (316u)
+#define OS_TRACE_ID_TIMER_CREATE_CYCLES              (317u)
+#define OS_TRACE_ID_TIMER_CREATEEX_MS                (318u)
+#define OS_TRACE_ID_TIMER_CREATEEX_US                (319u)
+#define OS_TRACE_ID_TIMER_CREATEEX_CYCLES            (320u)
+#define OS_TRACE_ID_TIMER_GETPERIOD_US               (321u)
+#define OS_TRACE_ID_TIMER_GETPERIOD_CYCLES           (322u)
+#define OS_TRACE_ID_TIMER_GETREM_US                  (323u)
+#define OS_TRACE_ID_TIMER_GETREM_CYCLES              (324u)
+#define OS_TRACE_ID_TIMER_SETPERIOD_MS               (325u)
+#define OS_TRACE_ID_TIMER_SETPERIOD_US               (326u)
+#define OS_TRACE_ID_TIMER_SETPERIOD_CYCLES           (327u)
+#define OS_TRACE_ID_TIME_GET_TICKS                   (328u)
+#define OS_TRACE_ID_TIME_GET_MS                      (329u)
+#define OS_TRACE_ID_TASK_DELAY_MS                    (330u)
+#define OS_TRACE_ID_MAILBOX_ISINUSE                  (331u)
+#define OS_TRACE_ID_ISRUNNING                        (332u)
+#define OS_TRACE_ID_GETID                            (333u)
+#define OS_TRACE_ID_TIMER_GETCURRENT                 (334u)
+#define OS_TRACE_ID_INFO_GETFREQ                     (335u)
+#define OS_TRACE_ID_DEBUG_GETERROR                   (336u)
+#define OS_TRACE_ID_TASK_GETSTATUS                   (337u)
+#define OS_TRACE_ID_START                            (338u)
+#define OS_TRACE_ID_TIME_GETRESULT                   (339u)
 //
 // SystemView API IDs start at offset 32 whereas embOSView IDs starts at offset 0.
 // The first 32 SystemView IDs are generic IDs.
@@ -1832,7 +1863,6 @@ typedef enum {
   RUNNING,
   SUSPENDED
 } OS_TASK_STATUS;
-
 
 #ifdef __cplusplus
   extern "C" {
@@ -2099,8 +2129,8 @@ struct OS_TASK_STRUCT {
 #endif
   OS_STAT                     Stat;             // Task status
 #if (OS_SUPPORT_RR != 0)
-  OS_U8                       TimeSliceRem;     // Remaining time slice, used for Round-robin
-  OS_U8                       TimeSliceReload;  // Initial time slice
+  OS_TIME                     TimeSliceRem;     // Remaining time slice, used for Round-robin
+  OS_TIME                     TimeSliceReload;  // Initial time slice
 #endif
 #if (OS_DEBUG != 0)
   OS_U8                       Id;               // Id of this control block.
@@ -2123,6 +2153,9 @@ struct OS_TIMER_STRUCT {
   OS_TIME          Time;
   OS_TIME          Period;
   OS_BOOL          Active;
+#if (OS_SUPPORT_ALIGNED_TIMEOUTS != 0)
+  OS_BOOL          Aligned;
+#endif
 #if (OS_DEBUG != 0)
   OS_U8            Id;
 #endif
@@ -2293,29 +2326,26 @@ struct OS_WD_STRUCT {
 *
 **********************************************************************
 */
-#define OS_TIMER_DOWNCOUNTING  (0u)
-#define OS_TIMER_UPCOUNTING    (1u)
-
 typedef struct {
-  OS_U32       TimerFreq;                      // e.g. 48000000 for 48 MHz
-  OS_U32       IntFreq;                        // typ. 1000 for 1 KHz system tick
-  OS_BOOL      IsUpCounter;                    // 0: Down counter. Interrupt on underflow. 1: Up counter, interrupt on compare
-  unsigned int (*pfGetTimerCycles)    (void);  // Callback function for reading HW timer value
-  unsigned int (*pfGetTimerIntPending)(void);  // Callback function for reading timer interrupt pending state
+  OS_U32 TimerFreq;  // e.g. 48000000 for 48 MHz
 } OS_SYSTIMER_CONFIG;
 
 typedef struct {
+  OS_U64             (*pfConvertns2Cycles)(OS_U64 ns);
+  OS_U64             (*pfConvertms2Cycles)(OS_U64 ms);
+  OS_U64             (*pfConvertus2Cycles)(OS_U64 us);
   OS_SYSTIMER_CONFIG Config;
   //
   // Computed (derived) values
   //
-  OS_U32 CyclesPerInt;
-  OS_U32 Cycle2msMul;
-  OS_U32 Cycle2msDiv;
-  OS_U32 Cycle2usMul;
-  OS_U32 Cycle2usDiv;
-  OS_U32 Cycle2nsMul;
-  OS_U32 Cycle2nsDiv;
+
+  OS_U32             CyclesPerMillisecond;
+  OS_U32             Cycle2msMul;
+  OS_U32             Cycle2msDiv;
+  OS_U32             Cycle2usMul;
+  OS_U32             Cycle2usDiv;
+  OS_U32             Cycle2nsMul;
+  OS_U32             Cycle2nsDiv;
 } OS_SYSTIMER_SETTINGS;
 
 /*********************************************************************
@@ -2352,6 +2382,7 @@ struct OS_MEMPOOL_STRUCT {
 #endif
 };
 
+#if (OS_SUPPORT_TIMER != 0)
 /*********************************************************************
 *
 *       OS_TICK_HOOK
@@ -2361,6 +2392,7 @@ struct OS_TICK_HOOK_STRUCT {
   OS_TICK_HOOK*    pNext;
   OS_ROUTINE_VOID* pfRoutine;
 };
+#endif // OS_SUPPORT_TIMER
 
 /*********************************************************************
 *
@@ -2446,7 +2478,7 @@ typedef union {
 typedef union {
   unsigned int All;
   struct {
-    OS_U8 RoundRobin;
+    OS_U8 RoundRobin; // Not used with embOS-Ultra, but kept for offset compatibility
     OS_U8 TaskSwitch;
   } Flag;
 } OS_PENDING;
@@ -2470,8 +2502,8 @@ struct OS_GLOBAL_STRUCT {
   OS_IPL_DI_TYPE               Ipl_DI;                        // Interrupt disable priority level
   OS_IPL_EI_TYPE               Ipl_EI;                        // Interrupt enable priority level
 #endif
-#ifdef OS_U64
-  OS_U64                       TickCnt;                       // Number of hardware timer interrupts, used for OS_TIME_Get_Cycles()
+#if (OS_SUPPORT_ISRENTRY_CALLBACK != 0)
+  OS_ROUTINE_VOID*             pfISREntryCallback;
 #endif
   OS_TASK*                     pTask;                         // Root pointer to linked list of all tasks
   OS_TASK volatile * volatile  pActiveTask;                   // We really must have a volatile pointer to the volatile variable pActiveTask
@@ -2480,18 +2512,20 @@ struct OS_GLOBAL_STRUCT {
   OS_TIMER*                    pCurrentTimer;                 // Pointer to the expired software timer which called the callback routine or NULL when currently no software timer callback routine is executed
   OS_ROUTINE_OSGLOBAL_PTR*     pfCheckTimer;                  // Timer handler function, set when OS_TIMER_Start() is called
 #endif
-  volatile OS_I32              Time;                          // Current system ticks
+  volatile OS_I64              Time;                          // Current system time in cycles
   OS_TIME                      TimeDex;                       // Delay expiration, next timestamp where the scheduler needs to run a task or software timer
-#if (OS_SUPPORT_TICKLESS != 0)
-  OS_ROUTINE_VOID*             pfEndTicklessMode;             // Callback routine for tickless mode
-  OS_TIME                      TicklessPeriod;                // Time spend in tickless mode
+#if ((OS_SUPPORT_ALIGNED_TIMEOUTS != 0) && (OS_USE_64BIT_CONVERSION == 0))
+  OS_TIME                      Time_ms;                       // Current system time in milliseconds
+  OS_TIME                      TimeAligned2ms;                // Current system time in cycles aligned to full milliseconds
 #endif
 #if (OS_SUPPORT_TRACE_API != 0)
   const OS_TRACE_API*          pTraceAPI;                     // Pointer to a functional table for optional API trace like e.g. SystemView
 #endif
   OS_MUTEX*                    pMutexRoot;                    // Root pointer to linked list of all mutex
   OS_MEMPOOL*                  pMEMFRoot;                     // Root pointer to linked list of all memory pools
+#if (OS_SUPPORT_TIMER != 0)
   OS_TICK_HOOK*                pTickHookRoot;                 // Root pointer to linked list of all tick hooks
+#endif
   OS_WD*                       pWDRoot;                       // Root pointer to linked list of all watchdogs
 #if (OS_DEBUG != 0)
   OS_QUEUE*                    pQueueRoot;                    // Root pointer to linked list of all queues
@@ -2517,24 +2551,15 @@ struct OS_GLOBAL_STRUCT {
   OS_STATUS                    Status;                        // RTOS status
 #endif
   OS_BOOL                      IsRunning;                     // Defines whether OS_Start() was called and the RTOS is running
-#if ((OS_DEBUG != 0) || (OS_SUPPORT_TRACE != 0))
   OS_BOOL                      InInt;                         // Defines whether an embOS interrupt gets currently executed
-#endif
 #if (OS_DEBUG != 0)
   OS_BOOL                      InitCalled;                    // Defines whether OS_Init() was called
 #endif
 #if (OS_SUPPORT_PROFILE != 0)
   OS_BOOL                      ProfilingOn;                   // Defines whether profiling is enabled
 #endif
-#if (OS_SUPPORT_TICKLESS != 0)
-  OS_BOOL                      TicklessExpired;               // Defines whether the tickless mode period expired
-#endif
 #if (OS_SUPPORT_STACKCHECK == 2)
   volatile OS_U8               StackCheckLimit;               // Defines the limit for the stack check (per default 100% for embOS and 70% for embOS Safe)
-#endif
-#if (OS_SUPPORT_RR != 0)
-  OS_U8                        TimeSlice;                     // Time slice for currently running round robin task
-  OS_U8                        TimeSliceAtStart;              // Initial time slice for currently running round robin task
 #endif
   OS_U8                        InitialSuspendCnt;             // Initial suspend count for a newly created task
 #if (OS_SUPPORT_TICKSTEP != 0)
@@ -2546,6 +2571,7 @@ struct OS_GLOBAL_STRUCT {
   OS_MPU_DEBUG                 MPUDebug;                      // embOS MPU debug information
 #endif
 #endif
+  OS_SYSTIMER_SETTINGS         SysTimerSettings;              // SysTimer Settings and configuration (i.e. function pointers, multiplier & divider for time conversions)
 };
 
 /*********************************************************************
@@ -2617,7 +2643,6 @@ OS_EXTERN OS_SADDR OS_GLOBAL            OS_Global            OS_BSS_SECTION_ATTR
 #else
 extern    OS_SADDR OS_GLOBAL            OS_Global            OS_BSS_SECTION_ATTRIBUTE(OS_Global);             //lint !e9075 MISRA C:2012 Rule 8.4, required
 #endif
-OS_EXTERN          OS_SYSTIMER_SETTINGS OS_SysTimer_Settings OS_BSS_SECTION_ATTRIBUTE(OS_SysTimer_Settings);  //lint !e9075 MISRA C:2012 Rule 8.4, required
 OS_EXTERN          volatile OS_INT      OS_CPU_Load          OS_BSS_SECTION_ATTRIBUTE(OS_CPU_Load);           //lint !e9075 MISRA C:2012 Rule 8.4, required
 OS_EXTERN          volatile OS_I32      OS_IdleCnt           OS_BSS_SECTION_ATTRIBUTE(OS_IdleCnt);            //lint !e9075 MISRA C:2012 Rule 8.4, required
 
@@ -2654,9 +2679,18 @@ void     OS_Stop      (void)                                               OS_TE
 void                    OS_TASK_AddTerminateHook          (OS_ON_TERMINATE_HOOK* pHook, OS_ROUTINE_TASK_PTR* pfRoutine)                                                                                                                     OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_AddTerminateHook);
 void                    OS_TASK_Create                    (OS_TASK* pTask, OS_ROM_DATA const char* sName, OS_PRIO Priority, OS_ROUTINE_VOID*     pfRoutine, void OS_STACKPTR* pStack, OS_UINT StackSize, OS_UINT TimeSlice)                 OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_Create);
 void                    OS_TASK_CreateEx                  (OS_TASK* pTask, OS_ROM_DATA const char* sName, OS_PRIO Priority, OS_ROUTINE_VOID_PTR* pfRoutine, void OS_STACKPTR* pStack, OS_UINT StackSize, OS_UINT TimeSlice, void* pContext) OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_CreateEx);
-void                    OS_TASK_Delay                     (OS_TIME t)                                                                                                                                                                       OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_Delay);
-void                    OS_TASK_DelayUntil                (OS_TIME t)                                                                                                                                                                       OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_DelayUntil);
-void                    OS_TASK_Delay_us                  (OS_U16  us)                                                                                                                                                                      OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_Delay_us);
+#if (OS_SUPPORT_ALIGNED_TIMEOUTS != 0)
+void                    OS_TASK_Delay                     (OS_U32 ms)                                                                                                                                                                       OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_Delay);
+#else
+#define                 OS_TASK_Delay(ms)                 OS_TASK_Delay_ms(ms)
+#endif // OS_SUPPORT_ALIGNED_TIMEOUTS
+void                    OS_TASK_Delay_Cycles              (OS_U32 Cycles)                                                                                                                                                                   OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_Delay_Cycles);
+void                    OS_TASK_Delay_ms                  (OS_U32 ms)                                                                                                                                                                       OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_Delay_ms);
+void                    OS_TASK_Delay_us                  (OS_U32 us)                                                                                                                                                                       OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_Delay_us);
+#define                 OS_TASK_DelayUntil(ms)            OS_TASK_DelayUntil_ms(ms);
+void                    OS_TASK_DelayUntil_Cycles         (OS_TIME Cycles)                                                                                                                                                                  OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_DelayUntil_Cycles);
+void                    OS_TASK_DelayUntil_ms             (OS_TIME ms)                                                                                                                                                                      OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_DelayUntil_ms);
+void                    OS_TASK_DelayUntil_us             (OS_TIME us)                                                                                                                                                                      OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_DelayUntil_us);
 OS_TASK*                OS_TASK_GetID                     (void)                                                                                                                                                                            OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_GetID);
 OS_ROM_DATA const char* OS_TASK_GetName                   (OS_CONST_PTR OS_TASK* pTask)                                                                                                                                                     OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_GetName);
 int                     OS_TASK_GetNumTasks               (void)                                                                                                                                                                            OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_GetNumTasks);
@@ -2714,31 +2748,37 @@ void                    OS_TASK_SetDefaultContextExtension(OS_CONST_PTR OS_EXTEN
 **********************************************************************
 */
 #if (OS_SUPPORT_TIMER != 0)
-
-//
-// This define is referenced in the embOS manual in chapter "Software timer, introduction".
-// It is not used in the embOS source code at all.
-// We keep it for compatibility reasons in the case a customer used it in his application.
-//
-#if (OS_SIZEOF_INT == 2u)
-  #define OS_TIMER_MAX_TIME  (0x7F00)
-#elif (OS_SIZEOF_INT == 4u)
-  #define OS_TIMER_MAX_TIME  (0x7FFFFF00)
+#if (OS_SUPPORT_ALIGNED_TIMEOUTS != 0)
+void      OS_TIMER_Create                        (OS_TIMER* pTimer, OS_ROUTINE_VOID* pfTimerRoutine, OS_U32 ms)     OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_Create);
 #else
-  #error "OS_TIMER_MAX_TIME not correctly defined"
-#endif
-
-void      OS_TIMER_Create            (OS_TIMER* pTimer, OS_ROUTINE_VOID* pfTimerRoutine, OS_TIME Period) OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_Create);
-void      OS_TIMER_Delete            (OS_TIMER* pTimer)                                                  OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_Delete);
-OS_TIMER* OS_TIMER_GetCurrent        (void)                                                              OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_GetCurrent);
-OS_TIME   OS_TIMER_GetPeriod         (OS_CONST_PTR OS_TIMER* pTimer)                                     OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_GetPeriod);
-OS_TIME   OS_TIMER_GetRemainingPeriod(OS_CONST_PTR OS_TIMER* pTimer)                                     OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_GetRemainingPeriod);
-OS_BOOL   OS_TIMER_GetStatus         (OS_CONST_PTR OS_TIMER* pTimer)                                     OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_GetStatus);
-void      OS_TIMER_Restart           (OS_TIMER* pTimer)                                                  OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_Restart);
-void      OS_TIMER_SetPeriod         (OS_TIMER* pTimer, OS_TIME Period)                                  OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_SetPeriod);
-void      OS_TIMER_Start             (OS_TIMER* pTimer)                                                  OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_Start);
-void      OS_TIMER_Stop              (OS_TIMER* pTimer)                                                  OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_Stop);
-void      OS_TIMER_Trigger           (OS_TIMER* pTimer)                                                  OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_Trigger);
+#define   OS_TIMER_Create(pTimer, Callback, ms)  OS_TIMER_Create_ms(pTimer, Callback, ms)
+#endif // OS_SUPPORT_ALIGNED_TIMEOUTS
+void      OS_TIMER_Create_Cycles                 (OS_TIMER* pTimer, OS_ROUTINE_VOID* pfTimerRoutine, OS_U32 Cycles) OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_Create_Cycles);
+void      OS_TIMER_Create_ms                     (OS_TIMER* pTimer, OS_ROUTINE_VOID* pfTimerRoutine, OS_U32 ms)     OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_Create_ms);
+void      OS_TIMER_Create_us                     (OS_TIMER* pTimer, OS_ROUTINE_VOID* pfTimerRoutine, OS_U32 us)     OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_Create_us);
+void      OS_TIMER_Delete                        (OS_TIMER* pTimer)                                                 OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_Delete);
+OS_TIMER* OS_TIMER_GetCurrent                    (void)                                                             OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_GetCurrent);
+#define   OS_TIMER_GetPeriod(p)                  OS_TIMER_GetPeriod_ms(p)
+OS_U64    OS_TIMER_GetPeriod_Cycles              (OS_CONST_PTR OS_TIMER* pTimer)                                    OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_GetPeriod_Cycles);
+OS_U32    OS_TIMER_GetPeriod_ms                  (OS_CONST_PTR OS_TIMER* pTimer)                                    OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_GetPeriod_ms);
+OS_U64    OS_TIMER_GetPeriod_us                  (OS_CONST_PTR OS_TIMER* pTimer)                                    OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_GetPeriod_us);
+#define   OS_TIMER_GetRemainingPeriod(p)         OS_TIMER_GetRemainingPeriod_ms(p)
+OS_U64    OS_TIMER_GetRemainingPeriod_Cycles     (OS_CONST_PTR OS_TIMER* pTimer)                                    OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_GetRemainingPeriod_Cycles);
+OS_U32    OS_TIMER_GetRemainingPeriod_ms         (OS_CONST_PTR OS_TIMER* pTimer)                                    OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_GetRemainingPeriod_ms);
+OS_U64    OS_TIMER_GetRemainingPeriod_us         (OS_CONST_PTR OS_TIMER* pTimer)                                    OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_GetRemainingPeriod_us);
+OS_BOOL   OS_TIMER_GetStatus                     (OS_CONST_PTR OS_TIMER* pTimer)                                    OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_GetStatus);
+void      OS_TIMER_Restart                       (OS_TIMER* pTimer)                                                 OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_Restart);
+#if (OS_SUPPORT_ALIGNED_TIMEOUTS != 0)
+void      OS_TIMER_SetPeriod                     (OS_TIMER* pTimer, OS_U32 ms)                                      OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_SetPeriod);
+#else
+#define   OS_TIMER_SetPeriod(pTimer, ms)         OS_TIMER_SetPeriod_ms(p, cb, ms)
+#endif // OS_SUPPORT_ALIGNED_TIMEOUTS
+void      OS_TIMER_SetPeriod_Cycles              (OS_TIMER* pTimer, OS_U32 Cycles)                                  OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_SetPeriod_Cycles);
+void      OS_TIMER_SetPeriod_ms                  (OS_TIMER* pTimer, OS_U32 ms)                                      OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_SetPeriod_ms);
+void      OS_TIMER_SetPeriod_us                  (OS_TIMER* pTimer, OS_U32 us)                                      OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_SetPeriod_us);
+void      OS_TIMER_Start                         (OS_TIMER* pTimer)                                                 OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_Start);
+void      OS_TIMER_Stop                          (OS_TIMER* pTimer)                                                 OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_Stop);
+void      OS_TIMER_Trigger                       (OS_TIMER* pTimer)                                                 OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_Trigger);
 
 #define OS_TIMER_CREATE(pTimer, c, d) {      \
         OS_TIMER_Create((pTimer), (c), (d)); \
@@ -2751,18 +2791,33 @@ void      OS_TIMER_Trigger           (OS_TIMER* pTimer)                         
 *
 **********************************************************************
 */
-void OS_TIMER_CreateEx (OS_TIMER_EX* pTimerEx, OS_ROUTINE_VOID_PTR* pfTimerRoutine, OS_TIME Period, void* pData) OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_CreateEx);
-
-#define OS_TIMER_DeleteEx(pTimerEx)              OS_TIMER_Delete(&(pTimerEx)->Timer)
-#define OS_TIMER_GetCurrentEx()                  ((OS_TIMER_EX*)OS_TIMER_GetCurrent())
-#define OS_TIMER_GetPeriodEx(pTimerEx)           OS_TIMER_GetPeriod(&(pTimerEx)->Timer)
-#define OS_TIMER_GetRemainingPeriodEx(pTimerEx)  OS_TIMER_GetRemainingPeriod(&(pTimerEx)->Timer)
-#define OS_TIMER_GetStatusEx(pTimerEx)           OS_TIMER_GetStatus(&(pTimerEx)->Timer)
-#define OS_TIMER_RestartEx(pTimerEx)             OS_TIMER_Restart(&(pTimerEx)->Timer)
-#define OS_TIMER_SetPeriodEx(pTimerEx,Period)    OS_TIMER_SetPeriod(&(pTimerEx)->Timer, (Period))
-#define OS_TIMER_StartEx(pTimerEx)               OS_TIMER_Start(&(pTimerEx)->Timer)
-#define OS_TIMER_StopEx(pTimerEx)                OS_TIMER_Stop(&(pTimerEx)->Timer)
-#define OS_TIMER_TriggerEx(pTimerEx)             OS_TIMER_Trigger(&(pTimerEx)->Timer)
+#if (OS_SUPPORT_ALIGNED_TIMEOUTS != 0)
+void    OS_TIMER_CreateEx                                (OS_TIMER_EX* pTimerEx, OS_ROUTINE_VOID_PTR* pfTimerRoutine, OS_U32 ms,     void* pData) OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_CreateEx);
+#else
+#define OS_TIMER_CreateEx(pTimerEx, pfTimerRoutine, ms)  OS_TIMER_CreateEx_ms(pTimerEx, pfTimerRoutine, ms)
+#endif // OS_SUPPORT_ALIGNED_TIMEOUTS
+void    OS_TIMER_CreateEx_Cycles                         (OS_TIMER_EX* pTimerEx, OS_ROUTINE_VOID_PTR* pfTimerRoutine, OS_U32 Cycles, void* pData) OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_CreateEx_Cycles);
+void    OS_TIMER_CreateEx_ms                             (OS_TIMER_EX* pTimerEx, OS_ROUTINE_VOID_PTR* pfTimerRoutine, OS_U32 ms,     void* pData) OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_CreateEx_ms);
+void    OS_TIMER_CreateEx_us                             (OS_TIMER_EX* pTimerEx, OS_ROUTINE_VOID_PTR* pfTimerRoutine, OS_U32 us,     void* pData) OS_TEXT_SECTION_ATTRIBUTE(OS_TIMER_CreateEx_us);
+#define OS_TIMER_DeleteEx(pTimerEx)                      OS_TIMER_Delete(&(pTimerEx)->Timer)
+#define OS_TIMER_GetCurrentEx()                          ((OS_TIMER_EX*)OS_TIMER_GetCurrent())
+#define OS_TIMER_GetPeriodEx(pTimerEx)                   OS_TIMER_GetPeriod_ms(&(pTimerEx)->Timer)
+#define OS_TIMER_GetPeriodEx_Cycles(pTimerEx)            OS_TIMER_GetPeriod_Cycles(&(pTimerEx)->Timer)
+#define OS_TIMER_GetPeriodEx_ms(pTimerEx)                OS_TIMER_GetPeriod_ms(&(pTimerEx)->Timer)
+#define OS_TIMER_GetPeriodEx_us(pTimerEx)                OS_TIMER_GetPeriod_us(&(pTimerEx)->Timer)
+#define OS_TIMER_GetRemainingPeriodEx(pTimerEx)          OS_TIMER_GetRemainingPeriod_ms(&(pTimerEx)->Timer)
+#define OS_TIMER_GetRemainingPeriodEx_Cycles(pTimerEx)   OS_TIMER_GetRemainingPeriod_Cycles(&(pTimerEx)->Timer)
+#define OS_TIMER_GetRemainingPeriodEx_ms(pTimerEx)       OS_TIMER_GetRemainingPeriod_ms(&(pTimerEx)->Timer)
+#define OS_TIMER_GetRemainingPeriodEx_us(pTimerEx)       OS_TIMER_GetRemainingPeriod_us(&(pTimerEx)->Timer)
+#define OS_TIMER_GetStatusEx(pTimerEx)                   OS_TIMER_GetStatus(&(pTimerEx)->Timer)
+#define OS_TIMER_RestartEx(pTimerEx)                     OS_TIMER_Restart(&(pTimerEx)->Timer)
+#define OS_TIMER_SetPeriodEx(pTimerEx,ms)                OS_TIMER_SetPeriod(&(pTimerEx)->Timer, (ms))
+#define OS_TIMER_SetPeriodEx_Cycles(pTimerEx,Cycles)     OS_TIMER_SetPeriod_Cycles(&(pTimerEx)->Timer, (Cycles))
+#define OS_TIMER_SetPeriodEx_ms(pTimerEx,ms)             OS_TIMER_SetPeriod_ms(&(pTimerEx)->Timer, (ms))
+#define OS_TIMER_SetPeriodEx_us(pTimerEx,us)             OS_TIMER_SetPeriod_us(&(pTimerEx)->Timer, (us))
+#define OS_TIMER_StartEx(pTimerEx)                       OS_TIMER_Start(&(pTimerEx)->Timer)
+#define OS_TIMER_StopEx(pTimerEx)                        OS_TIMER_Stop(&(pTimerEx)->Timer)
+#define OS_TIMER_TriggerEx(pTimerEx)                     OS_TIMER_Trigger(&(pTimerEx)->Timer)
 
 #define OS_TIMER_CREATEEX(pTimerEx, cb, Period, pData) {        \
         OS_TIMER_CreateEx((pTimerEx), (cb), (Period), (pData)); \
@@ -2777,14 +2832,14 @@ void OS_TIMER_CreateEx (OS_TIMER_EX* pTimerEx, OS_ROUTINE_VOID_PTR* pfTimerRouti
 *
 **********************************************************************
 */
-OS_TASKEVENT OS_TASKEVENT_Clear           (OS_TASK* pTask)                          OS_TEXT_SECTION_ATTRIBUTE(OS_TASKEVENT_Clear);
-OS_TASKEVENT OS_TASKEVENT_ClearEx         (OS_TASK* pTask, OS_TASKEVENT EventMask)  OS_TEXT_SECTION_ATTRIBUTE(OS_TASKEVENT_ClearEx);
-OS_TASKEVENT OS_TASKEVENT_Get             (OS_CONST_PTR OS_TASK* pTask)             OS_TEXT_SECTION_ATTRIBUTE(OS_TASKEVENT_Get);
-OS_TASKEVENT OS_TASKEVENT_GetBlocked      (OS_TASKEVENT EventMask)                  OS_TEXT_SECTION_ATTRIBUTE(OS_TASKEVENT_GetBlocked);
-OS_TASKEVENT OS_TASKEVENT_GetSingleBlocked(OS_TASKEVENT EventMask)                  OS_TEXT_SECTION_ATTRIBUTE(OS_TASKEVENT_GetSingleBlocked);
-OS_TASKEVENT OS_TASKEVENT_GetSingleTimed  (OS_TASKEVENT EventMask, OS_TIME Timeout) OS_TEXT_SECTION_ATTRIBUTE(OS_TASKEVENT_GetSingleTimed);
-OS_TASKEVENT OS_TASKEVENT_GetTimed        (OS_TASKEVENT EventMask, OS_TIME Timeout) OS_TEXT_SECTION_ATTRIBUTE(OS_TASKEVENT_GetTimed);
-void         OS_TASKEVENT_Set             (OS_TASK* pTask, OS_TASKEVENT Event)      OS_TEXT_SECTION_ATTRIBUTE(OS_TASKEVENT_Set);
+OS_TASKEVENT OS_TASKEVENT_Clear           (OS_TASK* pTask)                         OS_TEXT_SECTION_ATTRIBUTE(OS_TASKEVENT_Clear);
+OS_TASKEVENT OS_TASKEVENT_ClearEx         (OS_TASK* pTask, OS_TASKEVENT EventMask) OS_TEXT_SECTION_ATTRIBUTE(OS_TASKEVENT_ClearEx);
+OS_TASKEVENT OS_TASKEVENT_Get             (OS_CONST_PTR OS_TASK* pTask)            OS_TEXT_SECTION_ATTRIBUTE(OS_TASKEVENT_Get);
+OS_TASKEVENT OS_TASKEVENT_GetBlocked      (OS_TASKEVENT EventMask)                 OS_TEXT_SECTION_ATTRIBUTE(OS_TASKEVENT_GetBlocked);
+OS_TASKEVENT OS_TASKEVENT_GetSingleBlocked(OS_TASKEVENT EventMask)                 OS_TEXT_SECTION_ATTRIBUTE(OS_TASKEVENT_GetSingleBlocked);
+OS_TASKEVENT OS_TASKEVENT_GetSingleTimed  (OS_TASKEVENT EventMask, OS_U32 Timeout) OS_TEXT_SECTION_ATTRIBUTE(OS_TASKEVENT_GetSingleTimed);
+OS_TASKEVENT OS_TASKEVENT_GetTimed        (OS_TASKEVENT EventMask, OS_U32 Timeout) OS_TEXT_SECTION_ATTRIBUTE(OS_TASKEVENT_GetTimed);
+void         OS_TASKEVENT_Set             (OS_TASK* pTask, OS_TASKEVENT Event)     OS_TEXT_SECTION_ATTRIBUTE(OS_TASKEVENT_Set);
 
 /*********************************************************************
 *
@@ -2792,24 +2847,24 @@ void         OS_TASKEVENT_Set             (OS_TASK* pTask, OS_TASKEVENT Event)  
 *
 **********************************************************************
 */
-void                OS_EVENT_Create        (OS_EVENT* pEvent)                                          OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_Create);
-void                OS_EVENT_CreateEx      (OS_EVENT* pEvent, unsigned int Mode)                       OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_CreateEx);
-void                OS_EVENT_Delete        (OS_EVENT* pEvent)                                          OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_Delete);
-OS_BOOL             OS_EVENT_Get           (OS_CONST_PTR OS_EVENT* pEvent)                             OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_Get);
-void                OS_EVENT_GetBlocked    (OS_EVENT* pEvent)                                          OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_GetBlocked);
-OS_TASKEVENT        OS_EVENT_GetMask       (OS_EVENT* pEvent, OS_TASKEVENT EventMask)                  OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_GetMask);
-OS_TASKEVENT        OS_EVENT_GetMaskBlocked(OS_EVENT* pEvent, OS_TASKEVENT EventMask)                  OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_GetMaskBlocked);
-OS_EVENT_MASK_MODE  OS_EVENT_GetMaskMode   (OS_CONST_PTR OS_EVENT* pEvent)                             OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_GetMaskMode);
-OS_TASKEVENT        OS_EVENT_GetMaskTimed  (OS_EVENT* pEvent, OS_TASKEVENT EventMask, OS_TIME Timeout) OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_GetMaskTimed);
-OS_EVENT_RESET_MODE OS_EVENT_GetResetMode  (OS_CONST_PTR OS_EVENT* pEvent)                             OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_GetResetMode);
-char                OS_EVENT_GetTimed      (OS_EVENT* pEvent, OS_TIME Timeout)                         OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_GetTimed);
-void                OS_EVENT_Pulse         (OS_EVENT* pEvent)                                          OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_Pulse);
-void                OS_EVENT_Reset         (OS_EVENT* pEvent)                                          OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_Reset);
-void                OS_EVENT_ResetMask     (OS_EVENT* pEvent, OS_TASKEVENT EventMask)                  OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_ResetMask);
-void                OS_EVENT_Set           (OS_EVENT* pEvent)                                          OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_Set);
-void                OS_EVENT_SetMask       (OS_EVENT* pEvent, OS_TASKEVENT EventMask)                  OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_SetMask);
-void                OS_EVENT_SetMaskMode   (OS_EVENT* pEvent, OS_EVENT_MASK_MODE MaskMode)             OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_SetMaskMode);
-void                OS_EVENT_SetResetMode  (OS_EVENT* pEvent, OS_EVENT_RESET_MODE ResetMode)           OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_SetResetMode);
+void                OS_EVENT_Create        (OS_EVENT* pEvent)                                         OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_Create);
+void                OS_EVENT_CreateEx      (OS_EVENT* pEvent, unsigned int Mode)                      OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_CreateEx);
+void                OS_EVENT_Delete        (OS_EVENT* pEvent)                                         OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_Delete);
+OS_BOOL             OS_EVENT_Get           (OS_CONST_PTR OS_EVENT* pEvent)                            OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_Get);
+void                OS_EVENT_GetBlocked    (OS_EVENT* pEvent)                                         OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_GetBlocked);
+OS_TASKEVENT        OS_EVENT_GetMask       (OS_EVENT* pEvent, OS_TASKEVENT EventMask)                 OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_GetMask);
+OS_TASKEVENT        OS_EVENT_GetMaskBlocked(OS_EVENT* pEvent, OS_TASKEVENT EventMask)                 OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_GetMaskBlocked);
+OS_EVENT_MASK_MODE  OS_EVENT_GetMaskMode   (OS_CONST_PTR OS_EVENT* pEvent)                            OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_GetMaskMode);
+OS_TASKEVENT        OS_EVENT_GetMaskTimed  (OS_EVENT* pEvent, OS_TASKEVENT EventMask, OS_U32 Timeout) OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_GetMaskTimed);
+OS_EVENT_RESET_MODE OS_EVENT_GetResetMode  (OS_CONST_PTR OS_EVENT* pEvent)                            OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_GetResetMode);
+char                OS_EVENT_GetTimed      (OS_EVENT* pEvent, OS_U32 Timeout)                         OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_GetTimed);
+void                OS_EVENT_Pulse         (OS_EVENT* pEvent)                                         OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_Pulse);
+void                OS_EVENT_Reset         (OS_EVENT* pEvent)                                         OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_Reset);
+void                OS_EVENT_ResetMask     (OS_EVENT* pEvent, OS_TASKEVENT EventMask)                 OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_ResetMask);
+void                OS_EVENT_Set           (OS_EVENT* pEvent)                                         OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_Set);
+void                OS_EVENT_SetMask       (OS_EVENT* pEvent, OS_TASKEVENT EventMask)                 OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_SetMask);
+void                OS_EVENT_SetMaskMode   (OS_EVENT* pEvent, OS_EVENT_MASK_MODE MaskMode)            OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_SetMaskMode);
+void                OS_EVENT_SetResetMode  (OS_EVENT* pEvent, OS_EVENT_RESET_MODE ResetMode)          OS_TEXT_SECTION_ATTRIBUTE(OS_EVENT_SetResetMode);
 
 /*********************************************************************
 *
@@ -2817,15 +2872,15 @@ void                OS_EVENT_SetResetMode  (OS_EVENT* pEvent, OS_EVENT_RESET_MOD
 *
 **********************************************************************
 */
-void     OS_MUTEX_Create     (OS_MUTEX* pMutex)                  OS_TEXT_SECTION_ATTRIBUTE(OS_MUTEX_Create);
-void     OS_MUTEX_Delete     (OS_MUTEX* pMutex)                  OS_TEXT_SECTION_ATTRIBUTE(OS_MUTEX_Delete);
-OS_TASK* OS_MUTEX_GetOwner   (OS_CONST_PTR OS_MUTEX* pMutex)     OS_TEXT_SECTION_ATTRIBUTE(OS_MUTEX_GetOwner);
-int      OS_MUTEX_GetValue   (OS_CONST_PTR OS_MUTEX* pMutex)     OS_TEXT_SECTION_ATTRIBUTE(OS_MUTEX_GetValue);
-OS_BOOL  OS_MUTEX_IsMutex    (OS_CONST_PTR OS_MUTEX* pMutex)     OS_TEXT_SECTION_ATTRIBUTE(OS_MUTEX_IsMutex);
-char     OS_MUTEX_Lock       (OS_MUTEX* pMutex)                  OS_TEXT_SECTION_ATTRIBUTE(OS_MUTEX_Lock);
-int      OS_MUTEX_LockBlocked(OS_MUTEX* pMutex)                  OS_TEXT_SECTION_ATTRIBUTE(OS_MUTEX_LockBlocked);
-int      OS_MUTEX_LockTimed  (OS_MUTEX* pMutex, OS_TIME Timeout) OS_TEXT_SECTION_ATTRIBUTE(OS_MUTEX_LockTimed);
-void     OS_MUTEX_Unlock     (OS_MUTEX* pMutex)                  OS_TEXT_SECTION_ATTRIBUTE(OS_MUTEX_Unlock);
+void     OS_MUTEX_Create     (OS_MUTEX* pMutex)                 OS_TEXT_SECTION_ATTRIBUTE(OS_MUTEX_Create);
+void     OS_MUTEX_Delete     (OS_MUTEX* pMutex)                 OS_TEXT_SECTION_ATTRIBUTE(OS_MUTEX_Delete);
+OS_TASK* OS_MUTEX_GetOwner   (OS_CONST_PTR OS_MUTEX* pMutex)    OS_TEXT_SECTION_ATTRIBUTE(OS_MUTEX_GetOwner);
+int      OS_MUTEX_GetValue   (OS_CONST_PTR OS_MUTEX* pMutex)    OS_TEXT_SECTION_ATTRIBUTE(OS_MUTEX_GetValue);
+OS_BOOL  OS_MUTEX_IsMutex    (OS_CONST_PTR OS_MUTEX* pMutex)    OS_TEXT_SECTION_ATTRIBUTE(OS_MUTEX_IsMutex);
+char     OS_MUTEX_Lock       (OS_MUTEX* pMutex)                 OS_TEXT_SECTION_ATTRIBUTE(OS_MUTEX_Lock);
+int      OS_MUTEX_LockBlocked(OS_MUTEX* pMutex)                 OS_TEXT_SECTION_ATTRIBUTE(OS_MUTEX_LockBlocked);
+int      OS_MUTEX_LockTimed  (OS_MUTEX* pMutex, OS_U32 Timeout) OS_TEXT_SECTION_ATTRIBUTE(OS_MUTEX_LockTimed);
+void     OS_MUTEX_Unlock     (OS_MUTEX* pMutex)                 OS_TEXT_SECTION_ATTRIBUTE(OS_MUTEX_Unlock);
 
 /*********************************************************************
 *
@@ -2841,7 +2896,7 @@ void    OS_SEMAPHORE_GiveMax    (OS_SEMAPHORE* pSema, OS_UINT MaxValue)  OS_TEXT
 OS_U8   OS_SEMAPHORE_SetValue   (OS_SEMAPHORE* pSema, OS_UINT Value)     OS_TEXT_SECTION_ATTRIBUTE(OS_SEMAPHORE_SetValue);
 OS_BOOL OS_SEMAPHORE_Take       (OS_SEMAPHORE* pSema)                    OS_TEXT_SECTION_ATTRIBUTE(OS_SEMAPHORE_Take);
 void    OS_SEMAPHORE_TakeBlocked(OS_SEMAPHORE* pSema)                    OS_TEXT_SECTION_ATTRIBUTE(OS_SEMAPHORE_TakeBlocked);
-OS_BOOL OS_SEMAPHORE_TakeTimed  (OS_SEMAPHORE* pSema, OS_TIME Timeout)   OS_TEXT_SECTION_ATTRIBUTE(OS_SEMAPHORE_TakeTimed);
+OS_BOOL OS_SEMAPHORE_TakeTimed  (OS_SEMAPHORE* pSema, OS_U32 Timeout)    OS_TEXT_SECTION_ATTRIBUTE(OS_SEMAPHORE_TakeTimed);
 
 #define OS_SEMAPHORE_CREATE(ps) OS_SEMAPHORE_Create((ps), 0)
 
@@ -2855,11 +2910,11 @@ void    OS_RWLOCK_Create       (OS_RWLOCK* pLock, OS_UINT NumReaders) OS_TEXT_SE
 void    OS_RWLOCK_Delete       (OS_RWLOCK* pLock)                     OS_TEXT_SECTION_ATTRIBUTE(OS_RWLOCK_Delete);
 OS_BOOL OS_RWLOCK_RdLock       (OS_RWLOCK* pLock)                     OS_TEXT_SECTION_ATTRIBUTE(OS_RWLOCK_RdLock);
 void    OS_RWLOCK_RdLockBlocked(OS_RWLOCK* pLock)                     OS_TEXT_SECTION_ATTRIBUTE(OS_RWLOCK_RdLockBlocked);
-OS_BOOL OS_RWLOCK_RdLockTimed  (OS_RWLOCK* pLock, OS_TIME Timeout)    OS_TEXT_SECTION_ATTRIBUTE(OS_RWLOCK_RdLockBlocked);
+OS_BOOL OS_RWLOCK_RdLockTimed  (OS_RWLOCK* pLock, OS_U32 Timeout)     OS_TEXT_SECTION_ATTRIBUTE(OS_RWLOCK_RdLockBlocked);
 void    OS_RWLOCK_RdUnlock     (OS_RWLOCK* pLock)                     OS_TEXT_SECTION_ATTRIBUTE(OS_RWLOCK_RdUnlock);
 OS_BOOL OS_RWLOCK_WrLock       (OS_RWLOCK* pLock)                     OS_TEXT_SECTION_ATTRIBUTE(OS_RWLOCK_WrLock);
 void    OS_RWLOCK_WrLockBlocked(OS_RWLOCK* pLock)                     OS_TEXT_SECTION_ATTRIBUTE(OS_RWLOCK_WrLockBlocked);
-OS_BOOL OS_RWLOCK_WrLockTimed  (OS_RWLOCK* pLock, OS_TIME Timeout)    OS_TEXT_SECTION_ATTRIBUTE(OS_RWLOCK_WrLockBlocked);
+OS_BOOL OS_RWLOCK_WrLockTimed  (OS_RWLOCK* pLock, OS_U32 Timeout)     OS_TEXT_SECTION_ATTRIBUTE(OS_RWLOCK_WrLockBlocked);
 void    OS_RWLOCK_WrUnlock     (OS_RWLOCK* pLock)                     OS_TEXT_SECTION_ATTRIBUTE(OS_RWLOCK_WrUnlock);
 
 /*********************************************************************
@@ -2876,8 +2931,8 @@ char    OS_MAILBOX_Get1            (OS_MAILBOX* pMB, char* pDest)               
 void    OS_MAILBOX_GetBlocked      (OS_MAILBOX* pMB, void* pDest)                                       OS_TEXT_SECTION_ATTRIBUTE(OS_MAILBOX_GetBlocked);
 void    OS_MAILBOX_GetBlocked1     (OS_MAILBOX* pMB, char* pDest)                                       OS_TEXT_SECTION_ATTRIBUTE(OS_MAILBOX_GetBlocked1);
 OS_UINT OS_MAILBOX_GetMessageCnt   (OS_CONST_PTR OS_MAILBOX* pMB)                                       OS_TEXT_SECTION_ATTRIBUTE(OS_MAILBOX_GetMessageCnt);
-char    OS_MAILBOX_GetTimed        (OS_MAILBOX* pMB, void* pDest, OS_TIME Timeout)                      OS_TEXT_SECTION_ATTRIBUTE(OS_MAILBOX_GetTimed);
-char    OS_MAILBOX_GetTimed1       (OS_MAILBOX* pMB, char* pDest, OS_TIME Timeout)                      OS_TEXT_SECTION_ATTRIBUTE(OS_MAILBOX_GetTimed1);
+char    OS_MAILBOX_GetTimed        (OS_MAILBOX* pMB, void* pDest, OS_U32 Timeout)                       OS_TEXT_SECTION_ATTRIBUTE(OS_MAILBOX_GetTimed);
+char    OS_MAILBOX_GetTimed1       (OS_MAILBOX* pMB, char* pDest, OS_U32 Timeout)                       OS_TEXT_SECTION_ATTRIBUTE(OS_MAILBOX_GetTimed1);
 char    OS_MAILBOX_GetPtr          (OS_MAILBOX* pMB, void** ppDest)                                     OS_TEXT_SECTION_ATTRIBUTE(OS_MAILBOX_GetPtr);
 void    OS_MAILBOX_GetPtrBlocked   (OS_MAILBOX* pMB, void** ppDest)                                     OS_TEXT_SECTION_ATTRIBUTE(OS_MAILBOX_GetPtrBlocked);
 OS_BOOL OS_MAILBOX_IsInUse         (OS_CONST_PTR OS_MAILBOX* pMB)                                       OS_TEXT_SECTION_ATTRIBUTE(OS_MAILBOX_IsInUse);
@@ -2891,10 +2946,10 @@ char    OS_MAILBOX_PutFront        (OS_MAILBOX* pMB, OS_CONST_PTR void* pMail)  
 char    OS_MAILBOX_PutFront1       (OS_MAILBOX* pMB, OS_CONST_PTR char* pMail)                          OS_TEXT_SECTION_ATTRIBUTE(OS_MAILBOX_PutFront1);
 void    OS_MAILBOX_PutFrontBlocked (OS_MAILBOX* pMB, OS_CONST_PTR void* pMail)                          OS_TEXT_SECTION_ATTRIBUTE(OS_MAILBOX_PutFrontBlocked);
 void    OS_MAILBOX_PutFrontBlocked1(OS_MAILBOX* pMB, OS_CONST_PTR char* pMail)                          OS_TEXT_SECTION_ATTRIBUTE(OS_MAILBOX_PutFrontBlocked1);
-OS_BOOL OS_MAILBOX_PutTimed        (OS_MAILBOX* pMB, OS_CONST_PTR void* pMail, OS_TIME Timeout)         OS_TEXT_SECTION_ATTRIBUTE(OS_MAILBOX_PutTimed);
-OS_BOOL OS_MAILBOX_PutTimed1       (OS_MAILBOX* pMB, OS_CONST_PTR char* pMail, OS_TIME Timeout)         OS_TEXT_SECTION_ATTRIBUTE(OS_MAILBOX_PutTimed1);
+OS_BOOL OS_MAILBOX_PutTimed        (OS_MAILBOX* pMB, OS_CONST_PTR void* pMail, OS_U32 Timeout)          OS_TEXT_SECTION_ATTRIBUTE(OS_MAILBOX_PutTimed);
+OS_BOOL OS_MAILBOX_PutTimed1       (OS_MAILBOX* pMB, OS_CONST_PTR char* pMail, OS_U32 Timeout)          OS_TEXT_SECTION_ATTRIBUTE(OS_MAILBOX_PutTimed1);
 void    OS_MAILBOX_WaitBlocked     (OS_MAILBOX* pMB)                                                    OS_TEXT_SECTION_ATTRIBUTE(OS_MAILBOX_WaitBlocked);
-char    OS_MAILBOX_WaitTimed       (OS_MAILBOX* pMB, OS_TIME Timeout)                                   OS_TEXT_SECTION_ATTRIBUTE(OS_MAILBOX_WaitTimed);
+char    OS_MAILBOX_WaitTimed       (OS_MAILBOX* pMB, OS_U32 Timeout)                                    OS_TEXT_SECTION_ATTRIBUTE(OS_MAILBOX_WaitTimed);
 
 /*********************************************************************
 *
@@ -2902,23 +2957,23 @@ char    OS_MAILBOX_WaitTimed       (OS_MAILBOX* pMB, OS_TIME Timeout)           
 *
 **********************************************************************
 */
-void    OS_QUEUE_Clear         (OS_QUEUE* pQ)                                                                           OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_Clear);
-void    OS_QUEUE_Create        (OS_QUEUE* pQ, void* pData, OS_UINT Size)                                                OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_Create);
-void    OS_QUEUE_Delete        (OS_QUEUE* pQ)                                                                           OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_Delete);
-int     OS_QUEUE_GetMessageCnt (OS_CONST_PTR OS_QUEUE* pQ)                                                              OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_GetMessageCnt);
-int     OS_QUEUE_GetMessageSize(OS_CONST_PTR OS_QUEUE* pQ)                                                              OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_GetMessageSize);
-int     OS_QUEUE_GetPtr        (OS_QUEUE* pQ, void** ppData)                                                            OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_GetPtr);
-int     OS_QUEUE_GetPtrBlocked (OS_QUEUE* pQ, void** ppData)                                                            OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_GetPtrBlocked);
-int     OS_QUEUE_GetPtrTimed   (OS_QUEUE* pQ, void** ppData, OS_TIME Timeout)                                           OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_GetPtrTimed);
-OS_BOOL OS_QUEUE_IsInUse       (OS_CONST_PTR OS_QUEUE* pQ)                                                              OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_IsInUse);
-int     OS_QUEUE_PeekPtr       (OS_CONST_PTR OS_QUEUE* pQ, void** ppData)                                               OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_PeekPtr);
-void    OS_QUEUE_Purge         (OS_QUEUE* pQ)                                                                           OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_Purge);
-int     OS_QUEUE_Put           (OS_QUEUE* pQ, OS_CONST_PTR void* pSrc, OS_UINT Size)                                    OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_Put);
-int     OS_QUEUE_PutEx         (OS_QUEUE* pQ, OS_CONST_PTR OS_QUEUE_SRCLIST* pSrcList, OS_UINT NumSrc)                  OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_PutEx);
-void    OS_QUEUE_PutBlocked    (OS_QUEUE* pQ, OS_CONST_PTR void* pSrc, OS_UINT Size)                                    OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_PutBlocked);
-void    OS_QUEUE_PutBlockedEx  (OS_QUEUE* pQ, OS_CONST_PTR OS_QUEUE_SRCLIST* pSrcList, OS_UINT NumSrc)                  OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_PutBlockedEx);
-char    OS_QUEUE_PutTimed      (OS_QUEUE* pQ, OS_CONST_PTR void* pSrc, OS_UINT Size, OS_TIME Timeout)                   OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_PutTimed);
-char    OS_QUEUE_PutTimedEx    (OS_QUEUE* pQ, OS_CONST_PTR OS_QUEUE_SRCLIST* pSrcList, OS_UINT NumSrc, OS_TIME Timeout) OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_PutTimedEx);
+void    OS_QUEUE_Clear         (OS_QUEUE* pQ)                                                                          OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_Clear);
+void    OS_QUEUE_Create        (OS_QUEUE* pQ, void* pData, OS_UINT Size)                                               OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_Create);
+void    OS_QUEUE_Delete        (OS_QUEUE* pQ)                                                                          OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_Delete);
+int     OS_QUEUE_GetMessageCnt (OS_CONST_PTR OS_QUEUE* pQ)                                                             OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_GetMessageCnt);
+int     OS_QUEUE_GetMessageSize(OS_CONST_PTR OS_QUEUE* pQ)                                                             OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_GetMessageSize);
+int     OS_QUEUE_GetPtr        (OS_QUEUE* pQ, void** ppData)                                                           OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_GetPtr);
+int     OS_QUEUE_GetPtrBlocked (OS_QUEUE* pQ, void** ppData)                                                           OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_GetPtrBlocked);
+int     OS_QUEUE_GetPtrTimed   (OS_QUEUE* pQ, void** ppData, OS_U32 Timeout)                                           OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_GetPtrTimed);
+OS_BOOL OS_QUEUE_IsInUse       (OS_CONST_PTR OS_QUEUE* pQ)                                                             OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_IsInUse);
+int     OS_QUEUE_PeekPtr       (OS_CONST_PTR OS_QUEUE* pQ, void** ppData)                                              OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_PeekPtr);
+void    OS_QUEUE_Purge         (OS_QUEUE* pQ)                                                                          OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_Purge);
+int     OS_QUEUE_Put           (OS_QUEUE* pQ, OS_CONST_PTR void* pSrc, OS_UINT Size)                                   OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_Put);
+int     OS_QUEUE_PutEx         (OS_QUEUE* pQ, OS_CONST_PTR OS_QUEUE_SRCLIST* pSrcList, OS_UINT NumSrc)                 OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_PutEx);
+void    OS_QUEUE_PutBlocked    (OS_QUEUE* pQ, OS_CONST_PTR void* pSrc, OS_UINT Size)                                   OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_PutBlocked);
+void    OS_QUEUE_PutBlockedEx  (OS_QUEUE* pQ, OS_CONST_PTR OS_QUEUE_SRCLIST* pSrcList, OS_UINT NumSrc)                 OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_PutBlockedEx);
+char    OS_QUEUE_PutTimed      (OS_QUEUE* pQ, OS_CONST_PTR void* pSrc, OS_UINT Size, OS_U32 Timeout)                   OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_PutTimed);
+char    OS_QUEUE_PutTimedEx    (OS_QUEUE* pQ, OS_CONST_PTR OS_QUEUE_SRCLIST* pSrcList, OS_UINT NumSrc, OS_U32 Timeout) OS_TEXT_SECTION_ATTRIBUTE(OS_QUEUE_PutTimedEx);
 
 #define OS_Q_SIZEOF_HEADER     (sizeof(OS_INT))
 
@@ -2928,7 +2983,7 @@ char    OS_QUEUE_PutTimedEx    (OS_QUEUE* pQ, OS_CONST_PTR OS_QUEUE_SRCLIST* pSr
 *
 **********************************************************************
 */
-void OS_WD_Add    (OS_WD* pWD, OS_TIME Timeout)                            OS_TEXT_SECTION_ATTRIBUTE(OS_WD_Add);
+void OS_WD_Add    (OS_WD* pWD, OS_U32 Timeout)                             OS_TEXT_SECTION_ATTRIBUTE(OS_WD_Add);
 void OS_WD_Check  (void)                                                   OS_TEXT_SECTION_ATTRIBUTE(OS_WD_Check);
 void OS_WD_Config (OS_ROUTINE_VOID* pfTrigger, OS_ROUTINE_WD_PTR* pfReset) OS_TEXT_SECTION_ATTRIBUTE(OS_WD_Config);
 void OS_WD_Remove (OS_CONST_PTR OS_WD* pWD)                                OS_TEXT_SECTION_ATTRIBUTE(OS_WD_Remove);
@@ -3034,17 +3089,17 @@ OS_BOOL OS_INT_InInterrupt(void) OS_TEXT_SECTION_ATTRIBUTE(OS_INT_InInterrupt);
 *
 **********************************************************************
 */
-#if (OS_DEBUG != 0)
+  //
+  // Incrementing OS_Global.InInt is required even in non-debug builds, since software timers can be started from ISRs (which then requires the scheduler to set the hardware timer).
+  //
   #ifndef   OS_MARK_IN_ISR
     #define OS_MARK_IN_ISR()          { OS_Global.InInt++; }
   #endif
+#if (OS_DEBUG != 0)
   #define OS_MARK_OUTOF_ISR()         { if (OS_Global.InInt == 0u) {OS_Error(OS_ERR_LEAVEINT);} OS_Global.InInt--; }
   #define OS_MARK_OUTOF_ISR_SWITCH()  { if (OS_Global.InInt == 0u) {OS_Error(OS_ERR_LEAVEINT);} OS_Global.InInt--; }
 #else
-  #ifndef   OS_MARK_IN_ISR
-    #define OS_MARK_IN_ISR()
-  #endif
-  #define OS_MARK_OUTOF_ISR()         { }
+  #define OS_MARK_OUTOF_ISR()         { OS_Global.InInt--; }
   #define OS_MARK_OUTOF_ISR_SWITCH()
 #endif
 
@@ -3133,6 +3188,7 @@ void OS_INT_CallNestable(void (*pfRoutine)(void)) OS_TEXT_SECTION_ATTRIBUTE(OS_I
     OS_ASSERT_CPU_IN_ISR_MODE();                                                 \
     OS_DI_ON_ENTRY();                                                            \
     OS_EI_HP_ON_ENTRY();                                                         \
+    OS_EXEC_ISRENTRY_CALLBACK();                                                 \
     OS_Global.Counters.Cnt.Region = (OS_U8)(OS_Global.Counters.Cnt.Region + 1u); \
     OS_Global.Counters.Cnt.DI = (OS_U8)(OS_Global.Counters.Cnt.DI + 1u);         \
     TRACE_ON_ISR_ENTER();                                                        \
@@ -3146,13 +3202,14 @@ void OS_INT_CallNestable(void (*pfRoutine)(void)) OS_TEXT_SECTION_ATTRIBUTE(OS_I
     OS_EI_ON_LEAVE();                                                    \
   }
 
-  #define OS_INT_EnterNestable() {   \
-    OS_ASSERT_INIT_CALLED();         \
-    OS_MARK_IN_ISR();                \
-    OS_IntEnterRegion();             \
-    OS_ENABLE_INTS_SAVE_IPL();       \
-    OS_ASSERT_CPU_IN_ISR_MODE();     \
-    TRACE_ON_ISR_ENTER();            \
+  #define OS_INT_EnterNestable() {        \
+    OS_ASSERT_INIT_CALLED();              \
+    OS_MARK_IN_ISR();                     \
+    OS_IntEnterRegion();                  \
+    OS_ENABLE_INTS_SAVE_IPL();            \
+    OS_ASSERT_CPU_IN_ISR_MODE();          \
+    OS_EXEC_ISRENTRY_CALLBACK_NESTABLE(); \
+    TRACE_ON_ISR_ENTER();                 \
   }
 
   #define OS_INT_LeaveNestable() {   \
@@ -3242,26 +3299,16 @@ void OS_TASK_LeaveRegion(void) OS_TEXT_SECTION_ATTRIBUTE(OS_TASK_LeaveRegion);
 **********************************************************************
 */
 void    OS_TIME_ConfigSysTimer  (const OS_SYSTIMER_CONFIG* pConfig) OS_TEXT_SECTION_ATTRIBUTE(OS_TIME_ConfigSysTimer);
-#ifdef OS_U64
 OS_U64  OS_TIME_ConvertCycles2ms(OS_U32 Cycles)                     OS_TEXT_SECTION_ATTRIBUTE(OS_TIME_ConvertCycles2ms);
 OS_U64  OS_TIME_ConvertCycles2ns(OS_U32 Cycles)                     OS_TEXT_SECTION_ATTRIBUTE(OS_TIME_ConvertCycles2ns);
 OS_U64  OS_TIME_ConvertCycles2us(OS_U32 Cycles)                     OS_TEXT_SECTION_ATTRIBUTE(OS_TIME_ConvertCycles2us);
 OS_U64  OS_TIME_Convertms2Cycles(OS_U32 ms)                         OS_TEXT_SECTION_ATTRIBUTE(OS_TIME_Convertms2Cycles);
 OS_U64  OS_TIME_Convertns2Cycles(OS_U32 ns)                         OS_TEXT_SECTION_ATTRIBUTE(OS_TIME_Convertns2Cycles);
 OS_U64  OS_TIME_Convertus2Cycles(OS_U32 us)                         OS_TEXT_SECTION_ATTRIBUTE(OS_TIME_Convertus2Cycles);
-OS_U64  OS_TIME_Convertms2Ticks (OS_U32 ms)                         OS_TEXT_SECTION_ATTRIBUTE(OS_TIME_Convertms2Ticks);
-OS_U64  OS_TIME_ConvertTicks2ms (OS_U32 t)                          OS_TEXT_SECTION_ATTRIBUTE(OS_TIME_ConvertTicks2ms);
-OS_U64  OS_TIME_GetInts         (void)                              OS_TEXT_SECTION_ATTRIBUTE(OS_TIME_GetInts);
 OS_U64  OS_TIME_Get_Cycles      (void)                              OS_TEXT_SECTION_ATTRIBUTE(OS_TIME_Get_Cycles);
-OS_U32  OS_TIME_Get_us          (void)                              OS_TEXT_SECTION_ATTRIBUTE(OS_TIME_Get_us);
-OS_U64  OS_TIME_Get_us64        (void)                              OS_TEXT_SECTION_ATTRIBUTE(OS_TIME_Get_us64);
-#endif // OS_U64
-#ifndef OS_TIME_GetTicks
-OS_TIME OS_TIME_GetTicks        (void)                              OS_TEXT_SECTION_ATTRIBUTE(OS_TIME_GetTicks);
-#endif
-#ifndef OS_TIME_GetTicks32
-OS_I32  OS_TIME_GetTicks32      (void)                              OS_TEXT_SECTION_ATTRIBUTE(OS_TIME_GetTicks32);
-#endif
+OS_U64  OS_TIME_Get_ms          (void)                              OS_TEXT_SECTION_ATTRIBUTE(OS_TIME_Get_ms);
+OS_U64  OS_TIME_Get_us          (void)                              OS_TEXT_SECTION_ATTRIBUTE(OS_TIME_Get_us);
+OS_TIME OS_TIME_Get_Ticks       (void)                              OS_TEXT_SECTION_ATTRIBUTE(OS_TIME_Get_Ticks);
 void    OS_TIME_StartMeasurement(OS_U32* pCycle)                    OS_TEXT_SECTION_ATTRIBUTE(OS_TIME_StartMeasurement);
 void    OS_TIME_StopMeasurement (OS_U32* pCycle)                    OS_TEXT_SECTION_ATTRIBUTE(OS_TIME_StopMeasurement);
 OS_U32  OS_TIME_GetResult       (OS_CONST_PTR OS_U32* pCycle)       OS_TEXT_SECTION_ATTRIBUTE(OS_TIME_GetResult);
@@ -3269,17 +3316,41 @@ OS_U32  OS_TIME_GetResult_us    (OS_CONST_PTR OS_U32* pCycle)       OS_TEXT_SECT
 
 /*********************************************************************
 *
-*       Tickless support
+*       ISR Entry Callback support
 *
 **********************************************************************
 */
-#if (OS_SUPPORT_TICKLESS != 0)
-void    OS_TICKLESS_AdjustTime     (OS_TIME Time)                                       OS_TEXT_SECTION_ATTRIBUTE(OS_TICKLESS_AdjustTime);
-OS_TIME OS_TICKLESS_GetNumIdleTicks(void)                                               OS_TEXT_SECTION_ATTRIBUTE(OS_TICKLESS_GetNumIdleTicks);
-OS_TIME OS_TICKLESS_GetPeriod      (void)                                               OS_TEXT_SECTION_ATTRIBUTE(OS_TICKLESS_GetPeriod);
-OS_BOOL OS_TICKLESS_IsExpired      (void)                                               OS_TEXT_SECTION_ATTRIBUTE(OS_TICKLESS_IsExpired);
-void    OS_TICKLESS_Start          (OS_TIME Period, OS_ROUTINE_VOID* pfEndTicklessMode) OS_TEXT_SECTION_ATTRIBUTE(OS_TICKLESS_Start);
-void    OS_TICKLESS_Stop           (void)                                               OS_TEXT_SECTION_ATTRIBUTE(OS_TICKLESS_Stop);
+#if (OS_SUPPORT_ISRENTRY_CALLBACK != 0)
+  void OS_POWER_SetISREntryCallback(OS_ROUTINE_VOID* pfRoutine) OS_TEXT_SECTION_ATTRIBUTE(OS_POWER_SetISREntryCallback);
+
+  //
+  // By default, the callback is executed from OS_INT_Enter[Nestable]().
+  // This works for e.g. Cortex-M.
+  // For e.g. Cortex-A, the callback is executed from the low-level assembly IRQ handler.
+  // In this case, these defines need to be overwritten in OSCHIP.c.
+  //
+  #ifndef   OS_EXEC_ISRENTRY_CALLBACK
+    #define OS_EXEC_ISRENTRY_CALLBACK()                   \
+            if (OS_Global.pfISREntryCallback != NULL) {   \
+              OS_Global.pfISREntryCallback();             \
+              OS_Global.pfISREntryCallback = NULL;        \
+            }
+  #endif
+
+  #ifndef   OS_EXEC_ISRENTRY_CALLBACK_NESTABLE
+    #define OS_EXEC_ISRENTRY_CALLBACK_NESTABLE()          \
+            if (OS_Global.pfISREntryCallback != NULL) {   \
+              OS_INT_Disable();                           \
+              if (OS_Global.pfISREntryCallback != NULL) { \
+                OS_Global.pfISREntryCallback();           \
+                OS_Global.pfISREntryCallback = NULL;      \
+              }                                           \
+              OS_INT_Enable();                            \
+            }
+  #endif
+#else
+  #define OS_EXEC_ISRENTRY_CALLBACK()
+  #define OS_EXEC_ISRENTRY_CALLBACK_NESTABLE()
 #endif
 
 /*********************************************************************
@@ -3314,7 +3385,7 @@ void* OS_HEAP_realloc(void* pMemBlock, unsigned int NewSize) OS_TEXT_SECTION_ATT
 */
 void*   OS_MEMPOOL_Alloc           (OS_MEMPOOL* pMEMF)                                                    OS_TEXT_SECTION_ATTRIBUTE(OS_MEMPOOL_Alloc);
 void*   OS_MEMPOOL_AllocBlocked    (OS_MEMPOOL* pMEMF)                                                    OS_TEXT_SECTION_ATTRIBUTE(OS_MEMPOOL_AllocBlocked);
-void*   OS_MEMPOOL_AllocTimed      (OS_MEMPOOL* pMEMF, OS_TIME Timeout)                                   OS_TEXT_SECTION_ATTRIBUTE(OS_MEMPOOL_AllocTimed);
+void*   OS_MEMPOOL_AllocTimed      (OS_MEMPOOL* pMEMF, OS_U32 Timeout)                                    OS_TEXT_SECTION_ATTRIBUTE(OS_MEMPOOL_AllocTimed);
 void    OS_MEMPOOL_Create          (OS_MEMPOOL* pMEMF, void* pPool, OS_UINT NumBlocks, OS_UINT BlockSize) OS_TEXT_SECTION_ATTRIBUTE(OS_MEMPOOL_Create);
 void    OS_MEMPOOL_Delete          (OS_MEMPOOL* pMEMF)                                                    OS_TEXT_SECTION_ATTRIBUTE(OS_MEMPOOL_Delete);
 void    OS_MEMPOOL_Free            (void* pMemBlock)                                                      OS_TEXT_SECTION_ATTRIBUTE(OS_MEMPOOL_Free);
@@ -3331,12 +3402,11 @@ OS_BOOL OS_MEMPOOL_IsInPool        (OS_CONST_PTR OS_MEMPOOL* pMEMF, OS_CONST_PTR
 *
 **********************************************************************
 */
-void OS_TICK_Handle      (void)                                            OS_TEXT_SECTION_ATTRIBUTE(OS_TICK_Handle);
-void OS_TICK_HandleEx    (void)                                            OS_TEXT_SECTION_ATTRIBUTE(OS_TICK_HandleEx);
-void OS_TICK_HandleNoHook(void)                                            OS_TEXT_SECTION_ATTRIBUTE(OS_TICK_HandleNoHook);
-void OS_TICK_Config      (OS_U32 TickFreq, OS_U32 IntFreq)                 OS_TEXT_SECTION_ATTRIBUTE(OS_TICK_Config);
-void OS_TICK_AddHook     (OS_TICK_HOOK* pHook, OS_ROUTINE_VOID* pfRoutine) OS_TEXT_SECTION_ATTRIBUTE(OS_TICK_AddHook);
-void OS_TICK_RemoveHook  (OS_CONST_PTR OS_TICK_HOOK* pHook)                OS_TEXT_SECTION_ATTRIBUTE(OS_TICK_RemoveHook);
+void OS_TICK_Handle    (void)                                             OS_TEXT_SECTION_ATTRIBUTE(OS_TICK_Handle);
+#if (OS_SUPPORT_TIMER != 0)
+void OS_TICK_AddHook   (OS_TICK_HOOK* pHook, OS_ROUTINE_VOID* pfRoutine)  OS_TEXT_SECTION_ATTRIBUTE(OS_TICK_AddHook);
+void OS_TICK_RemoveHook(OS_CONST_PTR OS_TICK_HOOK* pHook)                 OS_TEXT_SECTION_ATTRIBUTE(OS_TICK_RemoveHook);
+#endif
 
 /*********************************************************************
 *
@@ -3441,20 +3511,20 @@ void OS_TRACE_SetAPI(OS_CONST_PTR OS_TRACE_API* pTraceAPI) OS_TEXT_SECTION_ATTRI
 **********************************************************************
 */
 #ifndef OS_LIBMODE_SAFE
-void OS_STAT_AddLoadMeasurement  (OS_TIME Period, OS_U8 AutoAdjust, OS_I32 DefaultMaxValue)                                              OS_TEXT_SECTION_ATTRIBUTE(OS_STAT_AddLoadMeasurement);
-void OS_STAT_AddLoadMeasurementEx(OS_TIME Period, OS_U8 AutoAdjust, OS_I32 DefaultMaxValue, void OS_STACKPTR* pStack, OS_UINT StackSize) OS_TEXT_SECTION_ATTRIBUTE(OS_STAT_AddLoadMeasurementEx);
-int  OS_STAT_GetLoadMeasurement  (void)                                                                                                  OS_TEXT_SECTION_ATTRIBUTE(OS_STAT_GetLoadMeasurement);
+void OS_STAT_AddLoadMeasurement  (OS_U32 Period, OS_U8 AutoAdjust, OS_I32 DefaultMaxValue)                                              OS_TEXT_SECTION_ATTRIBUTE(OS_STAT_AddLoadMeasurement);
+void OS_STAT_AddLoadMeasurementEx(OS_U32 Period, OS_U8 AutoAdjust, OS_I32 DefaultMaxValue, void OS_STACKPTR* pStack, OS_UINT StackSize) OS_TEXT_SECTION_ATTRIBUTE(OS_STAT_AddLoadMeasurementEx);
+int  OS_STAT_GetLoadMeasurement  (void)                                                                                                 OS_TEXT_SECTION_ATTRIBUTE(OS_STAT_GetLoadMeasurement);
 #endif
 
 #if (OS_U32_OP_IS_ATOMIC == 0)
-  #define OS_INC_IDLE_CNT()     \
-  {                             \
-    OS_INT_Disable();           \
-    OS_IdleCnt++;               \
-    OS_INT_EnableConditional(); \
+  #define OS_INC_IDLE_CNT()      \
+  {                              \
+    OS_INT_Disable();            \
+    OS_IdleCnt = OS_IdleCnt + 1; \
+    OS_INT_EnableConditional();  \
   }
 #else
-  #define OS_INC_IDLE_CNT() (OS_IdleCnt++)
+  #define OS_INC_IDLE_CNT() ( OS_IdleCnt = OS_IdleCnt + 1; )
 #endif
 
 /*********************************************************************
@@ -3549,10 +3619,12 @@ unsigned int      OS_STACK_GetTaskStackUsed (OS_CONST_PTR OS_TASK* pTask) OS_TEX
 *
 **********************************************************************
 */
-void   OS_InitHW          (void);
-void   OS_Idle            (void);
-OS_U32 OS_GetTime_Cycles  (void);           // Legacy
-OS_U32 OS_ConvertCycles2us(OS_U32 Cycles);  // Legacy
+void    OS_InitHW        (void);
+void    OS_Idle          (void);
+void    BSP_OS_StartTimer(OS_U32 Cycles);
+OS_U64  BSP_OS_GetCycles (void);
+
+#define OS_TIME_GetTimestamp()  ((OS_U64)OS_Global.Time)
 
 /*********************************************************************
 *
@@ -3876,8 +3948,8 @@ OS_INTERWORK void OS_MPU_ErrorASM (OS_TASK* pTask, OS_MPU_ERRORCODE ErrorCode) O
 #define OS_TASK_Delayus                     OS_TASK_Delay_us
 #define OS_TIME_GetResultus                 OS_TIME_GetResult_us
 #define OS_TIME_GetCycles                   OS_TIME_Get_Cycles
-#define OS_TIME_Getus                       OS_TIME_Get_us
-#define OS_TIME_Getus64                     OS_TIME_Get_us64
+#define OS_TIME_Getus                       (OS_U32)OS_TIME_Get_us
+#define OS_TIME_Getus64                     OS_TIME_Get_us
 #define voidRoutine                         OS_ROUTINE_VOID
 #define OS_RX_CALLBACK                      OS_ROUTINE_CHAR
 #define OS_WD_RESET_CALLBACK                OS_ROUTINE_WD_PTR
@@ -3906,12 +3978,17 @@ OS_INTERWORK void OS_MPU_ErrorASM (OS_TASK* pTask, OS_MPU_ERRORCODE ErrorCode) O
 #define OS_InitCalled                       OS_Global.InitCalled
 #define OS_StackCheckLimit                  OS_Global.StackCheckLimit
 #define OS_InitialSuspendCnt                OS_Global.InitialSuspendCnt
-#define TicklessFactor                      TicklessPeriod
 //
-// Compatibility with pre V5.18.0 versions, renamed function and types
+// Further API renaming for embOS-Ultra
 //
-#define OS_MPU_Enable()                     OS_MPU_Init(&OS_MPU_DEFAULT_APILIST)
-#define OS_MPU_EnableEx                     OS_MPU_Init
+#define OS_TICK_HandleEx                    OS_TICK_Handle
+#define OS_TICK_HandleNoHook                OS_TICK_Handle
+#define OS_TICK_Config(a, b)
+#define OS_TIME_Convertms2Ticks(ms)         ((OS_U64)ms)
+#define OS_TIME_ConvertTicks2ms(t)          ((OS_U64)t)
+#define OS_TIME_GetTicks                    OS_TIME_Get_Ticks
+#define OS_TIME_GetTicks32                  (OS_I32)OS_TIME_Get_Ticks
+#define OS_TIME_GetInts                     (OS_U64)OS_TIME_Get_Ticks
 
 /********************************************************************/
 
