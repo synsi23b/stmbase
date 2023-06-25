@@ -1265,7 +1265,7 @@ namespace syn
 #endif
     }
 
-    bool read()
+    bool read() const
     {
       return _pPort->IDR & _bitmask;
     }
@@ -1754,6 +1754,7 @@ namespace syn
   public:
     void init(uint16_t number)
     {
+      _tclk = 0;
       _number = number;
       switch (number)
       {
@@ -1803,9 +1804,24 @@ namespace syn
       }
     }
 
+    void clear_arr()
+    {
+      _pTimer->ARR = 0;
+    }
+
     uint16_t value() const
     {
       return _pTimer->CNT;
+    }
+
+    uint16_t arr() const
+    {
+      return _pTimer->ARR;
+    }
+
+    uint32_t fupdate() const
+    {
+      return _tclk / arr();
     }
 
     uint16_t capture_1() const
@@ -1828,17 +1844,29 @@ namespace syn
       return _pTimer->CCR4;
     }
 
-    void setStepperHz(uint16_t hz)
+    uint16_t setStepperHz(uint16_t hz)
     {
-      // this is to maintain the limit of 16bit integer math.
-      // the lowest value possible is 11 hertz with a base timer of 120 ticks per period
-      // its a tradeoff between precission at high and low levels if not modifing the arr / ccr registers
-      if(hz < 11)
+      if(hz == 0)
       {
-        hz = 11;
+        _pTimer->ARR = 0;
+        _pTimer->EGR |= TIM_EGR_UG;
+        return 0;
       }
-      uint16_t psc = (SystemCoreClock / 120) / hz;
-      _pTimer->PSC = psc - 1; // + 1 internally
+      uint32_t arr = _tclk / hz / 2;
+      if(arr > UINT16_MAX)
+      {
+         arr = UINT16_MAX;
+      }
+      uint32_t prevarr = _pTimer->ARR;
+      _pTimer->ARR = arr;
+      if(prevarr == 0)
+      {
+        // generate an update event to push the values from shadow registers in real registers
+        // this is necessary because if the ARR is zero, the timers are stopped and wont generate
+        // the event that loads the new ARR value from shadow registers
+        _pTimer->EGR |= TIM_EGR_UG;
+      }
+      return (_tclk / 2) / arr;
     }
 
     void configStepper();
@@ -1967,6 +1995,7 @@ namespace syn
 
   private:
     TIM_TypeDef *_pTimer;
+    uint32_t _tclk;
     uint16_t _number;
   };
 

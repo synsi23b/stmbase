@@ -175,23 +175,24 @@ void Timer::configPwm(uint16_t prescaler, uint16_t reload, uint16_t startvalue)
 void Timer::configStepper()
 {
   _pTimer->CNT = 0;
-  _pTimer->ARR = 119;
-  setStepperHz(5000);
-  _pTimer->CCR1 = 60;
-  _pTimer->CCR2 = 60;
-  _pTimer->CCR3 = 60;
-  _pTimer->CCR4 = 60;
-  // setup the ouput compares to PWM Mode 2 without preload
-  _pTimer->CCMR1 = TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1 | TIM_CCMR1_OC2M_0 | TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_0;
-  _pTimer->CCMR2 = TIM_CCMR2_OC4M_2 | TIM_CCMR2_OC4M_1 | TIM_CCMR2_OC4M_0 | TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1 | TIM_CCMR2_OC3M_0;
+  _pTimer->PSC = 15; // 84MHz / 16 = 5.25MHz
+  _tclk = SystemCoreClock / 16;
+  _pTimer->ARR = 0;  // on biggest ARR (65535) is just above 80 Hz but, with toggle mode, the actual output is halfed again.
+  _pTimer->CCR1 = 0;
+  _pTimer->CCR2 = 0;
+  _pTimer->CCR3 = 0;
+  _pTimer->CCR4 = 0;
+  // setup the ouput compares to Toggle Mode
+  _pTimer->CCMR1 = TIM_CCMR1_OC2M_1 | TIM_CCMR1_OC2M_0 | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_0;
+  _pTimer->CCMR2 = TIM_CCMR2_OC4M_1 | TIM_CCMR2_OC4M_0 | TIM_CCMR2_OC3M_1 | TIM_CCMR2_OC3M_0;
   // enable output generation of the timer
   _pTimer->BDTR = TIM_BDTR_MOE | TIM_BDTR_AOE;
   // set the URS bit to not generate an interrupt when using the event gernation bit
   _pTimer->CR1 = TIM_CR1_URS;
   // generate an update event to push the values from shadow registers in real registers
   _pTimer->EGR |= TIM_EGR_UG;
-  // Start the timer
-  //_pTimer->CR1 = TIM_CR1_CEN;
+  // Start the timer, does not run because ARR is 0. ARR buffering enabled to prevent timer running past ARR when adjusting
+  _pTimer->CR1 = TIM_CR1_ARPE | TIM_CR1_URS | TIM_CR1_CEN;
 }
 
 void Timer::enablePwm(int8_t port, uint8_t pinnum, uint16_t channel, Gpio::Speed speed)
