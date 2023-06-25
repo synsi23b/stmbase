@@ -3,13 +3,13 @@
 *                        The Embedded Experts                        *
 **********************************************************************
 *                                                                    *
-*       (c) 1995 - 2022 SEGGER Microcontroller GmbH                  *
+*       (c) 1995 - 2023 SEGGER Microcontroller GmbH                  *
 *                                                                    *
 *       Internet: segger.com  Support: support_embos@segger.com      *
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       embOS * Real time operating system                           *
+*       embOS-Ultra * Real time operating system                     *
 *                                                                    *
 *       Please note:                                                 *
 *                                                                    *
