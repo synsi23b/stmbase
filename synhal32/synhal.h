@@ -1070,11 +1070,11 @@ namespace syn
       Timer_1_2 = 0x1,
       Timer_3_4_5 = 0x2,
       Timer_9_10_11 = 0x3,
-      I2C = 0x4,
+      I2C_1 = 0x4,
       SPI = 0x5,
       USART_1_2 = 0x7,
       USART_6 = 0x8,
-      I2C_2_SDA = 0x9,
+      I2C_2 = 0x9,
       OTG_FS = 0xA,
       SDIO_ = 0xC,
       EVENTOUT = 0xF

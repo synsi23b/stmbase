@@ -33,8 +33,8 @@ namespace i2c
         Gpio scl('B', 6);
         Gpio sda('B', 7);
 #endif
-        scl.mode(Gpio::out_alt_open_drain, Gpio::MHz_10);
-        sda.mode(Gpio::out_alt_open_drain, Gpio::MHz_10);
+        scl.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1);
+        sda.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1);
         // set irq priority highest - 1 possible with beeing able to call free rtos functions
         NVIC_SetPriority(I2C1_EV_IRQn, 10);
         NVIC_EnableIRQ(I2C1_EV_IRQn);
@@ -46,8 +46,8 @@ namespace i2c
         RCC->APB1ENR |= RCC_APB1ENR_I2C2EN;
         Gpio scl('B', 10);
         Gpio sda('B', 11);
-        scl.mode(Gpio::out_alt_open_drain, Gpio::MHz_10);
-        sda.mode(Gpio::out_alt_open_drain, Gpio::MHz_10);
+        scl.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_2);
+        sda.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_2);
         // set irq priority highest - 1 possible with beeing able to call free rtos functions
         NVIC_SetPriority(I2C2_EV_IRQn, 10);
         NVIC_EnableIRQ(I2C2_EV_IRQn);
@@ -57,12 +57,13 @@ namespace i2c
       _port->CR1 = 0;
       while (_port->CR1 & I2C_CR1_PE)
         ;
-      _port->CR2 = I2C_CR2_ITBUFEN | I2C_CR2_ITEVTEN | I2C_CR2_ITERREN | (36000000 / 1000000);
+      _port->CR2 = I2C_CR2_ITBUFEN | I2C_CR2_ITEVTEN | I2C_CR2_ITERREN | 36;
       if (_port == I2C1)
       {
+#ifdef STM32F103xB
 #if (SYN_ENABLE_I2C_1 == 400)
-        _port->CCR = I2C_CCR_FS | I2C_CCR_DUTY | (1250 / (1000000000 / 36000000));
-        _port->TRISE = (300 / (1000000000 / 36000000)) + 1;
+        _port->CCR = I2C_CCR_FS | I2C_CCR_DUTY | 4;
+        _port->TRISE = 11;
 #else
         _port->CCR = 5000 / (1000000000 / 36000000);
         _port->TRISE = (1000 / (1000000000 / 36000000)) + 1;
@@ -71,13 +72,14 @@ namespace i2c
       else
       {
 #if (SYN_ENABLE_I2C_2 == 400)
-        _port->CCR = I2C_CCR_FS | I2C_CCR_DUTY | (1250 / (1000000000 / 36000000));
-        _port->TRISE = (300 / (1000000000 / 36000000)) + 1;
+        _port->CCR = I2C_CCR_FS | I2C_CCR_DUTY | 4;
+        _port->TRISE = 11;
 #else
         _port->CCR = 5000 / (1000000000 / 36000000);
         _port->TRISE = (1000 / (1000000000 / 36000000)) + 1;
 #endif
       }
+#endif //STM32F103xB
       _port->CR1 = I2C_CR1_PE;
     }
 
