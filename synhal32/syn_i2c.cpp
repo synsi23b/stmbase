@@ -247,7 +247,17 @@ namespace i2c
 #endif
 } // namespace i2c
 
+I2cMaster::I2cMaster()
+{
+
+}
+
 I2cMaster::I2cMaster(uint16_t port, uint8_t address)
+{
+  init(port, address);
+}
+
+void syn::I2cMaster::init(uint16_t port, uint8_t address)
 {
   OS_ASSERT(port == 1 || port == 2, ERR_BAD_PORT_NAME);
   if (port == 1)
@@ -267,10 +277,6 @@ I2cMaster::I2cMaster(uint16_t port, uint8_t address)
 #endif
   }
   _address = address;
-}
-
-void syn::I2cMaster::init()
-{
   ((i2c::Device *)_pdev)->init();
 }
 

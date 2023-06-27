@@ -2025,9 +2025,10 @@ namespace syn
   class I2cMaster
   {
   public:
+    I2cMaster();
     I2cMaster(uint16_t port, uint8_t address);
 
-    void init();
+    void init(uint16_t port, uint8_t address);
     bool write(uint8_t *data, uint16_t size);
     bool read(uint8_t *data, uint16_t size);
 
