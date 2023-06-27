@@ -207,7 +207,7 @@ namespace mtl
       bool ret = false;
       if (_count != 0)
       {
-        --_count;
+        _count -= 1;
         v = *_readptr++;
         if (_readptr == &_buffer[Size])
         {
@@ -299,7 +299,7 @@ namespace mtl
   private:
     void _push(const Value_t &v)
     {
-      ++_count;
+      _count += 1;
       *_writeptr++ = v;
       if (_writeptr == &_buffer[Size])
       {

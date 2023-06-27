@@ -109,34 +109,6 @@ static int _OS_OnTX(unsigned int Unit) {
 }
 #endif
 
-/*********************************************************************
-*
-*       _OS_GetHWTimerCycles()
-*
-*  Function description
-*    Returns the current hardware timer count value.
-*
-*  Return value
-*    Current timer count value.
-*/
-static unsigned int _OS_GetHWTimerCycles(void) {
-  return SysTick->VAL;
-}
-
-/*********************************************************************
-*
-*       _OS_GetHWTimer_IntPending()
-*
-*  Function description
-*    Returns if the hardware timer interrupt pending flag is set.
-*
-*  Return value
-*    == 0: Interrupt pending flag not set.
-*    != 0: Interrupt pending flag set.
-*/
-static unsigned int _OS_GetHWTimer_IntPending(void) {
-  return SCB->ICSR & SCB_ICSR_PENDSTSET_Msk;
-}
 
 /*********************************************************************
 *

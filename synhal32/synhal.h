@@ -1254,8 +1254,8 @@ namespace syn
     void setWeakPullUpDown(bool pull_up, bool pull_down)
     {
 #ifdef STM32F103xB
-      pull_up = pull_up;
-      pull_down = pull_down;
+      (void)pull_up;
+      (void)pull_down;
 #else
       _pPort->PUPDR &= ~(0x3 << (_pin * 2));
       if(pull_up)
@@ -1664,7 +1664,7 @@ namespace syn
     void start(uint32_t channel = 0)
     {
 #ifdef STM32F103xB
-      channel = channel;
+      (void)channel;
       _pChannel->CCR |= DMA_CCR1_EN;
 #endif
 #ifdef STM32F401xC
