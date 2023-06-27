@@ -4,6 +4,7 @@
     LIBRARY_IO_TYPE="RTT"
     Name="Common"
     arm_compiler_variant="SEGGER"
+    arm_linker_heap_size="{heap_size}"
     gcc_cplusplus_language_standard="gnu++20" />
   <configuration
     Name="Debug"
@@ -33,7 +34,6 @@
       arm_compiler_variant="SEGGER"
       LIBRARY_HEAP_TYPE="Basic"
       LIBRARY_IO_TYPE="RTT"
-      arm_linker_heap_size="{heap_size}"
       arm_linker_process_stack_size="0"
       arm_linker_stack_size="1024"
       arm_linker_variant="SEGGER"
