@@ -3,13 +3,13 @@
 *                        The Embedded Experts                        *
 **********************************************************************
 *                                                                    *
-*       (c) 1995 - 2020 SEGGER Microcontroller GmbH                  *
+*       (c) 1995 - 2022 SEGGER Microcontroller GmbH                  *
 *                                                                    *
 *       Internet: segger.com  Support: support_embos@segger.com      *
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       embOS * Real time operating system for microcontrollers      *
+*       embOS * Real time operating system                           *
 *                                                                    *
 *       Please note:                                                 *
 *                                                                    *
@@ -21,7 +21,7 @@
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       OS version: V5.8.2.0                                         *
+*       OS version: V5.18.0.0                                        *
 *                                                                    *
 **********************************************************************
 
@@ -71,7 +71,7 @@ Purpose : Initializes and handles the hardware for embOS
 **********************************************************************
 */
 #if (OS_VIEW_IFSELECT == OS_VIEW_IF_JLINK)
-  const OS_U32 OS_JLINKMEM_BufferSize = 64u;  // Size of the communication buffer for JLINKMEM
+  const OS_U32 OS_JLINKMEM_BufferSize = 32u;  // Size of the communication buffer for JLINKMEM
 #else
   const OS_U32 OS_JLINKMEM_BufferSize = 0u;   // Buffer not used
 #endif
@@ -92,7 +92,7 @@ Purpose : Initializes and handles the hardware for embOS
 *    Callback wrapper function for BSP UART module.
 */
 static void _OS_OnRX(unsigned int Unit, unsigned char c) {
-  OS_USEPARA(Unit);
+  OS_USE_PARA(Unit);
   OS_COM_OnRx(c);
 }
 
@@ -104,7 +104,7 @@ static void _OS_OnRX(unsigned int Unit, unsigned char c) {
 *    Callback wrapper function for BSP UART module.
 */
 static int _OS_OnTX(unsigned int Unit) {
-  OS_USEPARA(Unit);
+  OS_USE_PARA(Unit);
   return (int)OS_COM_OnTx();
 }
 #endif
@@ -144,6 +144,92 @@ static unsigned int _OS_GetHWTimer_IntPending(void) {
 *
 **********************************************************************
 */
+/*********************************************************************
+*
+*       BSP_OS_GetCycles()
+*
+*  Function description
+*    Calculates the current time in counter cycles since reset.
+*
+*  Return value
+*    current time in counter cycles since reset.
+*/
+OS_U64 BSP_OS_GetCycles(void) {
+  OS_U32 TimerCycles;
+  OS_U32 CycleCntLow;
+  OS_U32 CycleCntHigh;
+  OS_U32 CycleCntCompare;
+  OS_U64 CycleCnt64;
+
+  do {
+    CycleCnt64   = OS_TIME_GetTimestamp();      // Read current OS_Global.Time
+    CycleCntLow  = (OS_U32)CycleCnt64;          // Extract lower word of OS_Global.Time
+    CycleCntHigh = (OS_U32)(CycleCnt64 >> 32);  // Extract higher word of OS_Global.Time
+    TimerCycles  = DWT->CYCCNT;                 // Read current hardware CycleCount
+    //
+    // CycleCnt64 and TimerCycles need to be retrieved "simultaneously" for the below calculation to work:
+    // If the above code is interrupted after retrieving OS_Global.Time, but before reading the hardware counter,
+    // it may happen that the hardware counter overflows multiple times before returning here.
+    // We could then no longer accurately compare (TimerCycles < CycleCntLow) below.
+    //
+    // Hence, we check if the upper word of OS_Global.Time still matches the value we retrieved earlier and repeat
+    // the process if it doesn't. This works because OS_Global.Time is updated once per timer interrupt, and the timer
+    // interrupt must be more frequent than the hardware counter overflow, so any overflow has necessarily incremented the upper word.
+    //
+    CycleCntCompare = (OS_U32)(OS_TIME_GetTimestamp() >> 32);
+  } while (CycleCntHigh != CycleCntCompare);
+  //
+  // Calculate the current time in counter cycles since reset.
+  // This is done by simply copying the 32 bit hardware time stamp into the lower 32 bits of OS_Global.Time, while
+  // the upper 32 bits of OS_Global.Time count the number of overflows of the hardware counter.
+  // Therefore, we compare the lower 32 bits of OS_Global.Time to the newly retrieved hardware time stamp:
+  //
+  if (TimerCycles < CycleCntLow) {
+    //
+    // The hardware counter has overflown and we must increment the upper 32 bits of OS_Global.Time.
+    //
+    CycleCnt64 = ((OS_U64)(CycleCntHigh + 1u) << 32) + TimerCycles;
+  } else {
+    //
+    // The hardware counter has not overflown and we do not perform any additional action.
+    //
+    CycleCnt64 = ((OS_U64)CycleCntHigh << 32) + TimerCycles;
+  }
+  return CycleCnt64;
+}
+
+/*********************************************************************
+*
+*       BSP_OS_StartTimer()
+*
+*  Function description
+*    Program the hardware timer required for embOS's time base.
+*    The used hardware timer must generate an interrupt before the used counter completes a full loop.
+*
+*  Parameters
+*    Cycles: The amount of cycles after which the hardware timer shall generate an interrupt.
+*/
+void BSP_OS_StartTimer(OS_U32 Cycles) {
+  SysTick->CTRL = SysTick_CTRL_CLKSOURCE_Msk
+                | SysTick_CTRL_TICKINT_Msk;  // Disable SysTick
+#if (OS_VIEW_IFSELECT == OS_VIEW_IF_JLINK)
+  //
+  // If embOSView via J-Link is selected, JLINKMEM_Process() needs to be executed periodically by the application.
+  // In this exemplary BSP implementation, JLINKMEM_Process() is called from the SysTick_Handler().
+  // We therefore limit the system tick to occur after a maximum of 10 milliseconds,
+  // guaranteeing JLINKMEM_Process() is executed at least every 10 milliseconds.
+  //
+  if (Cycles > (SystemCoreClock / 100u)) {
+    Cycles = SystemCoreClock / 100u;
+  }
+#endif
+  SysTick->LOAD = Cycles;                    // Set reload register
+  SysTick->VAL  = 0u;                        // Load the SysTick Counter Value
+  SysTick->CTRL = SysTick_CTRL_ENABLE_Msk
+                | SysTick_CTRL_CLKSOURCE_Msk
+                | SysTick_CTRL_TICKINT_Msk;  // Enable SysTick
+  SysTick->LOAD = 0u;                        // Make sure we receive one interrupt only by clearing the reload value
+}
 
 /*********************************************************************
 *
@@ -153,11 +239,8 @@ static unsigned int _OS_GetHWTimer_IntPending(void) {
 *    This is the hardware timer exception handler.
 */
 void SysTick_Handler(void) {
-#if (OS_PROFILE != 0)
-  if (SEGGER_SYSVIEW_DWT_IS_ENABLED() == 0u) {
-    SEGGER_SYSVIEW_TickCnt++;
-  }
-#endif
+  SysTick->CTRL = SysTick_CTRL_CLKSOURCE_Msk
+                | SysTick_CTRL_TICKINT_Msk;  // Disable SysTick
   OS_INT_EnterNestable();
   OS_TICK_Handle();
 #if (OS_VIEW_IFSELECT == OS_VIEW_IF_JLINK)
@@ -180,6 +263,7 @@ void OS_InitHW(void) {
   // Might be necessary for RAM targets or application not running from 0x00.
   //
 #if (defined(__VTOR_PRESENT) && __VTOR_PRESENT == 1)
+  extern int __Vectors;
   SCB->VTOR = (OS_U32)&__Vectors;
 #endif
   //
@@ -192,24 +276,36 @@ void OS_InitHW(void) {
   SCB_EnableDCache();
 #endif
   //
-  // We assume PLL and core clock were already set by the SystemInit() function,
-  // which was called from the startup code. Therefore, we just ensure the system
-  // clock variable is updated and then set the periodic system timer tick for embOS.
-  //
-  SystemCoreClockUpdate();                                        // Update the system clock variable (might not have been set before)
-  SysTick_Config(OS_TIMER_FREQ / OS_INT_FREQ);                    // Setup SysTick Timer
-  NVIC_SetPriority(SysTick_IRQn, (1u << __NVIC_PRIO_BITS) - 2u);  // Set the priority higher than the PendSV priority
-  //
-  // Inform embOS about the timer settings
+  // Inform embOS about the frequency of the counter
   //
   {
-    OS_SYSTIMER_CONFIG SysTimerConfig = {OS_TIMER_FREQ, OS_INT_FREQ, OS_TIMER_DOWNCOUNTING, _OS_GetHWTimerCycles, _OS_GetHWTimer_IntPending};
+    SystemCoreClockUpdate();
+    OS_SYSTIMER_CONFIG SysTimerConfig = { SystemCoreClock };
     OS_TIME_ConfigSysTimer(&SysTimerConfig);
   }
   //
+  // Start the counter (here: cycle counter)
+  //
+  if ((CoreDebug->DEMCR & CoreDebug_DEMCR_TRCENA_Msk) == 0) {  // Trace not enabled?
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;            // Enable trace
+  }
+  if ((DWT->CTRL & DWT_CTRL_NOCYCCNT_Msk) == 0) {              // Cycle counter supported?
+    if ((DWT->CTRL & DWT_CTRL_CYCCNTENA_Msk) == 0) {           // Cycle counter not enabled?
+      DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;                     // Enable Cycle counter
+    }
+  }
+  //
+  // Start the hardware timer (here: SysTick)
+  //
+  NVIC_SetPriority(SysTick_IRQn, (1u << __NVIC_PRIO_BITS) - 2u);  // Set the priority higher than the PendSV priority
+  BSP_OS_StartTimer(0xFFFFFFFFu);
+  //
   // Configure and initialize SEGGER SystemView
   //
-#if (OS_PROFILE != 0)
+  //
+  // Configure and initialize SEGGER SystemView
+  //
+#if (OS_SUPPORT_TRACE_API != 0)
   SEGGER_SYSVIEW_Conf();
 #endif
   //
@@ -273,7 +369,7 @@ void OS_COM_Send1(OS_U8 c) {
 #elif (OS_VIEW_IFSELECT == OS_VIEW_IF_UART)
   BSP_UART_Write1(OS_UART, c);
 #elif (OS_VIEW_IFSELECT == OS_VIEW_DISABLED)
-  OS_USEPARA(c);           // Avoid compiler warning
+  OS_USE_PARA(c);          // Avoid compiler warning
   OS_COM_ClearTxActive();  // Let embOS know that Tx is not busy
 #endif
 }

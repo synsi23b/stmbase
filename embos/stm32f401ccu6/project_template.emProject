@@ -1,6 +1,11 @@
 <!DOCTYPE CrossStudio_Project_File>
 <solution Name="{project}" target="8" version="2">
   <configuration
+    LIBRARY_IO_TYPE="RTT"
+    Name="Common"
+    arm_compiler_variant="SEGGER"
+    gcc_cplusplus_language_standard="gnu++20" />
+  <configuration
     Name="Debug"
     c_preprocessor_definitions="DEBUG;OS_LIBMODE_DP"
     gcc_debugging_level="Level 3"
@@ -46,7 +51,6 @@
       debug_register_definition_file="$(ProjectDir)/stmbase/embos/stm32f401ccu6/STM32F401_Registers.xml"
       debug_target_connection="J-Link"
       debug_threads_script="$(ProjectDir)/stmbase/embos/embOSPluginSES.js"
-      gcc_cplusplus_language_standard="gnu++14"
       gcc_entry_point="Reset_Handler"
       link_linker_script_file="$(ProjectDir)/stmbase/embos/stm32f401ccu6/STM32F4xx_Flash.icf"
       linker_additional_options="--gc-sections"

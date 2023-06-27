@@ -3869,7 +3869,7 @@ OS_INTERWORK void OS_MPU_ErrorASM (OS_TASK* pTask, OS_MPU_ERRORCODE ErrorCode) O
 #define OS_Timing_GetCycles                 OS_TIME_GetResult
 #define OS_Timing_Getus                     OS_TIME_GetResult_us
 #define OS_GetTime_us                       OS_TIME_Get_us
-#define OS_GetTime_us64                     OS_TIME_Get_us64
+#define OS_GetTime_us64                     OS_TIME_Getus64
 #define OS_Timing_Start                     OS_TIME_StartMeasurement
 #define OS_Timing_End                       OS_TIME_StopMeasurement
 #define OS_AdjustTime                       OS_TICKLESS_AdjustTime

@@ -1,5 +1,27 @@
 <!DOCTYPE CrossStudio_Project_File>
 <solution Name="{project}" target="8" version="2">
+  <configuration
+    LIBRARY_IO_TYPE="RTT"
+    Name="Common"
+    arm_compiler_variant="SEGGER"
+    gcc_cplusplus_language_standard="gnu++20" />
+  <configuration
+    Name="Debug"
+    c_preprocessor_definitions="DEBUG;OS_LIBMODE_DP"
+    gcc_debugging_level="Level 3"
+    gcc_optimization_level="None" />
+  <configuration
+    Name="Release"
+    c_preprocessor_definitions="NDEBUG;OS_LIBMODE_R"
+    gcc_debugging_level="None"
+    gcc_omit_frame_pointer="Yes"
+    gcc_optimization_level="Level 3" />
+  <configuration
+    Name="Release Profiling"
+    c_preprocessor_definitions="NDEBUG;OS_LIBMODE_SP"
+    gcc_debugging_level="None"
+    gcc_omit_frame_pointer="Yes"
+    gcc_optimization_level="Level 3" />
   <project Name="{project}">
     <configuration
       LIBRARY_IO_TYPE="RTT"
@@ -113,21 +135,4 @@
       <file file_name="stmbase/synhal32/syn_spi.cpp" />
     </folder>
   </project>
-  <configuration
-    Name="Debug"
-    c_preprocessor_definitions="DEBUG;OS_LIBMODE_DP"
-    gcc_debugging_level="Level 3"
-    gcc_optimization_level="None" />
-  <configuration
-    Name="Release Profiling"
-    c_preprocessor_definitions="NDEBUG;OS_LIBMODE_SP"
-    gcc_debugging_level="None"
-    gcc_omit_frame_pointer="Yes"
-    gcc_optimization_level="Level 3" />
-  <configuration
-    Name="Release"
-    c_preprocessor_definitions="NDEBUG;OS_LIBMODE_R"
-    gcc_debugging_level="None"
-    gcc_omit_frame_pointer="Yes"
-    gcc_optimization_level="Level 3" />
 </solution>

@@ -1,5 +1,27 @@
 <!DOCTYPE CrossStudio_Project_File>
 <solution Name="{project}" target="8" version="2">
+  <configuration
+    LIBRARY_IO_TYPE="RTT"
+    Name="Common"
+    arm_compiler_variant="SEGGER"
+    gcc_cplusplus_language_standard="gnu++20" />
+  <configuration
+    Name="Debug"
+    c_preprocessor_definitions="DEBUG;OS_LIBMODE_DP"
+    gcc_debugging_level="Level 3"
+    gcc_optimization_level="None" />
+  <configuration
+    Name="Release"
+    c_preprocessor_definitions="NDEBUG;OS_LIBMODE_R"
+    gcc_debugging_level="None"
+    gcc_omit_frame_pointer="Yes"
+    gcc_optimization_level="Level 3" />
+  <configuration
+    Name="Release Profiling"
+    c_preprocessor_definitions="NDEBUG;OS_LIBMODE_SP"
+    gcc_debugging_level="None"
+    gcc_omit_frame_pointer="Yes"
+    gcc_optimization_level="Level 3" />
   <project Name="{project}">
     <configuration
       Name="Common"
@@ -23,7 +45,6 @@
       debug_register_definition_file="$(ProjectDir)/stmbase/embos/stm32f103c8/STM32F103xx_Registers.xml"
       debug_target_connection="J-Link"
       debug_threads_script="$(ProjectDir)/stmbase/embos/embOSPluginSES.js"
-      gcc_cplusplus_language_standard="gnu++14"
       gcc_entry_point="Reset_Handler"
       link_linker_script_file="$(ProjectDir)/stmbase/embos/stm32f103c8/STM32F103_Flash.icf"
       linker_additional_options="--gc-sections"
@@ -34,10 +55,36 @@
       target_reset_script="Reset();"
       target_script_file="$(ProjectDir)/stmbase/embos/stm32f103c8/STM32F1xx_Target.js" />
     <folder Name="sys_SEGGER">
-      <file file_name="$(ProjectDir)/stmbase/embos/common/SEGGER_RTT.c" />
-      <file file_name="$(ProjectDir)/stmbase/embos/common/SEGGER_RTT_Syscalls_SES.c">
+      <configuration Name="Debug" gcc_optimization_level="Level 3" />
+      <folder Name="Lib">
+        <file file_name="$(ProjectDir)/stmbase/embos/lib/libos_v7m_t_le_dp.a">
+          <configuration Name="Release" build_exclude_from_build="Yes" />
+          <configuration
+            Name="Release Profiling"
+            build_exclude_from_build="Yes" />
+        </file>
+        <file file_name="$(ProjectDir)/stmbase/embos/lib/libos_v7m_t_le_r.a">
+          <configuration Name="Debug" build_exclude_from_build="Yes" />
+          <configuration
+            Name="Release Profiling"
+            build_exclude_from_build="Yes" />
+        </file>
+        <file file_name="$(ProjectDir)/stmbase/embos/lib/libos_v7m_t_le_sp.a">
+          <configuration Name="Debug" build_exclude_from_build="Yes" />
+          <configuration Name="Release" build_exclude_from_build="Yes" />
+        </file>
+      </folder>
+      <file file_name="$(ProjectDir)/stmbase/embos/common/HardFaultHandler.S" />
+      <file file_name="$(ProjectDir)/stmbase/embos/common/JLINKMEM_Process.c">
+        <configuration Name="Release" build_exclude_from_build="No" />
+      </file>
+      <file file_name="$(ProjectDir)/stmbase/embos/common/OS_Error.c">
         <configuration Name="Release" build_exclude_from_build="Yes" />
       </file>
+      <file file_name="$(ProjectDir)/stmbase/embos/common/OS_ThreadSafe.c" />
+      <file file_name="stmbase/embos/common/RTOS.h" />
+      <file file_name="$(ProjectDir)/stmbase/embos/common/SEGGER_HardFaultHandler.c" />
+      <file file_name="$(ProjectDir)/stmbase/embos/common/SEGGER_RTT.c" />
       <file file_name="$(ProjectDir)/stmbase/embos/common/SEGGER_RTT_ASM_ARMv7M.S">
         <configuration Name="Release" build_exclude_from_build="Yes" />
       </file>
@@ -50,44 +97,15 @@
       <file file_name="$(ProjectDir)/stmbase/embos/common/SEGGER_SYSVIEW_embOS.c">
         <configuration Name="Release" build_exclude_from_build="Yes" />
       </file>
-      <file file_name="$(ProjectDir)/stmbase/embos/common/JLINKMEM_Process.c">
-        <configuration Name="Release" build_exclude_from_build="No" />
-      </file>
-      <file file_name="$(ProjectDir)/stmbase/embos/common/OS_Error.c">
-        <configuration Name="Release" build_exclude_from_build="Yes" />
-      </file>
-      <file file_name="$(ProjectDir)/stmbase/embos/common/OS_ThreadSafe.c" />
-      <file file_name="$(ProjectDir)/stmbase/embos/common/HardFaultHandler.S" />
-      <file file_name="$(ProjectDir)/stmbase/embos/common/SEGGER_HardFaultHandler.c" />
-      <folder Name="Lib">
-        <file file_name="$(ProjectDir)/stmbase/embos/lib/libos_v7m_t_le_dp.a">
-          <configuration Name="Release" build_exclude_from_build="Yes" />
-          <configuration
-            Name="Release Profiling"
-            build_exclude_from_build="Yes" />
-        </file>
-        <file file_name="$(ProjectDir)/stmbase/embos/lib/libos_v7m_t_le_sp.a">
-          <configuration Name="Debug" build_exclude_from_build="Yes" />
-          <configuration Name="Release" build_exclude_from_build="Yes" />
-        </file>
-        <file file_name="$(ProjectDir)/stmbase/embos/lib/libos_v7m_t_le_r.a">
-          <configuration Name="Debug" build_exclude_from_build="Yes" />
-          <configuration
-            Name="Release Profiling"
-            build_exclude_from_build="Yes" />
-        </file>
-      </folder>
-      <file file_name="stmbase/embos/common/RTOS.h" />
-      <configuration Name="Debug" gcc_optimization_level="Level 3" />
     </folder>
     <folder Name="sys_Setup">
-      <file file_name="$(ProjectDir)/stmbase/embos/stm32f103c8/SEGGER_THUMB_Startup.s" />
       <file file_name="$(ProjectDir)/stmbase/embos/stm32f103c8/RTOSInit_STM32F1xx.c" />
+      <file file_name="$(ProjectDir)/stmbase/embos/stm32f103c8/SEGGER_THUMB_Startup.s" />
       <file file_name="$(ProjectDir)/stmbase/embos/stm32f103c8/STM32F103_Flash.icf" />
-      <file file_name="$(ProjectDir)/stmbase/embos/stm32f103c8/system_stm32f10x.c" />
       <file file_name="$(ProjectDir)/stmbase/embos/stm32f103c8/STM32F103xx_Vectors.s" />
-      <file file_name="$(ProjectDir)/stmbase/embos/stm32f103c8/STM32F1xx_Startup.s" />
       <file file_name="stmbase/embos/stm32f103c8/stm32f10x.h" />
+      <file file_name="$(ProjectDir)/stmbase/embos/stm32f103c8/STM32F1xx_Startup.s" />
+      <file file_name="$(ProjectDir)/stmbase/embos/stm32f103c8/system_stm32f10x.c" />
     </folder>
     <folder Name="src">
       <configuration Name="Common" filter="c;cpp;cxx;cc;h;s;asm;inc" />
@@ -96,8 +114,6 @@
       <file file_name="src/synhal_isr.h" />
     </folder>
     <folder Name="synhal">
-      <file file_name="stmbase/synhal32/synhal.h" />
-      <file file_name="stmbase/synhal32/synhal.cpp" />
       <file file_name="stmbase/synhal32/mtl.h" />
       <file file_name="stmbase/synhal32/syn_adc.cpp" />
       <file file_name="stmbase/synhal32/syn_dma.cpp" />
@@ -106,23 +122,8 @@
       <file file_name="stmbase/synhal32/syn_i2c.cpp" />
       <file file_name="stmbase/synhal32/syn_timer.cpp" />
       <file file_name="stmbase/synhal32/syn_usb.cpp" />
+      <file file_name="stmbase/synhal32/synhal.cpp" />
+      <file file_name="stmbase/synhal32/synhal.h" />
     </folder>
   </project>
-  <configuration
-    Name="Debug"
-    c_preprocessor_definitions="DEBUG;OS_LIBMODE_DP"
-    gcc_debugging_level="Level 3"
-    gcc_optimization_level="None" />
-  <configuration
-    Name="Release Profiling"
-    c_preprocessor_definitions="NDEBUG;OS_LIBMODE_SP"
-    gcc_debugging_level="None"
-    gcc_omit_frame_pointer="Yes"
-    gcc_optimization_level="Level 3" />
-  <configuration
-    Name="Release"
-    c_preprocessor_definitions="NDEBUG;OS_LIBMODE_R"
-    gcc_debugging_level="None"
-    gcc_omit_frame_pointer="Yes"
-    gcc_optimization_level="Level 3" />
 </solution>
