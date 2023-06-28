@@ -62,24 +62,26 @@ namespace i2c
       {
 #ifdef STM32F103xB
 #if (SYN_ENABLE_I2C_1 == 400)
-        _port->CCR = I2C_CCR_FS | I2C_CCR_DUTY | 4;
+        _port->CCR = I2C_CCR_FS | 30;
         _port->TRISE = 11;
 #else
-        _port->CCR = 5000 / (1000000000 / 36000000);
-        _port->TRISE = (1000 / (1000000000 / 36000000)) + 1;
+        _port->CCR = 180;
+        _port->TRISE = 36;
 #endif
       }
       else
       {
 #if (SYN_ENABLE_I2C_2 == 400)
-        _port->CCR = I2C_CCR_FS | I2C_CCR_DUTY | 4;
+        _port->CCR = I2C_CCR_FS | 30;
         _port->TRISE = 11;
 #else
-        _port->CCR = 5000 / (1000000000 / 36000000);
-        _port->TRISE = (1000 / (1000000000 / 36000000)) + 1;
+        _port->CCR = 180;
+        _port->TRISE = 36;
 #endif
       }
-#endif //STM32F103xB
+#else //STM32F103xB
+      OS_ASSERT(true == false, ERR_NOT_IMPLMENTED);
+#endif 
       _port->CR1 = I2C_CR1_PE;
     }
 
@@ -103,11 +105,11 @@ namespace i2c
           // dont even set the ACK bit
           _port->CR1 = I2C_CR1_START | I2C_CR1_PE;
         }
-        else if (size == 2)
-        {
-          // set ACK and POS to nack the 2nd byte
-          _port->CR1 = I2C_CR1_POS | I2C_CR1_ACK | I2C_CR1_START | I2C_CR1_PE;
-        }
+        // else if (size == 2)
+        // {
+        //   // set ACK and POS to nack the 2nd byte
+        //   _port->CR1 = I2C_CR1_POS | I2C_CR1_ACK | I2C_CR1_START | I2C_CR1_PE;
+        // }
         else
         {
           _port->CR1 = I2C_CR1_ACK | I2C_CR1_START | I2C_CR1_PE;
@@ -143,7 +145,7 @@ namespace i2c
           if (_remain == 0)
           {
             // only had to transmit one byte, set stop to finish after this
-            _port->CR1 |= I2C_CR1_STOP;
+            _port->CR1 = I2C_CR1_STOP | I2C_CR1_PE;
           }
         }
         else
@@ -151,13 +153,13 @@ namespace i2c
           if (_remain == 1)
           {
             // 1 byte reception, assert the stop allready
-            _port->CR1 |= I2C_CR1_STOP;
+            _port->CR1 = I2C_CR1_STOP | I2C_CR1_PE;
           }
-          else if (_remain == 2)
-          {
-            // 2 byte reception clear ack
-            _port->CR1 &= ~I2C_CR1_ACK;
-          }
+          // else if (_remain == 2)
+          // {
+          //   // 2 byte reception clear ack
+          //   _port->CR1 = I2C_CR1_PE;
+          // }
         }
       }
       else if (status_1 & I2C_SR1_RXNE)
@@ -165,20 +167,21 @@ namespace i2c
         // need to read data from the rx buffer
         *_data++ = _port->DR;
         --_remain;
-        if (_remain == 2)
+        // if (_remain == 2)
+        // {
+        //   // clear ACK
+        //   //_port->CR1 &= ~I2C_CR1_ACK;
+        // }
+        if (_remain == 1)
         {
-          // clear ACK
-          _port->CR1 &= ~I2C_CR1_ACK;
-        }
-        else if (_remain == 1)
-        {
-          // assert stop
-          _port->CR1 |= I2C_CR1_STOP;
+          // assert stop and clear ACK to NACK byte currently in shift register
+          //_port->CR1 &= ~I2C_CR1_ACK;
+          _port->CR1 = I2C_CR1_STOP | I2C_CR1_PE;
         }
         else if (_remain == 0)
         {
           // donezo
-          _port->CR1 |= I2C_CR1_STOP;
+          _port->CR1 = I2C_CR1_STOP | I2C_CR1_PE;
           *_success = 1;
           _data = 0;
           _opdone.set();
@@ -195,7 +198,7 @@ namespace i2c
         else
         {
           // this was the last byte, transmit stop condtion. and donezo
-          _port->CR1 |= I2C_CR1_STOP;
+          _port->CR1 = I2C_CR1_STOP | I2C_CR1_PE;
           *_success = 1;
           _data = 0;
           _opdone.set();
@@ -206,10 +209,10 @@ namespace i2c
     void isr_err()
     {
       _port->SR1 = 0;
-      _port->CR1 &= ~I2C_CR1_PE;
+      _port->CR1 = 0;
       System::nop();
       System::nop();
-      _port->CR1 |= I2C_CR1_PE;
+      _port->CR1 = I2C_CR1_PE;
       *_success = 2;
       _data = 0;
       _opdone.set();

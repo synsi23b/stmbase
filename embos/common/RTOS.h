@@ -1245,6 +1245,7 @@ typedef enum {
   ERR_BUFFER_OVERFLOW                    =   (6u),
   ERR_FORBIDDEN                          =   (7u),
   ERR_IRQ_HANDLER_MISSING                =   (8u),
+  ERR_NOT_IMPLMENTED                     =   (9u),
   ERR_CUBE_HAL_SUCKS                     =  (99u),
 // Port 100..109 *********************************
   OS_ERR_ISR_INDEX                       = (100u),  // Index value out of bounds during interrupt controller initialization or interrupt installation.
