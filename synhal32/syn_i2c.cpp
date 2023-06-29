@@ -14,27 +14,38 @@ namespace i2c
       _data = 0;
     }
 
-    void init()
+    void init(bool remap)
     {
       Atomic a;
-      if (_isinit)
-        return;
-      _isinit = true;
-      _opdone.init();
+      if (!_isinit)
+      {
+        _isinit = true;
+        _opdone.init();
+      }
 
       if (_port == I2C1)
       {
         RCC->APB1ENR |= RCC_APB1ENR_I2C1EN;
-#if (SYN_I2C_1_REMAP == 0)
+//#if (SYN_I2C_1_REMAP == 0)
+if (!remap)
+{
         Gpio::remap(Gpio::i2c1_scl_pb8_sda_pb9);
         Gpio scl('B', 8);
         Gpio sda('B', 9);
-#else
-        Gpio scl('B', 6);
-        Gpio sda('B', 7);
-#endif
         scl.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1);
         sda.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1);
+}
+//#else
+else
+{
+        Gpio::clear_remap(Gpio::i2c1_scl_pb8_sda_pb9);
+        Gpio scl('B', 6);
+        Gpio sda('B', 7);
+        scl.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1);
+        sda.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1);
+}
+//#endif
+
         // set irq priority highest - 1 possible with beeing able to call free rtos functions
         NVIC_SetPriority(I2C1_EV_IRQn, 10);
         NVIC_EnableIRQ(I2C1_EV_IRQn);
@@ -204,6 +215,14 @@ namespace i2c
           _opdone.set();
         }
       }
+      else if(status_1 & I2C_SR1_STOPF)
+      {
+        _port->CR1 = I2C_CR1_PE;
+      }
+      else if(status_1 & I2C_SR1_BERR)
+      {
+        _port->SR1 = ~I2C_SR1_BERR;
+      }
     }
 
     void isr_err()
@@ -216,6 +235,19 @@ namespace i2c
       *_success = 2;
       _data = 0;
       _opdone.set();
+    }
+
+    void on()
+    {
+      _port->CR1 = I2C_CR1_PE;
+    }
+
+    void off()
+    {
+      _port->CR1 = I2C_CR1_SWRST;
+      System::nop();
+      System::nop();
+      _port->CR1 = 0;
     }
 
   private:
@@ -259,10 +291,10 @@ I2cMaster::I2cMaster()
 
 I2cMaster::I2cMaster(uint16_t port, uint8_t address)
 {
-  init(port, address);
+  init(port, address, false);
 }
 
-void syn::I2cMaster::init(uint16_t port, uint8_t address)
+void syn::I2cMaster::init(uint16_t port, uint8_t address, bool remap)
 {
   OS_ASSERT(port == 1 || port == 2, ERR_BAD_PORT_NAME);
   if (port == 1)
@@ -282,7 +314,7 @@ void syn::I2cMaster::init(uint16_t port, uint8_t address)
 #endif
   }
   _address = address;
-  ((i2c::Device *)_pdev)->init();
+  ((i2c::Device *)_pdev)->init(remap);
 }
 
 bool syn::I2cMaster::write(uint8_t *data, uint16_t size)
@@ -314,6 +346,68 @@ bool syn::I2cMaster::read(uint8_t *data, uint16_t size)
   }
   return state == 1;
 }
+
+#ifdef SYN_I2C_ENABLE_DYN_REMAP
+Gpio _scl_a;
+Gpio _sda_a;
+Gpio _scl_b;
+Gpio _sda_b;
+
+void syn::I2cMaster::init_runtime_remap_i2c1()
+{
+  // put the correct working mode to the other pins that have not been set by the ini function
+#ifdef STM32F103xB
+#if (SYN_I2C_1_REMAP == 0)
+  _scl_a = Gpio('B', 8);
+  _sda_a = Gpio('B', 9);
+  _scl_b = Gpio('B', 6);
+  _sda_b = Gpio('B', 7);
+#else
+  _scl_a = Gpio('B', 6);
+  _sda_a = Gpio('B', 7);
+  _scl_b = Gpio('B', 8);
+  _sda_b = Gpio('B', 9);
+#endif
+#else //STM32F103xB
+  OS_ASSERT(true == false, ERR_NOT_IMPLMENTED);
+#endif
+}
+
+void syn::I2cMaster::runtime_remap_i2c1(bool remap)
+{
+  i2c::dev_1.off();
+#ifdef STM32F103xB
+  if(remap)
+  {
+    _scl_a.mode(Gpio::in_floating);
+    _sda_a.mode(Gpio::in_floating);
+    //_scl_b.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1);
+    //_sda_b.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1);
+#if (SYN_I2C_1_REMAP == 0)
+    //Gpio::clear_remap(Gpio::i2c1_scl_pb8_sda_pb9);
+#else
+    //Gpio::remap(Gpio::i2c1_scl_pb8_sda_pb9);
+#endif
+  }
+  else
+  {
+    _scl_b.mode(Gpio::in_floating);
+    _sda_b.mode(Gpio::in_floating);
+    //_scl_a.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1);
+    //_sda_a.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1);
+#if (SYN_I2C_1_REMAP == 0)
+    //Gpio::remap(Gpio::i2c1_scl_pb8_sda_pb9);
+#else 
+    //Gpio::clear_remap(Gpio::i2c1_scl_pb8_sda_pb9);
+#endif
+  }
+#else //STM32F103xB
+  OS_ASSERT(true == false, ERR_NOT_IMPLMENTED);
+#endif
+  i2c::dev_1.init(remap);
+  //i2c::dev_1.on();
+}
+#endif //SYN_I2C_ENABLE_DYN_REMAP
 
 extern "C" {
 #if (SYN_ENABLE_I2C_1 != 0)

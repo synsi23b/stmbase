@@ -10,13 +10,13 @@ public:
 
   }
 
-  void init(uint16_t i2c_num, uint8_t status_update_interval)
+  void init(uint16_t i2c_num, uint8_t status_update_interval, bool remap)
   {
     _angle = 0;
     _status_interval = status_update_interval;
     _current_interval = 0;
     _status = 0;
-    _i2c.init(i2c_num, 0x36 << 1);
+    _i2c.init(i2c_num, 0x36 << 1, remap);
     if(_update_status())
     {
       _current_interval = status_update_interval;
