@@ -7,7 +7,8 @@ class AS5600
 public:
   AS5600()
   {
-
+    _angle = 0xFFFF;
+    _status = 0;
   }
 
   void init(uint16_t i2c_num, uint8_t status_update_interval)
