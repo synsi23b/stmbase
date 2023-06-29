@@ -68,28 +68,16 @@ else
       _port->CR1 = 0;
       while (_port->CR1 & I2C_CR1_PE)
         ;
-      _port->CR2 = I2C_CR2_ITBUFEN | I2C_CR2_ITEVTEN | I2C_CR2_ITERREN | 36;
-      if (_port == I2C1)
-      {
 #ifdef STM32F103xB
+      _port->CR2 = I2C_CR2_ITBUFEN | I2C_CR2_ITEVTEN | I2C_CR2_ITERREN | 36;
+      //_port->OAR1 = 0x4000; // Bit 14 Should always be kept at 1 by software
 #if (SYN_ENABLE_I2C_1 == 400)
-        _port->CCR = I2C_CCR_FS | 30;
-        _port->TRISE = 11;
+      _port->CCR = I2C_CCR_FS | 30;
+      _port->TRISE = 11;
 #else
-        _port->CCR = 180;
-        _port->TRISE = 36;
+      _port->CCR = 180;
+      _port->TRISE = 36;
 #endif
-      }
-      else
-      {
-#if (SYN_ENABLE_I2C_2 == 400)
-        _port->CCR = I2C_CCR_FS | 30;
-        _port->TRISE = 11;
-#else
-        _port->CCR = 180;
-        _port->TRISE = 36;
-#endif
-      }
 #else //STM32F103xB
       OS_ASSERT(true == false, ERR_NOT_IMPLMENTED);
 #endif 

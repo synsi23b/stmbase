@@ -1017,12 +1017,15 @@ namespace syn
       switch (port)
       {
       case 'A':
+      case 'a':
         _pPort = GPIOA;
         break;
       case 'B':
+      case 'b':
         _pPort = GPIOB;
         break;
       case 'C':
+      case 'c':
         _pPort = GPIOC;
         break;
       default:
@@ -1081,17 +1084,18 @@ namespace syn
     };
 #endif
 
-    // defaults to input modes, if set any output mode
-    // requires speed to be set anything other than Input
+    // defaults to floating input (reset state)
+    // if set any output mode and speed is not set, defaults to 10MHz
+    // if an alternate mode is specified, the alternate parameter needs to be set
     void mode(Mode m, Speed s = Input, Alternate a = Nop)
     {
       if (m == out_alt_open_drain || m == out_alt_push_pull)
       {
         OS_ASSERT(a != Nop, ERR_FORBIDDEN);
       }
-      if (m & 0x3)
+      if (m & 0x3 && s == Input)
       {
-        OS_ASSERT(s != Input, ERR_FORBIDDEN);
+        s = MHz_10;
       }
 #ifdef STM32F103xB
       if (s == MHz_100)
