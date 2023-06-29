@@ -1339,6 +1339,36 @@ namespace syn
 #endif
     }
 
+    static void clear_remap(Remap map)
+    {
+#ifdef STM32F103xB
+      AFIO->MAPR &= ~map;
+#elif defined(STM32F401xC)
+      (void)(map);
+#elif defined(STM32G030xx)
+      (void)(map);
+#else
+#error "Unknown chip!"
+#endif
+    }
+
+    static bool is_remapped(Remap map)
+    {
+#ifdef STM32F103xB
+      return AFIO->MAPR & map;
+#elif defined(STM32F401xC)
+      (void)(map);
+      OS_ASSERT(true == false, ERR_NOT_IMPLMENTED);
+      return false;
+#elif defined(STM32G030xx)
+      (void)(map);
+      OS_ASSERT(true == false, ERR_NOT_IMPLMENTED);
+      return false;
+#else
+#error "Unknown chip!"
+#endif
+    }
+
   private:
     GPIO_TypeDef *_pPort;
     uint16_t _bitmask;
@@ -2032,13 +2062,17 @@ namespace syn
     I2cMaster();
     I2cMaster(uint16_t port, uint8_t address);
 
-    void init(uint16_t port, uint8_t address);
+    void init(uint16_t port, uint8_t address, bool remap=true);
     bool write(uint8_t *data, uint16_t size);
     bool read(uint8_t *data, uint16_t size);
-
+    
   private:
+    static void init_runtime_remap_i2c1();
+    static void runtime_remap_i2c1(bool remap);
+
     void *_pdev;
     uint8_t _address;
+    uint8_t _remapped;
   };
 
   class UsbRpc
