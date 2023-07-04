@@ -96,7 +96,7 @@ namespace i2c
 #else //STM32F103xB
       OS_ASSERT(true == false, ERR_NOT_IMPLMENTED);
 #endif 
-      _port->CR1 = I2C_CR1_PE;
+      //_port->CR1 = I2C_CR1_PE;
     }
 
     bool masterStartWrite(uint8_t *data, uint16_t size, uint8_t address, uint16_t *success)
@@ -195,7 +195,7 @@ namespace i2c
         else if (_remain == 0)
         {
           // donezo
-          _port->CR1 = I2C_CR1_STOP | I2C_CR1_PE;
+          _port->CR1 = I2C_CR1_STOP;
           *_success = 1;
           _data = 0;
           _opdone.set();
@@ -212,19 +212,11 @@ namespace i2c
         else
         {
           // this was the last byte, transmit stop condtion. and donezo
-          _port->CR1 = I2C_CR1_STOP | I2C_CR1_PE;
+          _port->CR1 = I2C_CR1_STOP;
           *_success = 1;
           _data = 0;
           _opdone.set();
         }
-      }
-      else if(status_1 & I2C_SR1_STOPF)
-      {
-        _port->CR1 = I2C_CR1_PE;
-      }
-      else if(status_1 & I2C_SR1_BERR)
-      {
-        _port->SR1 = ~I2C_SR1_BERR;
       }
     }
 
@@ -232,25 +224,9 @@ namespace i2c
     {
       _port->SR1 = 0;
       _port->CR1 = 0;
-      System::nop();
-      System::nop();
-      _port->CR1 = I2C_CR1_PE;
       *_success = 2;
       _data = 0;
       _opdone.set();
-    }
-
-    void on()
-    {
-      _port->CR1 = I2C_CR1_PE;
-    }
-
-    void off()
-    {
-      //_port->CR1 = I2C_CR1_SWRST;
-      _port->CR1 = 0;
-      while(_port->CR1 & I2C_CR1_PE)
-        ;
     }
 
   private:
@@ -365,7 +341,6 @@ void syn::I2cMaster::runtime_remap_i2c1(bool remap)
 {
   if(remap == syn::Gpio::is_remapped(Gpio::i2c1_scl_pb8_sda_pb9))
     return;
-  i2c::dev_1.off();
 #ifdef STM32F103xB
   if(!remap)
   {
@@ -386,8 +361,6 @@ void syn::I2cMaster::runtime_remap_i2c1(bool remap)
 #else //STM32F103xB
   OS_ASSERT(true == false, ERR_NOT_IMPLMENTED);
 #endif
-  //i2c::dev_1.init(remap);
-  i2c::dev_1.on();
 }
 #endif //SYN_I2C_ENABLE_DYN_REMAP
 
