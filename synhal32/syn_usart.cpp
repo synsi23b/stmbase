@@ -124,50 +124,83 @@ uint16_t _usart2_ll_avail()
   return current + left;
 }
 
-void _usart2_ll_read(uint8_t* pbuf, uint16_t count)
+uint16_t _usart2_ll_read(uint8_t* pbuf, uint16_t count, uint32_t timeout)
 {
   uint16_t avail = _usart2_ll_avail();
   if(avail >= count)
   {
-    while(count > 0)
+    uint16_t cc = count;
+    while(cc > 0)
     {
       *pbuf++ = *_usart2_pread++;
       if(_usart2_pread > _usart2_rxbuf + SYN_USART2_RXBUF_SIZE - 1)
       {
         _usart2_pread = _usart2_rxbuf;
       }
-      --count;
+      --cc;
     }
+    return count;
   }
-  else
+  uint16_t readcount = 0;
+  while(readcount < avail)
   {
-    count -= avail;
-    while(avail > 0)
+    *pbuf++ = *_usart2_pread++;
+    if(_usart2_pread > _usart2_rxbuf + SYN_USART2_RXBUF_SIZE)
+    {
+      _usart2_pread = _usart2_rxbuf;
+    }
+    ++readcount;
+  }
+  // if no timeout, than return with read as much as available
+  if(timeout == 0)
+  {
+    return readcount;
+  }
+  while(readcount < count)
+  {
+    if(_usart2_ll_avail() > 0)
     {
       *pbuf++ = *_usart2_pread++;
       if(_usart2_pread > _usart2_rxbuf + SYN_USART2_RXBUF_SIZE)
       {
         _usart2_pread = _usart2_rxbuf;
       }
-      --avail;
+      ++readcount;
     }
-    while(count > 0)
+    else
     {
-      if(_usart2_ll_avail() > 0)
+      if(timeout > 0)
       {
-        *pbuf++ = *_usart2_pread++;
-        if(_usart2_pread > _usart2_rxbuf + SYN_USART2_RXBUF_SIZE)
-        {
-          _usart2_pread = _usart2_rxbuf;
-        }
-        --count;
+        --timeout;
+        Thread::sleep(1);
+      }
+      else
+      {
+        break;
       }
     }
   }
+  return readcount;
 }
 
 #endif //#if(SYN_ENABLE_UART_2 == 3)
 
+
+void Usart::init(uint16_t dev, eBaudrate baudrate, bool halfduplex)
+{
+  if(dev == 1)
+  {
+
+  }
+  else if(dev == 2)
+  {
+    _usart2_ll_init(baudrate, halfduplex);
+  }
+  else if(dev == 3)
+  {
+
+  }
+}
 
 void Usart::write(uint16_t dev, const uint8_t* pdata, uint16_t count)
 {
@@ -202,7 +235,7 @@ uint16_t Usart::available(uint16_t dev)
   return 0;
 }
 
-uint16_t Usart::read(uint16_t dev, uint8_t* data, uint16_t count)
+uint16_t Usart::read(uint16_t dev, uint8_t* data, uint16_t count, uint32_t timeout)
 {
   if(dev == 1)
   {
@@ -210,16 +243,19 @@ uint16_t Usart::read(uint16_t dev, uint8_t* data, uint16_t count)
   }
   else if(dev == 2)
   {
-    _usart2_ll_read(data, count);
+    return _usart2_ll_read(data, count, timeout);
   }
   else if(dev == 3)
   {
 
   }
-  return count;
 }
 
-void Usart::init(uint16_t dev, eBaudrate baudrate, bool halfduplex)
+// ###################################
+//   HALF DUP
+// ###################################
+
+void HalfDupUsart::write(uint16_t dev, const uint8_t* pdata, uint16_t count)
 {
   if(dev == 1)
   {
@@ -227,14 +263,43 @@ void Usart::init(uint16_t dev, eBaudrate baudrate, bool halfduplex)
   }
   else if(dev == 2)
   {
-    RCC->APB1ENR |= RCC_APB1ENR_USART2EN;
-    _usart2_ll_init(baudrate, halfduplex);
+    // turn off receiver before sending
+    USART2->CR1 &= ~USART_CR1_RE;
+    _usart2_ll_tx(pdata, count);
+    USART2->CR1 |= USART_CR1_RE;
   }
   else if(dev == 3)
   {
 
   }
 }
+
+uint16_t HalfDupUsart::available(uint16_t dev)
+{
+  return Usart::available(dev);
+}
+
+uint16_t HalfDupUsart::read(uint16_t dev, uint8_t* data, uint16_t count, uint32_t timeout)
+{
+  return Usart::read(dev, data, count, timeout);
+}
+
+void HalfDupUsart::init(uint16_t dev, Usart::eBaudrate baudrate)
+{
+  if(dev == 1)
+  {
+
+  }
+  else if(dev == 2)
+  {
+    _usart2_ll_init(baudrate, true);
+  }
+  else if(dev == 3)
+  {
+
+  }
+}
+
 
 /*
 void Usart::remap(uint16_t dev, bool remap)

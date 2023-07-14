@@ -2070,8 +2070,19 @@ namespace syn
 
     static void write(uint16_t dev, const uint8_t* pdata, uint16_t count);
     static uint16_t available(uint16_t dev);
-    static uint16_t read(uint16_t dev, uint8_t* data, uint16_t count);
+    static uint16_t read(uint16_t dev, uint8_t* data, uint16_t count, uint32_t timeout = 0);
     //static void remap(uint16_t dev, bool remap);
+  };
+
+
+  class HalfDupUsart
+  {
+  public:
+    static void init(uint16_t dev, Usart::eBaudrate baudrate);
+
+    static void write(uint16_t dev, const uint8_t* pdata, uint16_t count);
+    static uint16_t available(uint16_t dev);
+    static uint16_t read(uint16_t dev, uint8_t* data, uint16_t count, uint32_t timeout = 0);
   };
 
   class SpiMaster
