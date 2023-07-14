@@ -1739,10 +1739,10 @@ namespace syn
     void oneshotM2P(Mem_t *src, Peri_t *dst, uint16_t count)
     {
 #ifdef STM32F103xB
-      _pChannel->CCR = 0; // stop the dma before setting anything
+      _pChannel->CCR &= (DMA_CCR1_TEIE | DMA_CCR1_HTIE | DMA_CCR1_TCIE); // stop the dma before setting anything, keep interrupts
       uint16_t psize = sizeof(Peri_t) >> 1;
       uint16_t msize = sizeof(Mem_t) >> 1;
-      _pChannel->CCR = (msize << 10) | (psize << 8) | DMA_CCR1_MINC | DMA_CCR1_DIR;
+      _pChannel->CCR |= (msize << 10) | (psize << 8) | DMA_CCR1_MINC | DMA_CCR1_DIR;
       _pChannel->CNDTR = count;
       _pChannel->CMAR = (uint32_t)src;
       _pChannel->CPAR = (uint32_t)dst;

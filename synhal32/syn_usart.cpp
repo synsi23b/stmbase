@@ -51,9 +51,12 @@ uint8_t _usart2_rxbuf[SYN_USART2_RXBUF_SIZE];
 uint8_t* _usart2_pread;
 Dma _usart2_rx_dma;
 Dma _usart2_tx_dma;
+Signal _usart2_tx_done;
 
 void _usart2_ll_init(Usart::eBaudrate baudrate, bool halfduplex)
 {
+  // initialize usart2 globals (private to this file)
+  _usart2_tx_done.init();
   _usart2_pread = _usart2_rxbuf;
   // enable rx dma
   _usart2_rx_dma.init(6);
@@ -63,7 +66,8 @@ void _usart2_ll_init(Usart::eBaudrate baudrate, bool halfduplex)
   _usart2_tx_dma.init(7);
   _usart2_tx_dma.enableIrq(Dma::IRQ_STATUS_ERROR | Dma::IRQ_STATUS_FULL);
   _usart2_tx_dma.start();
-
+  // enable usart hardware
+  RCC->APB1ENR |= RCC_APB1ENR_USART2EN;
   _usart_set_br(USART2, baudrate);
   if(halfduplex)
   {
@@ -88,13 +92,26 @@ void _usart2_ll_tx(const uint8_t* pdata, uint16_t count)
   USART2->SR = 0;
   USART2->CR1 |= USART_CR1_TE;
   _usart2_tx_dma.start();
+  _usart2_tx_done.wait();
   while(!(USART2->SR & USART_SR_TC))
     ;
+  USART2->CR1 &= ~USART_CR1_TE;
 }
 
 void _usart2_ll_dma_tx_done(uint32_t status)
 {
-  status++;
+  if(status & 0x1)
+  {
+    _usart2_tx_done.set();
+  }
+  else if (status & 0x4)
+  {
+    // Error
+#ifndef NDEBUG
+    while (true)
+      ;
+#endif
+  }
 }
 
 uint16_t _usart2_ll_avail()
@@ -234,6 +251,9 @@ extern "C" {
     Core::enter_isr();
     const uint16_t shift = 4 * (7 - 1);
     uint32_t status = DMA1->ISR & (0xE << shift);
+    // 0b100 -> Error
+    // 0b010 -> Half complete
+    // 0b001 -> Transfer complete
     _usart2_ll_dma_tx_done(status >> (shift + 1));
     DMA1->IFCR = status;
     Core::leave_isr();
