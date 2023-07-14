@@ -1665,7 +1665,7 @@ namespace syn
 #ifdef STM32F103xB
       --stream;
       OS_ASSERT(stream < 7, ERR_BAD_INDEX);
-      _pChannel = DMA1_Channel1 + stream;
+      _pChannel = (DMA_Channel_TypeDef*)((uint32_t*)DMA1_Channel1 + stream * 5);
 #endif
 #ifdef STM32F401xC
       OS_ASSERT(stream < 16, ERR_BAD_INDEX);
@@ -1731,6 +1731,27 @@ namespace syn
       uint16_t msize = sizeof(Mem_t) >> 1;
       _pStream->CR = (msize << 13) | (psize << 11) | DMA_SxCR_MINC | DMA_SxCR_CIRC;
 #endif
+    }
+
+    // oneshot memory to peripheral.
+    // count is the number of transfers, not the number of bytes!
+    template <typename Mem_t, typename Peri_t>
+    void oneshotM2P(Mem_t *src, Peri_t *dst, uint16_t count)
+    {
+#ifdef STM32F103xB
+      _pChannel->CCR = 0; // stop the dma before setting anything
+      uint16_t psize = sizeof(Peri_t) >> 1;
+      uint16_t msize = sizeof(Mem_t) >> 1;
+      _pChannel->CCR = (msize << 10) | (psize << 8) | DMA_CCR1_MINC | DMA_CCR1_DIR;
+      _pChannel->CNDTR = count;
+      _pChannel->CMAR = (uint32_t)src;
+      _pChannel->CPAR = (uint32_t)dst;
+#endif
+    }
+
+    uint16_t count()
+    {
+      return _pChannel->CNDTR;
     }
 
 #ifdef STM32F401xC
@@ -2031,6 +2052,26 @@ namespace syn
     TIM_TypeDef *_pTimer;
     uint32_t _tclk;
     uint16_t _number;
+  };
+
+  class Usart
+  {
+  public:
+    enum eBaudrate {
+      b9600,
+      b19200,
+      b57600,
+      b115200,
+      b230400,
+      b460800,
+      b921600
+    };
+    static void init(uint16_t dev, eBaudrate baudrate, bool halfduplex);
+
+    static void write(uint16_t dev, const uint8_t* pdata, uint16_t count);
+    static uint16_t available(uint16_t dev);
+    static uint16_t read(uint16_t dev, uint8_t* data, uint16_t count);
+    //static void remap(uint16_t dev, bool remap);
   };
 
   class SpiMaster
