@@ -213,6 +213,23 @@ void Timer::enablePwm(int8_t port, uint8_t pinnum, uint16_t channel, Gpio::Speed
   _pTimer->CCER |= (0x1 << channel);
 }
 
+void Timer::enablePwm(syn::Gpio& pin, uint16_t channel, Gpio::Speed speed)
+{
+  --channel;
+  OS_ASSERT(channel < 4, ERR_BAD_INDEX);
+
+  if(_number < 3)
+  {
+    pin.mode(Gpio::out_alt_push_pull, speed, Gpio::Timer_1_2);
+  }
+  else
+  {
+    pin.mode(Gpio::out_alt_push_pull, speed, Gpio::Timer_3_4_5);
+  }
+  channel *= 4;
+  _pTimer->CCER |= (0x1 << channel);
+}
+
 void Timer::configInputCapture(uint16_t prescaler, uint16_t reload, Timer::InputFilter filter)
 {
   _pTimer->CR1 = 0;

@@ -1945,6 +1945,7 @@ namespace syn
     // enables the corresponding pin to perfom pwm output
     // lower speed at the gpio is desierable for some reason (less jittery / stronger signal)
     void enablePwm(int8_t port, uint8_t pinnum, uint16_t channel, Gpio::Speed speed = Gpio::MHz_2);
+    void enablePwm(syn::Gpio& pin, uint16_t channel, Gpio::Speed speed = Gpio::MHz_2);
 
     // check if the pwm channel output is enabled
     bool is_pwm_out(uint16_t channel)
@@ -2056,6 +2057,9 @@ namespace syn
 
   class Usart
   {
+    typedef  void(*usart_write_t)(const uint8_t* pdata, uint16_t count);
+    typedef  uint16_t(*usart_read_t)(uint8_t* pdata, uint16_t count, uint32_t timeout);
+    typedef  uint16_t(*usart_avail_t)();
   public:
     enum eBaudrate {
       b9600,
@@ -2066,24 +2070,28 @@ namespace syn
       b460800,
       b921600
     };
-    static void init(uint16_t dev, eBaudrate baudrate, bool halfduplex);
+    void init(uint16_t dev, eBaudrate baudrate, bool halfduplex);
 
-    static void write(uint16_t dev, const uint8_t* pdata, uint16_t count);
-    static uint16_t available(uint16_t dev);
-    static uint16_t read(uint16_t dev, uint8_t* data, uint16_t count, uint32_t timeout = 0);
-    //static void remap(uint16_t dev, bool remap);
+    void write(const uint8_t* pdata, uint16_t count)
+    {
+      _write(pdata, count);
+    }
+
+    uint16_t available()
+    {
+      return _avail();
+    }
+
+    uint16_t read(uint8_t* data, uint16_t count, uint32_t timeout = 0)
+    {
+      return _read(data, count, timeout);
+    }
+  private:
+    usart_write_t _write;
+    usart_read_t _read;
+    usart_avail_t _avail;
   };
 
-
-  class HalfDupUsart
-  {
-  public:
-    static void init(uint16_t dev, Usart::eBaudrate baudrate);
-
-    static void write(uint16_t dev, const uint8_t* pdata, uint16_t count);
-    static uint16_t available(uint16_t dev);
-    static uint16_t read(uint16_t dev, uint8_t* data, uint16_t count, uint32_t timeout = 0);
-  };
 
   class SpiMaster
   {
