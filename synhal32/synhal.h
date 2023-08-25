@@ -1297,6 +1297,14 @@ namespace syn
       read() ? clear() : set();
     }
 
+    void set_bool(bool val)
+    {
+      if(val)
+        set();
+      else
+        clear();
+    }
+
     enum Remap
     {
       spi1_clk_pb3_miso_pb4_mosi_pb5 = 0x0001,
@@ -1733,6 +1741,32 @@ namespace syn
 #endif
     }
 
+    // cylcic reading from memory to peripheral. periheral stays the same, memory gets incremented
+    // count is the number of transfers, not the number of bytes!
+    template <typename Peri_t, typename Mem_t>
+    void cyclicM2P(Mem_t* src, Peri_t* dst, uint16_t count)
+    {
+#ifdef STM32F103xB
+      _pChannel->CCR = 0; // stop the dma before setting anything
+      uint16_t psize = sizeof(Peri_t) >> 1;
+      uint16_t msize = sizeof(Mem_t) >> 1;
+      _pChannel->CCR = (msize << 10) | (psize << 8) | DMA_CCR1_MINC | DMA_CCR1_CIRC;
+      _pChannel->CNDTR = count;
+      _pChannel->CMAR = (uint32_t)src;
+      _pChannel->CPAR = (uint32_t)dst;
+#endif
+#ifdef STM32F401xC
+      _pStream->CR = 0;
+      _pStream->FCR = 0;
+      _pStream->NDTR = count;
+      _pStream->PAR = (uint32_t)src;
+      _pStream->M0AR = (uint32_t)dst;
+      uint16_t psize = sizeof(Peri_t) >> 1;
+      uint16_t msize = sizeof(Mem_t) >> 1;
+      _pStream->CR = (msize << 13) | (psize << 11) | DMA_SxCR_MINC | DMA_SxCR_CIRC;
+#endif
+    }
+
     // oneshot memory to peripheral.
     // count is the number of transfers, not the number of bytes!
     template <typename Mem_t, typename Peri_t>
@@ -1899,7 +1933,9 @@ namespace syn
       return _pTimer->CCR4;
     }
 
-    uint16_t setStepperHz(uint16_t hz)
+    void ramp(uint32_t target_hz, uint16_t delta);
+
+    uint32_t setStepperHz(uint32_t hz)
     {
       if(hz == 0)
       {
@@ -1907,11 +1943,17 @@ namespace syn
         _pTimer->EGR |= TIM_EGR_UG;
         return 0;
       }
-      uint32_t arr = _tclk / hz / 2;
+
+      uint32_t arr = (_tclk / 2) / hz;
       if(arr > UINT16_MAX)
       {
-         arr = UINT16_MAX;
+        arr = UINT16_MAX;
       }
+      else if (arr == 0)
+      {
+        arr = 1;
+      }
+      
       uint32_t prevarr = _pTimer->ARR;
       _pTimer->ARR = arr;
       if(prevarr == 0)

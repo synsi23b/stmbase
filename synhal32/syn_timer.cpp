@@ -153,6 +153,64 @@ extern "C"
 } // extern c
 #endif // if(SYN_ENABLE_TIMER_CALLBACK == 1)
 
+#if(SYN_TIMER_1_RAMP_MODE != 0)
+uint16_t _tim1_ramp_target = 0;
+int16_t _tim1_ramp_delta = 0;
+uint16_t _tim1_ramp_buffer[SYN_TIMER_1_RAMP_MODE];
+Dma _tim1_dma;
+#endif // #if(SYN_TIMER_1_RAMP_MODE != 0)
+
+void Timer::ramp(uint32_t target_hz, uint16_t delta)
+{
+  Dma* pdma = 0;
+  uint16_t* pbuf = 0;
+  uint16_t bufsize = 0;
+  volatile uint16_t* ptarget = 0;
+#if(SYN_TIMER_1_RAMP_MODE != 0)
+  if(_number == 1)
+  {
+    pbuf = _tim1_ramp_buffer;
+    bufsize = SYN_TIMER_1_RAMP_MODE;
+    pdma = &_tim1_dma;
+    ptarget = &TIM1->ARR;
+  }
+#endif // #if(SYN_TIMER_1_RAMP_MODE != 0)
+  if(pdma == 0)
+    return;
+  pdma->cyclicM2P(pbuf, ptarget, bufsize);
+  // prepare the first buffer, after that, DMA irqs will do this until target is reached
+  uint16_t* pbufend = pbuf + bufsize;
+  uint32_t tclk = _tclk / 2;
+  uint16_t arr = this->arr();
+  uint32_t cur_hz = 0;
+  if(arr > 0)
+    uint32_t cur_hz = tclk / arr;
+
+  if(target_hz == cur_hz)
+   return;    
+
+  if(target_hz < cur_hz)
+  {
+    for(;pbuf < pbufend; pbuf++)
+    {
+      uint32_t arr = (_tclk / 2) / hz;
+
+    }
+  }
+  else
+  {
+
+  }
+  // enable the DMA with the new settings again
+  pdma->start();
+  // generate an update event to push the values from shadow registers in real registers
+  // this is necessary because if the ARR is zero, the timers are stopped and wont generate
+  // the event that loads the new ARR value from shadow registers
+  _pTimer->EGR |= TIM_EGR_UG;
+}
+
+
+
 void Timer::configPwm(uint16_t prescaler, uint16_t reload, uint16_t startvalue)
 {
   _pTimer->PSC = prescaler; // + 1 internally
@@ -175,9 +233,9 @@ void Timer::configPwm(uint16_t prescaler, uint16_t reload, uint16_t startvalue)
 void Timer::configStepper()
 {
   _pTimer->CNT = 0;
-  _pTimer->PSC = 15; // 84MHz / 16 = 5.25MHz
-  _tclk = SystemCoreClock / 16;
-  _pTimer->ARR = 0;  // on biggest ARR (65535) is just above 80 Hz but, with toggle mode, the actual output is halfed again.
+  _pTimer->PSC = 2; // 72MHz / 3 = 24MHz
+  _tclk = SystemCoreClock / (_pTimer->PSC+1);
+  _pTimer->ARR = 0;  // on biggest ARR (65535) is just above 366 Hz but, with toggle mode, the actual output is halfed again.
   _pTimer->CCR1 = 0;
   _pTimer->CCR2 = 0;
   _pTimer->CCR3 = 0;
