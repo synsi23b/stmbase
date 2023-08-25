@@ -10,10 +10,14 @@ public:
 
   }
 
-  void init(syn::Gpio& nenable, syn::Gpio& dir, syn::Gpio& step, uint16_t timer_num, uint16_t step_channel, syn::Usart* pusart, uint8_t address)
+  void init(syn::Gpio& nenable, syn::Gpio& dir, syn::Gpio& step, uint16_t timer_num, uint16_t step_channel, uint16_t usart_num, uint8_t address)
   {
-    _address = address;
-    _pusart = pusart;
+    if(usart_num != 0)
+    {
+      _usart.init(usart_num, syn::Usart::b230400, true);
+      _address = address;
+      s_gconf(GCONF::I_scale_analog | GCONF::pdn_disable | GCONF::mstep_reg_select | GCONF::multistep_filt);
+    }
     nenable.set();
     nenable.mode(syn::Gpio::out_push_pull);
     _nenab = nenable;
@@ -30,9 +34,32 @@ public:
     _tim.setStepperHz(hz);
   }
 
-  bool r_general(uint32_t& val)
+  void enable(bool state = true)
+  {
+    _nenab.set_bool(!state);
+  }
+
+  bool r_gconf(uint32_t& val)
   {
     return _read_reg(val, 0x00);
+  }
+
+  class GCONF {
+  public:
+    static const uint32_t I_scale_analog = (1 << 0);
+    static const uint32_t internal_Rsense = (1 << 1);
+    static const uint32_t en_SpreadCycle = (1 << 2);
+    static const uint32_t shaft = (1 << 3);
+    static const uint32_t index_otpw = (1 << 4);
+    static const uint32_t index_step = (1 << 5);
+    static const uint32_t pdn_disable = (1 << 6);
+    static const uint32_t mstep_reg_select = (1 << 7);
+    static const uint32_t multistep_filt = (1 << 8);
+  };
+
+  void s_gconf(uint32_t val)
+  {
+    _write_reg(val, 0x00);
   }
 
   bool r_status(uint32_t& val)
@@ -60,6 +87,11 @@ public:
   bool r_inputs(uint32_t& val)
   {
     return _read_reg(val, 0x06);
+  }
+
+  bool r_sg_result(uint32_t& val)
+  {
+    return _read_reg(val, 0x41);
   }
 private:
   void _crc_calc(uint8_t* data, uint16_t count)
@@ -95,15 +127,15 @@ private:
     data[5] = (value >> 8) & 0xFF;
     data[6] = value & 0xFF;
     _crc_calc(data, 8);
-    _pusart->write(data, 8);
+    _usart.write(data, 8);
   }
 
   uint32_t _read_reg(uint32_t& value, uint8_t regaddress)
   {
     uint8_t data[8] = { 0x55, _address, regaddress, 0, 0, 0, 0, 0 };
     _crc_calc(data, 4);
-    _pusart->write(data, 4);
-    _pusart->read(data, 8, 2);
+    _usart.write(data, 4);
+    _usart.read(data, 8, 2);
     uint8_t crc = data[7];
     _crc_calc(data, 8);
     if(data[7] == crc)
@@ -121,6 +153,6 @@ private:
   syn::Timer _tim;
   syn::Gpio _dir;
   syn::Gpio _nenab;
-  syn::Usart* _pusart;
+  syn::Usart _usart;
   uint8_t _address;
 };
