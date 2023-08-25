@@ -52,17 +52,26 @@ uint8_t* _usart2_pread;
 Dma _usart2_rx_dma;
 Dma _usart2_tx_dma;
 Signal _usart2_tx_done;
+volatile bool _usart2_rx_loop;
 
 #define USART2_LL_CR1_BASE (USART_CR1_UE | USART_CR1_RE)
 
 void _usart2_ll_init(Usart::eBaudrate baudrate, bool halfduplex)
 {
+  if(RCC->APB1ENR & RCC_APB1ENR_USART2EN)
+  {
+    // already initialized
+    return;
+  }
+  RCC->APB1ENR |= RCC_APB1ENR_USART2EN;
   // initialize usart2 globals (private to this file)
   _usart2_tx_done.init();
+  _usart2_rx_loop = false;
   _usart2_pread = _usart2_rxbuf;
   // enable rx dma
   _usart2_rx_dma.init(6);
   _usart2_rx_dma.cyclicP2M(&(USART2->DR), (uint8_t*)_usart2_rxbuf, SYN_USART2_RXBUF_SIZE);
+  _usart2_rx_dma.enableIrq(Dma::IRQ_STATUS_ERROR | Dma::IRQ_STATUS_FULL);
   _usart2_rx_dma.start();
   // set up tx dma
   _usart2_tx_dma.init(7);
@@ -119,40 +128,59 @@ void _usart2_ll_dma_tx_done(uint32_t status)
   {
     _usart2_tx_done.set();
   }
-  else if (status & 0x4)
-  {
-    // Error
 #ifndef NDEBUG
-    while (true)
-      ;
+  // Error
+  while (status & 0x4)
+    ;
 #endif
+}
+
+void _usart2_ll_dma_rx_done(uint32_t status)
+{
+  if(status & 0x1)
+  {
+    _usart2_rx_loop = true;
   }
+#ifndef NDEBUG
+  // Error
+  while (status & 0x4)
+    ;
+#endif
 }
 
 uint16_t _usart2_ll_avail()
 {
-  uint16_t current = SYN_USART2_RXBUF_SIZE - _usart2_rx_dma.count();
   uint16_t done = _usart2_pread - _usart2_rxbuf;
-  if(current >= done)
-    return current - done;
-  uint16_t left = SYN_USART2_RXBUF_SIZE - done;
-  return current + left;
+  if(_usart2_rx_loop)
+  {
+    return SYN_USART2_RXBUF_SIZE * 2 - done - _usart2_rx_dma.count();
+  }
+  else
+  {
+    return SYN_USART2_RXBUF_SIZE - done - _usart2_rx_dma.count();
+  }
+}
+
+void _usart2_ll_pread_check()
+{
+  uint8_t* pbufend = _usart2_rxbuf + SYN_USART2_RXBUF_SIZE - 1;
+  if(_usart2_pread > pbufend)
+  {
+      _usart2_pread = _usart2_rxbuf;
+      _usart2_rx_loop = false;
+  }
 }
 
 uint16_t _usart2_ll_read(uint8_t* pbuf, uint16_t count, uint32_t timeout)
 {
   uint16_t avail = _usart2_ll_avail();
-  uint8_t* pbufend = _usart2_rxbuf + SYN_USART2_RXBUF_SIZE - 1;
   if(avail >= count)
   {
     uint16_t cc = count;
     while(cc > 0)
     {
       *pbuf++ = *_usart2_pread++;
-      if(_usart2_pread > pbufend)
-      {
-        _usart2_pread = _usart2_rxbuf;
-      }
+      _usart2_ll_pread_check();
       --cc;
     }
     return count;
@@ -161,10 +189,7 @@ uint16_t _usart2_ll_read(uint8_t* pbuf, uint16_t count, uint32_t timeout)
   while(readcount < avail)
   {
     *pbuf++ = *_usart2_pread++;
-    if(_usart2_pread > pbufend)
-    {
-      _usart2_pread = _usart2_rxbuf;
-    }
+    _usart2_ll_pread_check();
     ++readcount;
   }
   // if no timeout, than return with read as much as available
@@ -177,10 +202,7 @@ uint16_t _usart2_ll_read(uint8_t* pbuf, uint16_t count, uint32_t timeout)
     if(_usart2_ll_avail() > 0)
     {
       *pbuf++ = *_usart2_pread++;
-      if(_usart2_pread > pbufend)
-      {
-        _usart2_pread = _usart2_rxbuf;
-      }
+      _usart2_ll_pread_check();
       ++readcount;
     }
     else
@@ -238,6 +260,18 @@ extern "C" {
     _usart2_ll_dma_tx_done(status >> (shift + 1));
     DMA1->IFCR = status;
     Core::leave_isr();
+  }
+  void DMA1_Channel6_IRQHandler()
+  {
+    //Core::enter_isr();
+    const uint16_t shift = 4 * (6 - 1);
+    uint32_t status = DMA1->ISR & (0xE << shift);
+    // 0b100 -> Error
+    // 0b010 -> Half complete
+    // 0b001 -> Transfer complete
+    _usart2_ll_dma_rx_done(status >> (shift + 1));
+    DMA1->IFCR = status;
+    //Core::leave_isr();
   }
 #endif //#if(SYN_ENABLE_UART_2 == 3)
 }
