@@ -184,7 +184,7 @@ void Timer::ramp(uint32_t target_hz, uint16_t delta)
   uint16_t arr = this->arr();
   uint32_t cur_hz = 0;
   if(arr > 0)
-    uint32_t cur_hz = tclk / arr;
+    cur_hz = tclk / arr;
 
   if(target_hz == cur_hz)
    return;    
@@ -193,13 +193,21 @@ void Timer::ramp(uint32_t target_hz, uint16_t delta)
   {
     for(;pbuf < pbufend; pbuf++)
     {
-      uint32_t arr = (_tclk / 2) / hz;
-
+      if(cur_hz > target_hz)
+        cur_hz -= 10; // TODO do actual calculation using the target delta
+      arr = tclk / cur_hz;
+      *pbuf = arr;
     }
   }
   else
   {
-
+    for(;pbuf < pbufend; pbuf++)
+    {
+      if(cur_hz > target_hz)
+        cur_hz += 10; // TODO do actual calculation using the target delta
+      arr = tclk / cur_hz;
+      *pbuf = arr;
+    }
   }
   // enable the DMA with the new settings again
   pdma->start();

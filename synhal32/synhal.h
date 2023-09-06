@@ -388,13 +388,8 @@ namespace syn
   class SoftTimer
   {
   public:
-    // create the timer and speciy wehter it should restart automatically
-    SoftTimer(OS_TIME period, bool autoreload)
+    SoftTimer()
     {
-      if (autoreload)
-        OS_TIMER_CreateEx(&_handle, reinterpret_cast<OS_TIMER_EX_ROUTINE *>(&SoftTimer::_reload), period, this);
-      else
-        OS_TIMER_CreateEx(&_handle, reinterpret_cast<OS_TIMER_EX_ROUTINE *>(&SoftTimer::_oneshot), period, this);
     }
 
     virtual ~SoftTimer()
@@ -402,7 +397,15 @@ namespace syn
       OS_TIMER_DeleteEx(&_handle);
     }
 
-    // start the timer
+    void init(OS_TIME period, bool autoreload)
+    {
+      if (autoreload)
+        OS_TIMER_CreateEx(&_handle, reinterpret_cast<OS_TIMER_EX_ROUTINE *>(&SoftTimer::_reload), period, this);
+      else
+        OS_TIMER_CreateEx(&_handle, reinterpret_cast<OS_TIMER_EX_ROUTINE *>(&SoftTimer::_oneshot), period, this);
+    }
+
+    // start the timer and speciy wehter it should restart automatically
     void start()
     {
       OS_TIMER_StartEx(&_handle);
@@ -414,7 +417,7 @@ namespace syn
       OS_TIMER_RestartEx(&_handle);
     }
 
-    // return the remaing ticks before fireing
+    // return the remaing ticks until fireing
     OS_TIME remaining()
     {
       return OS_TIMER_GetRemainingPeriodEx(&_handle);
@@ -911,13 +914,13 @@ namespace syn
 
     // get system tick counter aka milliseconds since start
     // overflow after 24 days, will roll over to negative number?
-    static int32_t milliseconds()
+    static uint32_t milliseconds()
     {
       return OS_TIME_GetTicks();
     }
 
     // calculate current microseconds, overflow after 71 minutes
-    static int32_t microseconds()
+    static uint32_t microseconds()
     {
       return OS_TIME_Getus();
     }
@@ -1066,7 +1069,24 @@ namespace syn
       AF7 = 7,
       Nop = 8
     };
-#else
+#elif defined(STM32F103xB)
+    enum Alternate
+    {
+      Nop = 0x0,
+      Timer_1_2 = 0x1,
+      Timer_3_4_5 = 0x2,
+      Timer_9_10_11 = 0x3,
+      I2C_1 = 0x4,
+      SPI = 0x5,
+      USART_1_2 = 0x7,
+      USART_6 = 0x8,
+      I2C_2 = 0x9,
+      OTG_FS = 0xA,
+      SDIO_ = 0xC,
+      EVENTOUT = 0xF,
+      CAN = 0x1,
+    };
+#elif defined(STM32F401xC)
     enum Alternate
     {
       Nop = 0x0,
@@ -1274,9 +1294,12 @@ namespace syn
       return _pPort->IDR & _bitmask;
     }
 
-    void set()
+    void set(bool val = true)
     {
-      _pPort->BSRR = _bitmask;
+      if(val)
+        _pPort->BSRR = _bitmask;
+      else
+        clear();
     }
 
     void clear()
@@ -1295,14 +1318,6 @@ namespace syn
     void toggle()
     {
       read() ? clear() : set();
-    }
-
-    void set_bool(bool val)
-    {
-      if(val)
-        set();
-      else
-        clear();
     }
 
     enum Remap
@@ -2281,5 +2296,24 @@ namespace syn
   private:
     // bank of this eeprom
     Bank *_pbank;
+  };
+
+  class CANopenNode {
+  public:
+    // initialize CAN interface and CANopenNode stack
+    static int32_t init(uint8_t desired_id, uint16_t baudrate_k);
+    // slow process messages, can be in a loop with other code
+    static void process(syn::Gpio &led_green, syn::Gpio& led_red);
+  private:
+    // restart can hadware and node
+    static int32_t reset_com();
+    // Process that runs elevated from tasks every millisecond
+    class CANopenSYNC : public syn::SoftTimer
+    {
+    public:
+      void execute();
+    };
+
+    static CANopenSYNC _synctimer;
   };
 } // namespace syn

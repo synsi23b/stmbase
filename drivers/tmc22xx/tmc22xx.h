@@ -36,7 +36,7 @@ public:
 
   void enable(bool state = true)
   {
-    _nenab.set_bool(!state);
+    _nenab.set(!state);
   }
 
   bool r_gconf(uint32_t& val)

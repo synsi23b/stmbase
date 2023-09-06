@@ -1410,7 +1410,11 @@ typedef struct
 #define FSMC_Bank3_R_BASE     (FSMC_R_BASE + 0x0080) /*!< FSMC Bank3 registers base address */
 #define FSMC_Bank4_R_BASE     (FSMC_R_BASE + 0x00A0) /*!< FSMC Bank4 registers base address */
 
-#define DBGMCU_BASE          ((uint32_t)0xE0042000) /*!< Debug MCU registers base address */
+#define DBGMCU_BASE           ((uint32_t)0xE0042000) /*!< Debug MCU registers base address */
+
+#define FLASHSIZE_BASE        ((uint32_t)0x1FFFF7E0UL)    /*!< FLASH Size register base address */
+#define FLASHSIZE             ((uint16_t*)FLASHSIZE_BASE)
+#define UID_BASE              ((uint32_t)0x1FFFF7E8UL)    /*!< Unique device ID register base address */
 
 /**
   * @}
