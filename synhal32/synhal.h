@@ -916,7 +916,7 @@ namespace syn
     // overflow after 24 days, will roll over to negative number?
     static uint32_t milliseconds()
     {
-      return OS_TIME_GetTicks();
+      return OS_TIME_GetTicks32();
     }
 
     // calculate current microseconds, overflow after 71 minutes
@@ -927,7 +927,7 @@ namespace syn
 
     static uint64_t milliseconds64()
     {
-      return OS_TIME_ConvertTicks2ms(milliseconds());
+      return OS_TIME_Get_ms();
     }
 
     // calculate curent microseconds as 64 bit variable
@@ -964,18 +964,39 @@ namespace syn
     // start a microsecond time measurement
     void start()
     {
-      OS_TIME_StartMeasurement(&_time);
+      OS_TIME_StartMeasurement(&_cycles);
     }
 
     // stop and return result
-    uint32_t stop()
+    unsigned long stop()
     {
-      OS_TIME_StopMeasurement(&_time);
-      return OS_TIME_GetResultus(&_time);
+      OS_TIME_StopMeasurement(&_cycles);
+      return OS_TIME_GetResult_us(&_cycles);
     }
 
   private:
-    long unsigned int _time;
+    unsigned long _cycles;
+  };
+
+  class DeadlineTimer
+  {
+  public:
+    DeadlineTimer(uint32_t timeout_ms)
+    {
+      _deadline = System::milliseconds() + timeout_ms;
+    }
+
+    void reset(uint32_t timeout_ms)
+    {
+      _deadline = System::milliseconds() + timeout_ms; 
+    }
+
+    bool is_expired()
+    {
+      return (int32_t(_deadline - System::milliseconds()) < 0);
+    }
+  private:
+    uint32_t _deadline;
   };
 
   /*

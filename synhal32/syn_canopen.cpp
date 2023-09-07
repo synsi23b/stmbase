@@ -8,7 +8,13 @@
 
 #include <stdio.h>
 
-#include <stm32f1xx_hal_can.h>
+#ifdef NDEBUG
+#define log_printf(macropar_message, ...) \
+        (void)(macropar_message)
+#else
+#define log_printf(macropar_message, ...) \
+        printf(macropar_message, ##__VA_ARGS__)
+#endif
 
 /* default values for CO_CANopenInit() */
 #define NMT_CONTROL ((CO_NMT_control_t)uint16_t(CO_NMT_STARTUP_TO_OPERATIONAL | CO_NMT_ERR_ON_ERR_REG | CO_ERR_REG_GENERIC_ERR | CO_ERR_REG_COMMUNICATION))
@@ -19,56 +25,40 @@
 #define OD_STATUS_BITS NULL
 
 
-CAN_HandleTypeDef hcan;
+#define HAL_CAN_ERROR_NONE (0x00000000U)            /*!< No error                                             */
+#define HAL_CAN_ERROR_EWG (0x00000001U)             /*!< Protocol Error Warning                               */
+#define HAL_CAN_ERROR_EPV (0x00000002U)             /*!< Error Passive                                        */
+#define HAL_CAN_ERROR_BOF (0x00000004U)             /*!< Bus-off error                                        */
+#define HAL_CAN_ERROR_STF (0x00000008U)             /*!< Stuff error                                          */
+#define HAL_CAN_ERROR_FOR (0x00000010U)             /*!< Form error                                           */
+#define HAL_CAN_ERROR_ACK (0x00000020U)             /*!< Acknowledgment error                                 */
+#define HAL_CAN_ERROR_BR (0x00000040U)              /*!< Bit recessive error                                  */
+#define HAL_CAN_ERROR_BD (0x00000080U)              /*!< Bit dominant error                                   */
+#define HAL_CAN_ERROR_CRC (0x00000100U)             /*!< CRC error                                            */
+#define HAL_CAN_ERROR_RX_FOV0 (0x00000200U)         /*!< Rx FIFO0 overrun error                               */
+#define HAL_CAN_ERROR_RX_FOV1 (0x00000400U)         /*!< Rx FIFO1 overrun error                               */
+#define HAL_CAN_ERROR_TX_ALST0 (0x00000800U)        /*!< TxMailbox 0 transmit failure due to arbitration lost */
+#define HAL_CAN_ERROR_TX_TERR0 (0x00001000U)        /*!< TxMailbox 0 transmit failure due to transmit error    */
+#define HAL_CAN_ERROR_TX_ALST1 (0x00002000U)        /*!< TxMailbox 1 transmit failure due to arbitration lost */
+#define HAL_CAN_ERROR_TX_TERR1 (0x00004000U)        /*!< TxMailbox 1 transmit failure due to transmit error    */
+#define HAL_CAN_ERROR_TX_ALST2 (0x00008000U)        /*!< TxMailbox 2 transmit failure due to arbitration lost */
+#define HAL_CAN_ERROR_TX_TERR2 (0x00010000U)        /*!< TxMailbox 2 transmit failure due to transmit error    */
+#define HAL_CAN_ERROR_TIMEOUT (0x00020000U)         /*!< Timeout error                                        */
+#define HAL_CAN_ERROR_NOT_INITIALIZED (0x00040000U) /*!< Peripheral not initialized                           */
+#define HAL_CAN_ERROR_NOT_READY (0x00080000U)       /*!< Peripheral not ready                                 */
+#define HAL_CAN_ERROR_NOT_STARTED (0x00100000U)     /*!< Peripheral not started                               */
+#define HAL_CAN_ERROR_PARAM (0x00200000U)           /*!< Parameter error */
 
-#define CAN_BTR_TS1_Pos (16U)
-#define CAN_BTR_TS1_0 (0x1UL << CAN_BTR_TS1_Pos)                                 /*!< 0x00010000 */
-#define CAN_BTR_TS1_1 (0x2UL << CAN_BTR_TS1_Pos)                                 /*!< 0x00020000 */
-#define CAN_BTR_TS1_2 (0x4UL << CAN_BTR_TS1_Pos)                                 /*!< 0x00040000 */
-#define CAN_BTR_TS1_3 (0x8UL << CAN_BTR_TS1_Pos)                                 /*!< 0x00080000 */
-#define CAN_BS1_15TQ ((uint32_t)(CAN_BTR_TS1_3 | CAN_BTR_TS1_2 | CAN_BTR_TS1_1)) /*!< 15 time quantum */
-
-#define CAN_BTR_TS2_Pos (20U)
-#define CAN_BTR_TS2_0 (0x1UL << CAN_BTR_TS2_Pos) /*!< 0x00100000 */
-#define CAN_BTR_TS2_1 (0x2UL << CAN_BTR_TS2_Pos) /*!< 0x00200000 */
-#define CAN_BTR_TS2_2 (0x4UL << CAN_BTR_TS2_Pos) /*!< 0x00400000 */
-#define CAN_BS2_2TQ ((uint32_t)CAN_BTR_TS2_0)
-
-#define CAN_TX_MAILBOX0             (0x00000001U)  /*!< Tx Mailbox 0  */
-#define CAN_TX_MAILBOX1             (0x00000002U)  /*!< Tx Mailbox 1  */
-#define CAN_TX_MAILBOX2             (0x00000004U)  /*!< Tx Mailbox 2  */
-
-static void MX_CAN_Init(void)
+typedef enum
 {
+    HAL_CAN_STATE_RESET = 0x00U,         /*!< CAN not yet initialized or disabled */
+    HAL_CAN_STATE_READY = 0x01U,         /*!< CAN initialized and ready for use   */
+    HAL_CAN_STATE_LISTENING = 0x02U,     /*!< CAN receive process is ongoing      */
+    HAL_CAN_STATE_SLEEP_PENDING = 0x03U, /*!< CAN sleep request is pending        */
+    HAL_CAN_STATE_SLEEP_ACTIVE = 0x04U,  /*!< CAN sleep mode is active            */
+    HAL_CAN_STATE_ERROR = 0x05U          /*!< CAN error state                     */
 
-    /* USER CODE BEGIN CAN_Init 0 */
-
-    /* USER CODE END CAN_Init 0 */
-
-    /* USER CODE BEGIN CAN_Init 1 */
-
-    /* USER CODE END CAN_Init 1 */
-    hcan.Instance = CAN1;
-    hcan.Init.Prescaler = 4;
-    hcan.Init.Mode = CAN_MODE_NORMAL;
-    hcan.Init.SyncJumpWidth = CAN_SJW_1TQ;
-    hcan.Init.TimeSeg1 = CAN_BS1_15TQ;
-    hcan.Init.TimeSeg2 = CAN_BS2_2TQ;
-    hcan.Init.TimeTriggeredMode = DISABLE;
-    hcan.Init.AutoBusOff = ENABLE;
-    hcan.Init.AutoWakeUp = DISABLE;
-    hcan.Init.AutoRetransmission = DISABLE;
-    hcan.Init.ReceiveFifoLocked = DISABLE;
-    hcan.Init.TransmitFifoPriority = DISABLE;
-    if (HAL_CAN_Init(&hcan) != HAL_OK)
-    {
-        while (true)
-            ;
-    }
-    /* USER CODE BEGIN CAN_Init 2 */
-
-    /* USER CODE END CAN_Init 2 */
-}
+} HAL_CAN_StateTypeDef;
 
 /* Global variables and objects */
 CO_t *CO = NULL; /* CANopen object */
@@ -76,41 +66,117 @@ static uint32_t process_time_point = 1000;
 static uint16_t baudrate;
 static uint8_t desiredNodeID;
 static uint8_t activeNodeID; /* Assigned Node ID */
+static volatile uint32_t can_error = 0;
+static volatile HAL_CAN_StateTypeDef can_state = HAL_CAN_STATE_RESET;
 
 CO_ReturnError_t err;
 syn::CANopenNode::CANopenSYNC syn::CANopenNode::_synctimer;
-
 
 /* Local CAN module object */
 static CO_CANmodule_t *CANModule_local = NULL; /* Local instance of global CAN module */
 
 /* CAN masks for identifiers */
-#define CANID_MASK 0x07FF /*!< CAN standard ID mask */
-#define FLAG_RTR 0x8000   /*!< RTR flag, part of identifier */
+#define CANID_MASK 0x07FF            /*!< CAN standard ID mask */
+#define FLAG_RTR 0x8000              /*!< RTR flag, part of identifier */
+#define CAN_RTR_DATA (0x00000000U)   /*!< Data frame   */
+#define CAN_RTR_REMOTE (0x00000002U) /*!< Remote frame */
+/* CAN register bits and masks*/
+#define CAN_TI0R_STID_Pos (21U)
 
 /******************************************************************************/
 void CO_CANsetConfigurationMode(void *CANptr)
 {
+    (void)CANptr;
     /* Put CAN module in configuration mode */
-        HAL_CAN_Stop(&hcan);
+    // HAL_CAN_Stop(&hcan);
+
+    if (can_state == HAL_CAN_STATE_LISTENING)
+    {
+        /* Request initialisation */
+        // SET_BIT(hcan->Instance->MCR, CAN_MCR_INRQ);
+        CAN1->MCR |= CAN_MCR_INRQ;
+
+        syn::DeadlineTimer timeout(10);
+
+        /* Wait the acknowledge */
+        while ((CAN1->MSR & CAN_MSR_INAK) == 0U)
+        {
+            /* Check for the Timeout */
+            if (timeout.is_expired())
+            {
+                /* Update error code */
+                can_error |= HAL_CAN_ERROR_TIMEOUT;
+
+                /* Change CAN state */
+            can_state = HAL_CAN_STATE_ERROR;
+
+            while (true)
+                ;
+            }
+        }
+
+        /* Exit from sleep mode */
+        // CLEAR_BIT(hcan->Instance->MCR, CAN_MCR_SLEEP);
+        CAN1->MCR &= ~CAN_MCR_SLEEP;
+
+        /* Change CAN peripheral state */
+        can_state = HAL_CAN_STATE_READY;
+    }
+    else
+    {
+        /* Update error code */
+        can_error |= HAL_CAN_ERROR_NOT_STARTED;
+    }
 }
 
 /******************************************************************************/
 void CO_CANsetNormalMode(CO_CANmodule_t *CANmodule)
 {
     /* Put CAN module in normal mode */
-        if (HAL_CAN_Start(&hcan) == HAL_OK)
+    if (can_state == HAL_CAN_STATE_READY)
+    {
+        /* Change CAN peripheral state */
+        can_state = HAL_CAN_STATE_LISTENING;
+
+        /* Request leave initialisation */
+        CAN1->MCR &= ~CAN_MCR_INRQ;
+
+        /* Get tick */
+        syn::DeadlineTimer timeout(10);
+
+        /* Wait the acknowledge */
+        while ((CAN1->MSR & CAN_MSR_INAK) != 0U)
         {
-            CANmodule->CANnormal = true;
+            /* Check for the Timeout */
+            if (timeout.is_expired())
+            {
+                /* Update error code */
+                can_error |= HAL_CAN_ERROR_TIMEOUT;
+
+                /* Change CAN state */
+            can_state = HAL_CAN_STATE_ERROR;
+
+            while (true)
+                ;
+            }
         }
+
+        /* Reset the CAN ErrorCode */
+        can_error = HAL_CAN_ERROR_NONE;
+        CANmodule->CANnormal = true;
+    }
+    else
+    {
+        /* Update error code */
+        can_error |= HAL_CAN_ERROR_NOT_READY;
+    }
 }
 
 /******************************************************************************/
-CO_ReturnError_t
-CO_CANmodule_init(CO_CANmodule_t *CANmodule, void *CANptr, CO_CANrx_t rxArray[], uint16_t rxSize, CO_CANtx_t txArray[],
-                  uint16_t txSize, uint16_t CANbitRate)
+CO_ReturnError_t CO_CANmodule_init(CO_CANmodule_t *CANmodule, void *CANptr, CO_CANrx_t rxArray[], uint16_t rxSize, CO_CANtx_t txArray[],
+                                   uint16_t txSize, uint16_t CANbitRate)
 {
-
+    (void)CANbitRate;
     /* verify arguments */
     if (CANmodule == NULL || rxArray == NULL || txArray == NULL)
     {
@@ -152,61 +218,202 @@ CO_CANmodule_init(CO_CANmodule_t *CANmodule, void *CANptr, CO_CANrx_t rxArray[],
     /***************************************/
     /* STM32 related configuration */
     /***************************************/
-    MX_CAN_Init();
-
-    /*
-     * Configure global filter that is used as last check if message did not pass any of other filters:
-     *
-     * We do not rely on hardware filters in this example
-     * and are performing software filters instead
-     *
-     * Accept non-matching standard ID messages
-     * Reject non-matching extended ID messages
-     */
-
-
-    CAN_FilterTypeDef FilterConfig;
-#if defined(CAN)
-        FilterConfig.FilterBank = 0;
-#else
-        if (hcan.Instance == CAN1)
-        {
-            FilterConfig.FilterBank = 0;
-        }
-        else
-        {
-            FilterConfig.FilterBank = 14;
-        }
-#endif
-    FilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;
-    FilterConfig.FilterScale = CAN_FILTERSCALE_32BIT;
-    FilterConfig.FilterIdHigh = 0x0;
-    FilterConfig.FilterIdLow = 0x0;
-    FilterConfig.FilterMaskIdHigh = 0x0;
-    FilterConfig.FilterMaskIdLow = 0x0;
-    FilterConfig.FilterFIFOAssignment = CAN_RX_FIFO0;
-
-    FilterConfig.FilterActivation = ENABLE;
-    FilterConfig.SlaveStartFilterBank = 14;
-
-    if (HAL_CAN_ConfigFilter(&hcan, &FilterConfig) != HAL_OK)
+    // http://www.bittiming.can-wiki.info/
+    // Type: bxCAN, Clock: 36MHz, max brp: 1024, SP: 87.5%, min tq: 8, max tq: 25, FD factor: undefined, SJW: 1
+    uint32_t btr_reg;
+    switch (baudrate)
     {
-        return CO_ERROR_ILLEGAL_ARGUMENT;
+    case 10:
+    {
+        const uint32_t prescaler = 225;
+        // const uint32_t sync_jump = 1;
+        const uint32_t timeseq_1 = 13;
+        const uint32_t timeseq_2 = 2;
+        btr_reg = ((timeseq_2 - 1) << 20) | ((timeseq_1 - 1) << 16) | (prescaler - 1);
+        break;
     }
+    case 20:
+    {
+        const uint32_t prescaler = 100;
+        // const uint32_t sync_jump = 1;
+        const uint32_t timeseq_1 = 15;
+        const uint32_t timeseq_2 = 2;
+        btr_reg = ((timeseq_2 - 1) << 20) | ((timeseq_1 - 1) << 16) | (prescaler - 1);
+        break;
+    }
+    case 50:
+    {
+        const uint32_t prescaler = 45;
+        // const uint32_t sync_jump = 1;
+        const uint32_t timeseq_1 = 13;
+        const uint32_t timeseq_2 = 2;
+        btr_reg = ((timeseq_2 - 1) << 20) | ((timeseq_1 - 1) << 16) | (prescaler - 1);
+        break;
+    }
+    case 100:
+    {
+        const uint32_t prescaler = 20;
+        // const uint32_t sync_jump = 1;
+        const uint32_t timeseq_1 = 15;
+        const uint32_t timeseq_2 = 2;
+        btr_reg = ((timeseq_2 - 1) << 20) | ((timeseq_1 - 1) << 16) | (prescaler - 1);
+        break;
+    }
+    case 125:
+    {
+        const uint32_t prescaler = 18;
+        // const uint32_t sync_jump = 1;
+        const uint32_t timeseq_1 = 13;
+        const uint32_t timeseq_2 = 2;
+        btr_reg = ((timeseq_2 - 1) << 20) | ((timeseq_1 - 1) << 16) | (prescaler - 1);
+        break;
+    }
+    case 250:
+    {
+        const uint32_t prescaler = 9;
+        // const uint32_t sync_jump = 1;
+        const uint32_t timeseq_1 = 13;
+        const uint32_t timeseq_2 = 2;
+        btr_reg = ((timeseq_2 - 1) << 20) | ((timeseq_1 - 1) << 16) | (prescaler - 1);
+        break;
+    }
+    case 500:
+    {
+        const uint32_t prescaler = 4;
+        // const uint32_t sync_jump = 1;
+        const uint32_t timeseq_1 = 15;
+        const uint32_t timeseq_2 = 2;
+        btr_reg = ((timeseq_2 - 1) << 20) | ((timeseq_1 - 1) << 16) | (prescaler - 1);
+        break;
+    }
+    case 800:
+    {
+        const uint32_t prescaler = 3;
+        // const uint32_t sync_jump = 1;
+        const uint32_t timeseq_1 = 12;
+        const uint32_t timeseq_2 = 2;
+        btr_reg = ((timeseq_2 - 1) << 20) | ((timeseq_1 - 1) << 16) | (prescaler - 1);
+        break;
+    }
+    case 1000:
+    {
+        const uint32_t prescaler = 2;
+        // const uint32_t sync_jump = 1;
+        const uint32_t timeseq_1 = 15;
+        const uint32_t timeseq_2 = 2;
+        btr_reg = ((timeseq_2 - 1) << 20) | ((timeseq_1 - 1) << 16) | (prescaler - 1);
+        break;
+    }
+    default:
+        while (true)
+        {
+            ;
+        }
+    }
+
+    /* Request initialisation */
+    CAN1->MCR |= CAN_MCR_INRQ;
+    /* Wait initialisation acknowledge */
+    syn::DeadlineTimer timeout(10);
+    while ((CAN1->MSR & CAN_MSR_INAK) == 0U)
+    {
+        if (timeout.is_expired())
+        {
+            /* Update error code */
+            can_error |= HAL_CAN_ERROR_TIMEOUT;
+
+            /* Change CAN state */
+            can_state = HAL_CAN_STATE_ERROR;
+
+            while (true)
+                ;
+        }
+    }
+    /* Exit from sleep mode */
+    CAN1->MCR &= ~CAN_MCR_SLEEP;
+    /* Check Sleep mode leave acknowledge */
+    timeout.reset(10);
+    while ((CAN1->MSR & CAN_MSR_SLAK) != 0U)
+    {
+        if (timeout.is_expired())
+        {
+            /* Update error code */
+            can_error |= HAL_CAN_ERROR_TIMEOUT;
+
+            /* Change CAN state */
+            can_state = HAL_CAN_STATE_ERROR;
+
+            while (true)
+                ;
+        }
+    }
+    CAN1->MCR = CAN_MCR_ABOM | CAN_MCR_NART | CAN_MCR_INRQ;
+    CAN1->BTR = btr_reg;
+
+    /* Initialize the error code */
+    can_error = HAL_CAN_ERROR_NONE;
+
+    /* Initialize the CAN state */
+    can_state = HAL_CAN_STATE_READY;
+
+    CAN1->FMR |= CAN_FMR_FINIT;
+    CAN1->FMR = (28 << 8) | CAN_FMR_FINIT;
+    // set filters to idmask mode
+    CAN1->FM1R = 0;
+    CAN1->FS1R = 1;
+    // assign to FIFO 0;
+    CAN1->FFA1R = 0;
+    CAN1->FA1R = 1; // activate filter 1
+    // set filter to zero, aka dont care in mask mode
+    CAN1->sFilterRegister->FR1 = 0;
+    CAN1->sFilterRegister->FR2 = 0;
+    CAN1->FMR = (28 << 8); // clear ini bit to activate filter
 
     /* Enable notifications */
     /* Activate the CAN notification interrupts */
-    if (HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING | CAN_IT_RX_FIFO1_MSG_PENDING | CAN_IT_TX_MAILBOX_EMPTY) != HAL_OK)
-    {
-        return CO_ERROR_ILLEGAL_ARGUMENT;
-    }
+    CAN1->IER = CAN_IER_FMPIE0 | CAN_IER_FMPIE1 | CAN_IER_TMEIE;
     return CO_ERROR_NO;
 }
 
 /******************************************************************************/
 void CO_CANmodule_disable(CO_CANmodule_t *CANmodule)
 {
-    HAL_CAN_Stop(&hcan);
+    (void)CANmodule;
+    if (can_state == HAL_CAN_STATE_LISTENING)
+    {
+        /* Request initialisation */
+        CAN1->MCR |= CAN_MCR_INRQ;
+
+        /* Get tick */
+        syn::DeadlineTimer timeout(10);
+
+        /* Wait the acknowledge */
+        while ((CAN1->MSR & CAN_MSR_INAK) == 0U)
+        {
+            /* Check for the Timeout */
+            if (timeout.is_expired())
+            {
+                /* Update error code */
+                can_error |= HAL_CAN_ERROR_TIMEOUT;
+
+                /* Change CAN state */
+                can_state = HAL_CAN_STATE_ERROR;
+
+                return;
+            }
+        }
+
+        /* Exit from sleep mode */
+        CAN1->MCR &= ~CAN_MCR_SLEEP;
+
+        /* Change CAN peripheral state */
+        can_state = HAL_CAN_STATE_READY;
+    }
+    else
+    {
+        /* Update error code */
+        can_error |= HAL_CAN_ERROR_NOT_STARTED;
+    }
 }
 
 /******************************************************************************/
@@ -270,37 +477,41 @@ CO_CANtxBufferInit(CO_CANmodule_t *CANmodule, uint16_t index, uint16_t ident, bo
  * \brief           Send CAN message to network
  * This function must be called with atomic access.
  *
- * \param[in]       CANmodule: CAN module instance
  * \param[in]       buffer: Pointer to buffer to transmit
  */
-static uint8_t
-prv_send_can_message(CO_CANmodule_t *CANmodule, CO_CANtx_t *buffer)
+int32_t can_send_message(CO_CANtx_t *buffer)
 {
+    int32_t mailbox = -1;
 
-    uint8_t success = 0;
-
-    /* Check if TX FIFO is ready to accept more messages */
-    static CAN_TxHeaderTypeDef tx_hdr;
-    /* Check if TX FIFO is ready to accept more messages */
-    if (HAL_CAN_GetTxMailboxesFreeLevel(&hcan) > 0)
+    // get first free mailbox
+    uint32_t tsr = CAN1->TSR;
+    if (tsr & CAN_TSR_TME) // if at least one bit is set, that mailbox is free
     {
+        mailbox = (tsr & CAN_TSR_CODE) >> 24;
         /*
          * RTR flag is part of identifier value
          * hence it needs to be properly decoded
          */
-        tx_hdr.ExtId = 0u;
-        tx_hdr.IDE = CAN_ID_STD;
-        tx_hdr.DLC = buffer->DLC;
-        tx_hdr.StdId = buffer->ident & CANID_MASK;
-        tx_hdr.RTR = (buffer->ident & FLAG_RTR) ? CAN_RTR_REMOTE : CAN_RTR_DATA;
-
-        uint32_t TxMailboxNum; // Transmission MailBox number
+        uint32_t stdid = buffer->ident & CANID_MASK;
+        uint32_t rtr = (buffer->ident & FLAG_RTR) ? CAN_RTR_REMOTE : CAN_RTR_DATA;
 
         /* Now add message to FIFO. Should not fail */
-        success = HAL_CAN_AddTxMessage(&hcan, &tx_hdr, buffer->data,
-                                       &TxMailboxNum) == HAL_OK;
+        CAN_TxMailBox_TypeDef *pbox = &CAN1->sTxMailBox[mailbox];
+        pbox->TIR = ((stdid << CAN_TI0R_STID_Pos) | rtr);
+        pbox->TDTR = buffer->DLC;
+        // little endian machine the buffer has the same order as the registers
+        uint32_t data[2];
+        // use memcpy to avoid alignment issues of 8bit buffer
+        std::memcpy(data, buffer->data, 8);
+        pbox->TDLR = data[0];
+        pbox->TDHR = data[1];
+        // the code below might suffer from alignment issues!!
+        //pbox->TDLR = *((uint32_t *)(&buffer->data[0]));
+        //pbox->TDHR = *((uint32_t *)(&buffer->data[4]));
+        // request transmit mailbox
+        pbox->TIR |= CAN_TI0R_TXRQ;
     }
-    return success;
+    return mailbox;
 }
 
 /******************************************************************************/
@@ -326,7 +537,7 @@ CO_CANsend(CO_CANmodule_t *CANmodule, CO_CANtx_t *buffer)
      * Lock interrupts for atomic operation
      */
     CO_LOCK_CAN_SEND(CANmodule);
-    if (prv_send_can_message(CANmodule, buffer))
+    if (can_send_message(buffer) >= 0)
     {
         CANmodule->bufferInhibitFlag = buffer->syncFlag;
     }
@@ -380,7 +591,7 @@ void CO_CANclearPendingSyncPDOs(CO_CANmodule_t *CANmodule)
 /******************************************************************************/
 /* Get error counters from the module. If necessary, function may use
  * different way to determine errors. */
-static uint16_t rxErrors = 0, txErrors = 0, overflow = 0;
+//static uint16_t rxErrors = 0, txErrors = 0, overflow = 0;
 
 void CO_CANmodule_process(CO_CANmodule_t *CANmodule)
 {
@@ -389,7 +600,7 @@ void CO_CANmodule_process(CO_CANmodule_t *CANmodule)
     // CANOpen just care about Bus_off, Warning, Passive and Overflow
     // I didn't find overflow error register in STM32, if you find it please let me know
 
-    err = hcan.Instance->ESR & (CAN_ESR_BOFF | CAN_ESR_EPVF | CAN_ESR_EWGF);
+    err = CAN1->ESR & (CAN_ESR_BOFF | CAN_ESR_EPVF | CAN_ESR_EWGF);
 
     //    uint32_t esrVal = ((CAN_HandleTypeDef*)((CANopenNodeSTM32*)CANmodule->CANptr)->CANHandle)->Instance->ESR; Debug purpose
     if (CANmodule->errOld != err)
@@ -425,36 +636,81 @@ void CO_CANmodule_process(CO_CANmodule_t *CANmodule)
 }
 
 /**
- * \brief           Read message from RX FIFO
- * \param           hfdcan: pointer to an FDCAN_HandleTypeDef structure that contains
- *                      the configuration information for the specified FDCAN.
- * \param[in]       fifo: Fifo number to use for read
- * \param[in]       fifo_isrs: List of interrupts for respected FIFO
+ * @brief  CAN Rx message header structure definition
  */
-static void
-prv_read_can_received_msg(CAN_HandleTypeDef *hcan, uint32_t fifo, uint32_t fifo_isrs)
+typedef struct
 {
+    uint16_t StdId; /*!< Specifies the standard identifier.
+                         This parameter must be a number between Min_Data = 0 and Max_Data = 0x7FF. */
 
-    CO_CANrxMsg_t rcvMsg;
-    CO_CANrx_t *buffer = NULL; /* receive message buffer from CO_CANmodule_t object. */
-    uint16_t index;            /* index of received message */
-    uint32_t rcvMsgIdent;      /* identifier of the received message */
-    uint8_t messageFound = 0;
+    uint8_t RTR; /*!< Specifies the type of frame for the message that will be transmitted.
+                       This parameter can be a value of @ref CAN_remote_transmission_request */
 
-    static CAN_RxHeaderTypeDef rx_hdr;
+    uint8_t DLC; /*!< Specifies the length of the frame that will be transmitted.
+                       This parameter must be a number between Min_Data = 0 and Max_Data = 8. */
+} CAN_RxHeaderTypeDef;
+
+uint32_t can_read_receive_msg_ll(uint32_t RxFifo, CAN_RxHeaderTypeDef *pHeader, uint8_t *aData)
+{
+    auto pfifo = &CAN1->sFIFOMailBox[RxFifo];
+
+    uint32_t rir = pfifo->RIR;
+    pHeader->StdId = (CAN_RI0R_STID & rir) >> CAN_TI0R_STID_Pos;
+    pHeader->RTR = (CAN_RI0R_RTR & rir);
+    pHeader->DLC = (CAN_RDT0R_DLC & pfifo->RDTR);
+
+    /* Get the data */
+    // aData[0] = (uint8_t)((CAN_RDL0R_DATA0 & hcan->Instance->sFIFOMailBox[RxFifo].RDLR) >> CAN_RDL0R_DATA0_Pos);
+    // aData[1] = (uint8_t)((CAN_RDL0R_DATA1 & hcan->Instance->sFIFOMailBox[RxFifo].RDLR) >> CAN_RDL0R_DATA1_Pos);
+    // aData[2] = (uint8_t)((CAN_RDL0R_DATA2 & hcan->Instance->sFIFOMailBox[RxFifo].RDLR) >> CAN_RDL0R_DATA2_Pos);
+    // aData[3] = (uint8_t)((CAN_RDL0R_DATA3 & hcan->Instance->sFIFOMailBox[RxFifo].RDLR) >> CAN_RDL0R_DATA3_Pos);
+    // aData[4] = (uint8_t)((CAN_RDH0R_DATA4 & hcan->Instance->sFIFOMailBox[RxFifo].RDHR) >> CAN_RDH0R_DATA4_Pos);
+    // aData[5] = (uint8_t)((CAN_RDH0R_DATA5 & hcan->Instance->sFIFOMailBox[RxFifo].RDHR) >> CAN_RDH0R_DATA5_Pos);
+    // aData[6] = (uint8_t)((CAN_RDH0R_DATA6 & hcan->Instance->sFIFOMailBox[RxFifo].RDHR) >> CAN_RDH0R_DATA6_Pos);
+    // aData[7] = (uint8_t)((CAN_RDH0R_DATA7 & hcan->Instance->sFIFOMailBox[RxFifo].RDHR) >> CAN_RDH0R_DATA7_Pos);
+    uint32_t data[2] = {pfifo->RDLR, pfifo->RDHR};
+    // use memcpy to avoid alignment issues of 8bit buffer
+    std::memcpy(aData, data, 8);
+
+    /* Release the FIFO */
+    if (RxFifo == 0) /* Rx element is assigned to Rx FIFO 0 */
+    {
+        /* Release RX FIFO 0 */
+        //SET_BIT(hcan->Instance->RF0R, CAN_RF0R_RFOM0);
+        CAN1->RF0R |= CAN_RF0R_RFOM0;
+    }
+    else /* Rx element is assigned to Rx FIFO 1 */
+    {
+        /* Release RX FIFO 1 */
+        //SET_BIT(hcan->Instance->RF1R, CAN_RF1R_RFOM1);
+        CAN1->RF1R |= CAN_RF1R_RFOM1;
+    }
+
+    /* Return function status */
+    return 0;
+}
+
+/**
+ * \brief           Read message from RX FIFO
+ * \param[in]       fifo: Fifo number to use for read
+ */
+void can_read_received_msg(uint32_t fifo)
+{
+    static CO_CANrxMsg_t rcvMsg;
+    CAN_RxHeaderTypeDef rx_hdr;
     /* Read received message from FIFO */
-    if (HAL_CAN_GetRxMessage(hcan, fifo, &rx_hdr, rcvMsg.data) != HAL_OK)
+    if (can_read_receive_msg_ll(fifo, &rx_hdr, rcvMsg.data) != 0)
     {
         return;
     }
     /* Setup identifier (with RTR) and length */
     rcvMsg.ident = rx_hdr.StdId | (rx_hdr.RTR == CAN_RTR_REMOTE ? FLAG_RTR : 0x00);
     rcvMsg.dlc = rx_hdr.DLC;
-    rcvMsgIdent = rcvMsg.ident;
+    uint32_t rcvMsgIdent = rcvMsg.ident; /* identifier of the received message */
 
     /*
      * Hardware filters are not used for the moment
-     * \todo: Implement hardware filters...
+     * TODO Implement hardware filters...
      */
     if (CANModule_local->useCANrxFilters)
     {
@@ -466,59 +722,33 @@ prv_read_can_received_msg(CAN_HandleTypeDef *hcan, uint32_t fifo, uint32_t fifo_
          * We are not using hardware filters, hence it is necessary
          * to manually match received message ID with all buffers
          */
-        buffer = CANModule_local->rxArray;
-        for (index = CANModule_local->rxSize; index > 0U; --index, ++buffer)
+        CO_CANrx_t *buffer = CANModule_local->rxArray;
+        for (auto i = CANModule_local->rxSize; i > 0U; --i, ++buffer)
         {
             if (((rcvMsgIdent ^ buffer->ident) & buffer->mask) == 0U)
             {
-                messageFound = 1;
+                /* Call specific function, which will process the message */
+                if (buffer->CANrx_callback != NULL)
+                {
+                    buffer->CANrx_callback(buffer->object, (void *)&rcvMsg);
+                }
                 break;
             }
         }
     }
-
-    /* Call specific function, which will process the message */
-    if (messageFound && buffer != NULL && buffer->CANrx_callback != NULL)
-    {
-        buffer->CANrx_callback(buffer->object, (void *)&rcvMsg);
-    }
-}
-
-
-/**
- * \brief           Rx FIFO 0 callback.
- * \param[in]       hcan: pointer to an CAN_HandleTypeDef structure that contains
- *                      the configuration information for the specified CAN.
- */
-void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
-{
-    prv_read_can_received_msg(hcan, CAN_RX_FIFO0, 0);
-}
-
-/**
- * \brief           Rx FIFO 1 callback.
- * \param[in]       hcan: pointer to an CAN_HandleTypeDef structure that contains
- *                      the configuration information for the specified CAN.
- */
-void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef *hcan)
-{
-    prv_read_can_received_msg(hcan, CAN_RX_FIFO1, 0);
 }
 
 /**
  * \brief           TX buffer has been well transmitted callback
- * \param[in]       hcan: pointer to an CAN_HandleTypeDef structure that contains
- *                      the configuration information for the specified CAN.
- * \param[in]       MailboxNumber: the mailbox number that has been transmitted
  */
-void CO_CANinterrupt_TX(CO_CANmodule_t *CANmodule, uint32_t MailboxNumber)
+void can_interrupt_TX()
 {
 
-    CANmodule->firstCANtxMessage = false; /* First CAN message (bootup) was sent successfully */
-    CANmodule->bufferInhibitFlag = false; /* Clear flag from previous message */
-    if (CANmodule->CANtxCount > 0U)
-    {                                                /* Are there any new messages waiting to be send */
-        CO_CANtx_t *buffer = &CANmodule->txArray[0]; /* Start with first buffer handle */
+    CANModule_local->firstCANtxMessage = false; /* First CAN message (bootup) was sent successfully */
+    CANModule_local->bufferInhibitFlag = false; /* Clear flag from previous message */
+    if (CANModule_local->CANtxCount > 0U)
+    {                                                      /* Are there any new messages waiting to be send */
+        CO_CANtx_t *buffer = &CANModule_local->txArray[0]; /* Start with first buffer handle */
         uint16_t i;
 
         /*
@@ -529,26 +759,26 @@ void CO_CANinterrupt_TX(CO_CANmodule_t *CANmodule, uint32_t MailboxNumber)
          * (unless you can guarantee no higher priority interrupt will try to access to CAN instance and send data,
          *  then no need to lock interrupts..)
          */
-        CO_LOCK_CAN_SEND(CANmodule);
-        for (i = CANmodule->txSize; i > 0U; --i, ++buffer)
+        CO_LOCK_CAN_SEND(CANModule_local);
+        for (i = CANModule_local->txSize; i > 0U; --i, ++buffer)
         {
             /* Try to send message */
             if (buffer->bufferFull)
             {
-                if (prv_send_can_message(CANmodule, buffer))
+                if (can_send_message(buffer) >= 0)
                 {
                     buffer->bufferFull = false;
-                    CANmodule->CANtxCount -= 1;
-                    CANmodule->bufferInhibitFlag = buffer->syncFlag;
+                    CANModule_local->CANtxCount -= 1;
+                    CANModule_local->bufferInhibitFlag = buffer->syncFlag;
                 }
             }
         }
         /* Clear counter if no more messages */
         if (i == 0U)
         {
-            CANmodule->CANtxCount = 0U;
+            CANModule_local->CANtxCount = 0U;
         }
-        CO_UNLOCK_CAN_SEND(CANmodule);
+        CO_UNLOCK_CAN_SEND(CANModule_local);
     }
 }
 
@@ -561,18 +791,6 @@ int32_t CANopenNode::init(uint8_t desired_id, uint16_t baudrate_k)
     desiredNodeID = desired_id;
     baudrate = baudrate_k;
 
-    uint32_t timeslices;
-    switch (baudrate_k)
-    {
-    case 500:
-        timeslices = 0x123;
-        break;
-    default:
-        while (true)
-        {
-            ;
-        }
-    }
     // enable clock for hw
     RCC->APB1ENR |= RCC_APB1ENR_CAN1EN;
     // initialize GPIO
@@ -590,7 +808,7 @@ int32_t CANopenNode::init(uint8_t desired_id, uint16_t baudrate_k)
     Core::enable_isr(USB_HP_CAN1_TX_IRQn, 5);
     Core::enable_isr(USB_LP_CAN1_RX0_IRQn, 5);
     Core::enable_isr(CAN1_RX1_IRQn, 5);
-    Core::enable_isr(CAN1_SCE_IRQn, 5);
+    // Core::enable_isr(CAN1_SCE_IRQn, 5);
 
     // CAN1->IER |= CAN_IER_TMEIE;
 
@@ -621,22 +839,22 @@ int32_t CANopenNode::init(uint8_t desired_id, uint16_t baudrate_k)
 #ifndef CO_USE_GLOBALS
     if (CO == NULL)
     {
-        printf("Error: Can't allocate memory\n");
+        log_printf("Error: Can't allocate memory\n");
         return 1;
     }
     else
     {
-        printf("Allocated %u bytes for CANopen objects\n", heapMemoryUsed);
+        log_printf("Allocated %u bytes for CANopen objects\n", heapMemoryUsed);
     }
 #endif
 #if (CO_CONFIG_STORAGE) & CO_CONFIG_STORAGE_ENABLE
-    err = CO_storageBlank_init(&storage, CO->CANmodule, OD_ENTRY_H1010_storeParameters,
+    err = CO_storageBlank_init(&storage, CANModule_local, OD_ENTRY_H1010_storeParameters,
                                OD_ENTRY_H1011_restoreDefaultParameters, storageEntries, storageEntriesCount,
                                &storageInitError);
 
     if (err != CO_ERROR_NO && err != CO_ERROR_DATA_CORRUPT)
     {
-        printf("Error: Storage %d\n", storageInitError);
+        log_printf("Error: Storage %d\n", storageInitError);
         return 2;
     }
 #endif
@@ -652,7 +870,7 @@ void CANopenNode::process(syn::Gpio &led_green, syn::Gpio &led_red)
     uint32_t time_delta = process_time_point - time_current;
 
     if (static_cast<int32_t>(time_delta) <= 0)
-    {   // Make sure more than 1ms elapsed
+    { // Make sure more than 1ms elapsed
         uint32_t timeDifference_us = (-static_cast<int32_t>(time_delta)) + 1000;
         // setup next check for expired at least 1ms in the future;
         process_time_point = time_current + 1000;
@@ -669,12 +887,12 @@ void CANopenNode::process(syn::Gpio &led_green, syn::Gpio &led_red)
             /* delete objects from memory */
             CO_CANsetConfigurationMode(NULL);
             CO_delete(CO);
-            printf("CANopenNode Reset Communication request\n");
+            log_printf("CANopenNode Reset Communication request\n");
             reset_com(); // Reset Communication routine
         }
         else if (reset_status == CO_RESET_APP)
         {
-            printf("CANopenNode Device Reset\n");
+            log_printf("CANopenNode Device Reset\n");
             __NVIC_SystemReset(); // Reset the STM32 Microcontroller
         }
     }
@@ -683,7 +901,7 @@ void CANopenNode::process(syn::Gpio &led_green, syn::Gpio &led_red)
 int32_t CANopenNode::reset_com()
 {
     /* CANopen communication reset - initialize CANopen objects *******************/
-    printf("CANopenNode - Reset communication...\n");
+    log_printf("CANopenNode - Reset communication...\n");
 
     /* Wait rt_thread. */
     CO->CANmodule->CANnormal = false;
@@ -696,7 +914,7 @@ int32_t CANopenNode::reset_com()
     err = CO_CANinit(CO, 0, 0); // Bitrate for STM32 microcontroller is being set in MXCube Settings
     if (err != CO_ERROR_NO)
     {
-        printf("Error: CAN initialization failed: %d\n", err);
+        log_printf("Error: CAN initialization failed: %d\n", err);
         return 1;
     }
 
@@ -707,7 +925,7 @@ int32_t CANopenNode::reset_com()
     err = CO_LSSinit(CO, &lssAddress, &desiredNodeID, &baudrate);
     if (err != CO_ERROR_NO)
     {
-        printf("Error: LSS slave initialization failed: %d\n", err);
+        log_printf("Error: LSS slave initialization failed: %d\n", err);
         return 2;
     }
 
@@ -729,11 +947,11 @@ int32_t CANopenNode::reset_com()
     {
         if (err == CO_ERROR_OD_PARAMETERS)
         {
-            printf("Error: Object Dictionary entry 0x%X\n", errInfo);
+            log_printf("Error: Object Dictionary entry 0x%X\n", errInfo);
         }
         else
         {
-            printf("Error: CANopen initialization failed: %d\n", err);
+            log_printf("Error: CANopen initialization failed: %d\n", err);
         }
         return 3;
     }
@@ -743,11 +961,11 @@ int32_t CANopenNode::reset_com()
     {
         if (err == CO_ERROR_OD_PARAMETERS)
         {
-            printf("Error: Object Dictionary entry 0x%X\n", errInfo);
+            log_printf("Error: Object Dictionary entry 0x%X\n", errInfo);
         }
         else
         {
-            printf("Error: PDO initialization failed: %d\n", err);
+            log_printf("Error: PDO initialization failed: %d\n", err);
         }
         return 4;
     }
@@ -769,13 +987,13 @@ int32_t CANopenNode::reset_com()
     }
     else
     {
-        printf("CANopenNode - Node-id not initialized\n");
+        log_printf("CANopenNode - Node-id not initialized\n");
     }
 
     /* start CAN */
-    CO_CANsetNormalMode(CO->CANmodule);
+    CO_CANsetNormalMode(CANModule_local);
 
-    printf("CANopenNode - Running...\n");
+    log_printf("CANopenNode - Running...\n");
     fflush(stdout);
     process_time_point = System::microseconds() + 1000;
     return 0;
@@ -783,8 +1001,8 @@ int32_t CANopenNode::reset_com()
 
 void CANopenNode::CANopenSYNC::execute()
 {
-    CO_LOCK_OD(CO->CANmodule);
-    if (!CO->nodeIdUnconfigured && CO->CANmodule->CANnormal)
+    CO_LOCK_OD(CANModule_local);
+    if (!CO->nodeIdUnconfigured && CANModule_local->CANnormal)
     {
         bool_t syncWas = false;
         /* get time difference since last function call */
@@ -802,188 +1020,191 @@ void CANopenNode::CANopenSYNC::execute()
 
         /* Further I/O or nonblocking application code may go here. */
     }
-    CO_UNLOCK_OD(CO->CANmodule);
+    CO_UNLOCK_OD(CANModule_local);
 }
 
 extern "C"
 {
-    // void USB_HP_CAN1_TX_IRQHandler(void)
-    // {
-    //     /* USER CODE BEGIN USB_HP_CAN1_TX_IRQn 0 */
-
-    //     /* USER CODE END USB_HP_CAN1_TX_IRQn 0 */
-    //     HAL_CAN_IRQHandler(&hcan);
-    //     /* USER CODE BEGIN USB_HP_CAN1_TX_IRQn 1 */
-
-    //     /* USER CODE END USB_HP_CAN1_TX_IRQn 1 */
-    // }
-
-    /**
-     * @brief This function handles USB low priority or CAN RX0 interrupts.
-     */
-    void USB_LP_CAN1_RX0_IRQHandler(void)
+    void USB_HP_CAN1_TX_IRQHandler(void)
     {
-        /* USER CODE BEGIN USB_LP_CAN1_RX0_IRQn 0 */
-
-        /* USER CODE END USB_LP_CAN1_RX0_IRQn 0 */
-        HAL_CAN_IRQHandler(&hcan);
-        /* USER CODE BEGIN USB_LP_CAN1_RX0_IRQn 1 */
-
-        /* USER CODE END USB_LP_CAN1_RX0_IRQn 1 */
-    }
-
-    /**
-     * @brief This function handles CAN RX1 interrupt.
-     */
-    void CAN1_RX1_IRQHandler(void)
-    {
-        /* USER CODE BEGIN CAN1_RX1_IRQn 0 */
-
-        /* USER CODE END CAN1_RX1_IRQn 0 */
-        HAL_CAN_IRQHandler(&hcan);
-        /* USER CODE BEGIN CAN1_RX1_IRQn 1 */
-
-        /* USER CODE END CAN1_RX1_IRQn 1 */
-    }
-
-        void USB_HP_CAN1_TX_IRQHandler(void)
-        {
         uint32_t errorcode = HAL_CAN_ERROR_NONE;
-            uint32_t tsrflags = CAN1->TSR;
-            /* Transmit Mailbox 0 management *****************************************/
-            if ((tsrflags & CAN_TSR_RQCP0) != 0U)
-            {
-                /* Clear the Transmission Complete flag (and TXOK0,ALST0,TERR0 bits) */
-                CAN1->TSR |= CAN_TSR_RQCP0;
+        uint32_t tsrflags = CAN1->TSR;
+        /* Transmit Mailbox 0 management *****************************************/
+        if ((tsrflags & CAN_TSR_RQCP0) != 0U)
+        {
+            /* Clear the Transmission Complete flag (and TXOK0,ALST0,TERR0 bits) */
+            CAN1->TSR |= CAN_TSR_RQCP0;
 
-                if ((tsrflags & CAN_TSR_TXOK0) != 0U)
+            if ((tsrflags & CAN_TSR_TXOK0) != 0U)
+            {
+                can_interrupt_TX();
+            }
+            else
+            {
+                if ((tsrflags & CAN_TSR_ALST0) != 0U)
                 {
-                    CO_CANinterrupt_TX(CANModule_local, CAN_TX_MAILBOX0);
+                    /* Update error code */
+                    errorcode |= HAL_CAN_ERROR_TX_ALST0;
+                }
+                else if ((tsrflags & CAN_TSR_TERR0) != 0U)
+                {
+                    /* Update error code */
+                    errorcode |= HAL_CAN_ERROR_TX_TERR0;
                 }
                 else
                 {
-                    if ((tsrflags & CAN_TSR_ALST0) != 0U)
-                    {
-                        /* Update error code */
-                        errorcode |= HAL_CAN_ERROR_TX_ALST0;
-                    }
-                    else if ((tsrflags & CAN_TSR_TERR0) != 0U)
-                    {
-                        /* Update error code */
-                        errorcode |= HAL_CAN_ERROR_TX_TERR0;
-                    }
-                    else
-                    {
-                        /* Transmission Mailbox 0 abort callback */
-    #if USE_HAL_CAN_REGISTER_CALLBACKS == 1
-                        /* Call registered callback*/
-                        hcan->TxMailbox0AbortCallback(hcan);
-    #else
-                        /* Call weak (surcharged) callback */
-                        //HAL_CAN_TxMailbox0AbortCallback(hcan);
-    #endif /* USE_HAL_CAN_REGISTER_CALLBACKS */
-                    }
+                    /* Transmission Mailbox 0 abort callback */
+                    // HAL_CAN_TxMailbox0AbortCallback(hcan);
                 }
             }
-
-            /* Transmit Mailbox 1 management *****************************************/
-            if ((tsrflags & CAN_TSR_RQCP1) != 0U)
-            {
-                /* Clear the Transmission Complete flag (and TXOK1,ALST1,TERR1 bits) */
-                CAN1->TSR |= CAN_TSR_RQCP1;
-
-                if ((tsrflags & CAN_TSR_TXOK1) != 0U)
-                {
-                    /* Transmission Mailbox 1 complete callback */
-                    CO_CANinterrupt_TX(CANModule_local, CAN_TX_MAILBOX1);
-                }
-                else
-                {
-                    if ((tsrflags & CAN_TSR_ALST1) != 0U)
-                    {
-                        /* Update error code */
-                        errorcode |= HAL_CAN_ERROR_TX_ALST1;
-                    }
-                    else if ((tsrflags & CAN_TSR_TERR1) != 0U)
-                    {
-                        /* Update error code */
-                        errorcode |= HAL_CAN_ERROR_TX_TERR1;
-                    }
-                    else
-                    {
-                        /* Transmission Mailbox 1 abort callback */
-    #if USE_HAL_CAN_REGISTER_CALLBACKS == 1
-                        /* Call registered callback*/
-                        hcan->TxMailbox1AbortCallback(hcan);
-    #else
-                        /* Call weak (surcharged) callback */
-                        //HAL_CAN_TxMailbox1AbortCallback(hcan);
-    #endif /* USE_HAL_CAN_REGISTER_CALLBACKS */
-                    }
-                }
-            }
-
-            /* Transmit Mailbox 2 management *****************************************/
-            if ((tsrflags & CAN_TSR_RQCP2) != 0U)
-            {
-                /* Clear the Transmission Complete flag (and TXOK2,ALST2,TERR2 bits) */
-                CAN1->TSR |= CAN_TSR_RQCP2;
-
-                if ((tsrflags & CAN_TSR_TXOK2) != 0U)
-                {
-                    CO_CANinterrupt_TX(CANModule_local, CAN_TX_MAILBOX2);
-                }
-                else
-                {
-                    if ((tsrflags & CAN_TSR_ALST2) != 0U)
-                    {
-                        /* Update error code */
-                        errorcode |= HAL_CAN_ERROR_TX_ALST2;
-                    }
-                    else if ((tsrflags & CAN_TSR_TERR2) != 0U)
-                    {
-                        /* Update error code */
-                        errorcode |= HAL_CAN_ERROR_TX_TERR2;
-                    }
-                    else
-                    {
-                        /* Transmission Mailbox 2 abort callback */
-    #if USE_HAL_CAN_REGISTER_CALLBACKS == 1
-                        /* Call registered callback*/
-                        hcan->TxMailbox2AbortCallback(hcan);
-    #else
-                        /* Call weak (surcharged) callback */
-                       // HAL_CAN_TxMailbox2AbortCallback(hcan);
-    #endif /* USE_HAL_CAN_REGISTER_CALLBACKS */
-                    }
-                }
-            }
-              /* Call the Error call Back in case of Errors */
-  if (errorcode != HAL_CAN_ERROR_NONE)
-  {
-    /* Update error code in handle */
-    hcan.ErrorCode |= errorcode;
-
-    /* Call Error callback function */
-#if USE_HAL_CAN_REGISTER_CALLBACKS == 1
-    /* Call registered callback*/
-    hcan->ErrorCallback(hcan);
-#else
-    /* Call weak (surcharged) callback */
-    //HAL_CAN_ErrorCallback(hcan);
-#endif /* USE_HAL_CAN_REGISTER_CALLBACKS */
-  }
         }
 
-    //     void USB_LP_CAN1_RX0_IRQHandler(void)
-    //     {
-    //     }
+        /* Transmit Mailbox 1 management *****************************************/
+        if ((tsrflags & CAN_TSR_RQCP1) != 0U)
+        {
+            /* Clear the Transmission Complete flag (and TXOK1,ALST1,TERR1 bits) */
+            CAN1->TSR |= CAN_TSR_RQCP1;
 
-    //     void CAN1_RX1_IRQHandler(void)
-    //     {
-    //     }
+            if ((tsrflags & CAN_TSR_TXOK1) != 0U)
+            {
+                /* Transmission Mailbox 1 complete callback */
+                can_interrupt_TX();
+            }
+            else
+            {
+                if ((tsrflags & CAN_TSR_ALST1) != 0U)
+                {
+                    /* Update error code */
+                    errorcode |= HAL_CAN_ERROR_TX_ALST1;
+                }
+                else if ((tsrflags & CAN_TSR_TERR1) != 0U)
+                {
+                    /* Update error code */
+                    errorcode |= HAL_CAN_ERROR_TX_TERR1;
+                }
+                else
+                {
+                    /* Transmission Mailbox 1 abort callback */
+                    // HAL_CAN_TxMailbox1AbortCallback(hcan);
+                }
+            }
+        }
 
-    //     void CAN1_SCE_IRQHandler(void)
-    //     {
-    //     }
+        /* Transmit Mailbox 2 management *****************************************/
+        if ((tsrflags & CAN_TSR_RQCP2) != 0U)
+        {
+            /* Clear the Transmission Complete flag (and TXOK2,ALST2,TERR2 bits) */
+            CAN1->TSR |= CAN_TSR_RQCP2;
+
+            if ((tsrflags & CAN_TSR_TXOK2) != 0U)
+            {
+                can_interrupt_TX();
+            }
+            else
+            {
+                if ((tsrflags & CAN_TSR_ALST2) != 0U)
+                {
+                    /* Update error code */
+                    errorcode |= HAL_CAN_ERROR_TX_ALST2;
+                }
+                else if ((tsrflags & CAN_TSR_TERR2) != 0U)
+                {
+                    /* Update error code */
+                    errorcode |= HAL_CAN_ERROR_TX_TERR2;
+                }
+                else
+                {
+                    /* Transmission Mailbox 2 abort callback */
+                    // HAL_CAN_TxMailbox2AbortCallback(hcan);
+                }
+            }
+        }
+        /* Call the Error call Back in case of Errors */
+        if (errorcode != HAL_CAN_ERROR_NONE)
+        {
+            /* Update error code in handle */
+            can_error |= errorcode;
+            /* Call weak (surcharged) callback */
+            // HAL_CAN_ErrorCallback(hcan);
+        }
+    }
+
+    void USB_LP_CAN1_RX0_IRQHandler(void)
+    {
+        // uint32_t errorcode = HAL_CAN_ERROR_NONE;
+        // uint32_t rf0rflags = CAN1->RF0R;
+        // /* Receive FIFO 0 overrun interrupt management *****************************/
+        // if ((rf0rflags & CAN_RF0R_FOVR0) != 0U)
+        // {
+        //     /* Set CAN error code to Rx Fifo 0 overrun error */
+        //     errorcode |= HAL_CAN_ERROR_RX_FOV0;
+        //     /* Clear FIFO0 Overrun Flag */
+        //     CAN1->RF0R = CAN_RF0R_FOVR0;
+        // }
+        // /* Receive FIFO 0 full interrupt management ********************************/
+        // if ((rf0rflags & CAN_RF0R_FULL0) != 0U)
+        // {
+        //     /* Clear FIFO 0 full Flag */
+        //     CAN1->RF0R = CAN_RF0R_FULL0;
+        //     /* Call weak (surcharged) callback */
+        //     // HAL_CAN_RxFifo0FullCallback(hcan);
+        // }
+        /* Receive FIFO 0 message pending interrupt management *********************/
+        /* Check if message is still pending */
+        if ((CAN1->RF0R & CAN_RF0R_FMP0) != 0U)
+        {
+            /* Receive FIFO 0 message pending Callback */
+            can_read_received_msg(0);
+        }
+        // /* Call the Error call Back in case of Errors */
+        // if (errorcode != HAL_CAN_ERROR_NONE)
+        // {
+        //     /* Update error code in handle */
+        //     hcan.ErrorCode |= errorcode;
+        //     /* Call weak (surcharged) callback */
+        //     // HAL_CAN_ErrorCallback(hcan);
+        // }
+    }
+
+    void CAN1_RX1_IRQHandler(void)
+    {
+        // uint32_t errorcode = HAL_CAN_ERROR_NONE;
+        // uint32_t rf1rflags = CAN1->RF1R;
+        // /* Receive FIFO 1 overrun interrupt management *****************************/
+        // if ((rf1rflags & CAN_RF1R_FOVR1) != 0U)
+        // {
+        //     /* Set CAN error code to Rx Fifo 1 overrun error */
+        //     errorcode |= HAL_CAN_ERROR_RX_FOV1;
+        //     /* Clear FIFO1 Overrun Flag */
+        //     CAN1->RF0R = CAN_RF1R_FOVR1;
+        // }
+        // /* Receive FIFO 1 full interrupt management ********************************/
+        // if ((rf1rflags & CAN_RF1R_FULL1) != 0U)
+        // {
+        //     /* Clear FIFO 1 full Flag */
+        //     CAN1->RF0R = CAN_RF1R_FULL1;
+        //     /* Call weak (surcharged) callback */
+        //     // HAL_CAN_RxFifo1FullCallback(hcan);
+        // }
+        /* Receive FIFO 1 message pending interrupt management *********************/
+        /* Check if message is still pending */
+        if ((CAN1->RF1R & CAN_RF1R_FMP1) != 0U)
+        {
+            /* Receive FIFO 1 message pending Callback */
+            can_read_received_msg(1);
+        }
+        /* Call the Error call Back in case of Errors */
+        // if (errorcode != HAL_CAN_ERROR_NONE)
+        // {
+        //     /* Update error code in handle */
+        //     hcan.ErrorCode |= errorcode;
+        //     /* Call weak (surcharged) callback */
+        //     // HAL_CAN_ErrorCallback(hcan);
+        // }
+    }
+
+    // void CAN1_SCE_IRQHandler(void)
+    // {
+    //     HAL_CAN_IRQHandler(&hcan);
+    // }
 }

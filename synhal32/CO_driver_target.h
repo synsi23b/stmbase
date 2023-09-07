@@ -67,7 +67,7 @@ extern "C"
      */
     typedef struct
     {
-        uint32_t ident;  /*!< Standard identifier */
+        uint16_t ident;  /*!< Standard identifier */
         uint8_t dlc;     /*!< Data length */
         uint8_t data[8]; /*!< Received data */
     } CO_CANrxMsg_t;
