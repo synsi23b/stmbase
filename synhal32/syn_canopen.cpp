@@ -2,7 +2,7 @@
 #include "../CANopenNode/CANopen.h"
 #include "../CANopenNode/301/CO_driver.h"
 
-#include <CO_storageBlank.h>
+#include <CO_storage_target.h>
 #include <OD.h>
 #include "CO_driver_target.h"
 
@@ -10,10 +10,10 @@
 
 #ifdef NDEBUG
 #define log_printf(macropar_message, ...) \
-        (void)(macropar_message)
+    (void)(macropar_message)
 #else
 #define log_printf(macropar_message, ...) \
-        printf(macropar_message, ##__VA_ARGS__)
+    printf(macropar_message, ##__VA_ARGS__)
 #endif
 
 /* default values for CO_CANopenInit() */
@@ -23,7 +23,6 @@
 #define SDO_CLI_TIMEOUT_TIME 500
 #define SDO_CLI_BLOCK false
 #define OD_STATUS_BITS NULL
-
 
 #define HAL_CAN_ERROR_NONE (0x00000000U)            /*!< No error                                             */
 #define HAL_CAN_ERROR_EWG (0x00000001U)             /*!< Protocol Error Warning                               */
@@ -108,10 +107,10 @@ void CO_CANsetConfigurationMode(void *CANptr)
                 can_error |= HAL_CAN_ERROR_TIMEOUT;
 
                 /* Change CAN state */
-            can_state = HAL_CAN_STATE_ERROR;
+                can_state = HAL_CAN_STATE_ERROR;
 
-            while (true)
-                ;
+                while (true)
+                    ;
             }
         }
 
@@ -154,10 +153,10 @@ void CO_CANsetNormalMode(CO_CANmodule_t *CANmodule)
                 can_error |= HAL_CAN_ERROR_TIMEOUT;
 
                 /* Change CAN state */
-            can_state = HAL_CAN_STATE_ERROR;
+                can_state = HAL_CAN_STATE_ERROR;
 
-            while (true)
-                ;
+                while (true)
+                    ;
             }
         }
 
@@ -506,8 +505,8 @@ int32_t can_send_message(CO_CANtx_t *buffer)
         pbox->TDLR = data[0];
         pbox->TDHR = data[1];
         // the code below might suffer from alignment issues!!
-        //pbox->TDLR = *((uint32_t *)(&buffer->data[0]));
-        //pbox->TDHR = *((uint32_t *)(&buffer->data[4]));
+        // pbox->TDLR = *((uint32_t *)(&buffer->data[0]));
+        // pbox->TDHR = *((uint32_t *)(&buffer->data[4]));
         // request transmit mailbox
         pbox->TIR |= CAN_TI0R_TXRQ;
     }
@@ -591,7 +590,7 @@ void CO_CANclearPendingSyncPDOs(CO_CANmodule_t *CANmodule)
 /******************************************************************************/
 /* Get error counters from the module. If necessary, function may use
  * different way to determine errors. */
-//static uint16_t rxErrors = 0, txErrors = 0, overflow = 0;
+// static uint16_t rxErrors = 0, txErrors = 0, overflow = 0;
 
 void CO_CANmodule_process(CO_CANmodule_t *CANmodule)
 {
@@ -660,14 +659,6 @@ uint32_t can_read_receive_msg_ll(uint32_t RxFifo, CAN_RxHeaderTypeDef *pHeader, 
     pHeader->DLC = (CAN_RDT0R_DLC & pfifo->RDTR);
 
     /* Get the data */
-    // aData[0] = (uint8_t)((CAN_RDL0R_DATA0 & hcan->Instance->sFIFOMailBox[RxFifo].RDLR) >> CAN_RDL0R_DATA0_Pos);
-    // aData[1] = (uint8_t)((CAN_RDL0R_DATA1 & hcan->Instance->sFIFOMailBox[RxFifo].RDLR) >> CAN_RDL0R_DATA1_Pos);
-    // aData[2] = (uint8_t)((CAN_RDL0R_DATA2 & hcan->Instance->sFIFOMailBox[RxFifo].RDLR) >> CAN_RDL0R_DATA2_Pos);
-    // aData[3] = (uint8_t)((CAN_RDL0R_DATA3 & hcan->Instance->sFIFOMailBox[RxFifo].RDLR) >> CAN_RDL0R_DATA3_Pos);
-    // aData[4] = (uint8_t)((CAN_RDH0R_DATA4 & hcan->Instance->sFIFOMailBox[RxFifo].RDHR) >> CAN_RDH0R_DATA4_Pos);
-    // aData[5] = (uint8_t)((CAN_RDH0R_DATA5 & hcan->Instance->sFIFOMailBox[RxFifo].RDHR) >> CAN_RDH0R_DATA5_Pos);
-    // aData[6] = (uint8_t)((CAN_RDH0R_DATA6 & hcan->Instance->sFIFOMailBox[RxFifo].RDHR) >> CAN_RDH0R_DATA6_Pos);
-    // aData[7] = (uint8_t)((CAN_RDH0R_DATA7 & hcan->Instance->sFIFOMailBox[RxFifo].RDHR) >> CAN_RDH0R_DATA7_Pos);
     uint32_t data[2] = {pfifo->RDLR, pfifo->RDHR};
     // use memcpy to avoid alignment issues of 8bit buffer
     std::memcpy(aData, data, 8);
@@ -676,13 +667,13 @@ uint32_t can_read_receive_msg_ll(uint32_t RxFifo, CAN_RxHeaderTypeDef *pHeader, 
     if (RxFifo == 0) /* Rx element is assigned to Rx FIFO 0 */
     {
         /* Release RX FIFO 0 */
-        //SET_BIT(hcan->Instance->RF0R, CAN_RF0R_RFOM0);
+        // SET_BIT(hcan->Instance->RF0R, CAN_RF0R_RFOM0);
         CAN1->RF0R |= CAN_RF0R_RFOM0;
     }
     else /* Rx element is assigned to Rx FIFO 1 */
     {
         /* Release RX FIFO 1 */
-        //SET_BIT(hcan->Instance->RF1R, CAN_RF1R_RFOM1);
+        // SET_BIT(hcan->Instance->RF1R, CAN_RF1R_RFOM1);
         CAN1->RF1R |= CAN_RF1R_RFOM1;
     }
 
