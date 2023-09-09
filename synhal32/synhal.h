@@ -956,6 +956,19 @@ namespace syn
     {
       OS_Start();
     }
+
+    // 96bit unique ID, 3 32bit integer
+    // function returns the start of that array
+    static uint32_t* uniqueID()
+    {
+      return (uint32_t*)UID_BASE;
+    }
+
+    // 0x800 -> 128kb 0x400 -> 64kb
+    static uint16_t flashSize()
+    {
+      return *FLASHSIZE;
+    }
   };
 
   class StopWatch

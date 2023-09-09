@@ -734,7 +734,6 @@ void can_read_received_msg(uint32_t fifo)
  */
 void can_interrupt_TX()
 {
-
     CANModule_local->firstCANtxMessage = false; /* First CAN message (bootup) was sent successfully */
     CANModule_local->bufferInhibitFlag = false; /* Clear flag from previous message */
     if (CANModule_local->CANtxCount > 0U)
@@ -796,8 +795,11 @@ int32_t CANopenNode::init(uint8_t desired_id, uint16_t baudrate_k)
     }
 
     // enable CAN interrupts
+    // set priority to 8 if using OS functions inside ISR with Core::enter_isr()
     Core::enable_isr(USB_HP_CAN1_TX_IRQn, 5);
     Core::enable_isr(USB_LP_CAN1_RX0_IRQn, 5);
+    // we only use fifo0 (I think -- only the first filter allows any message for FIFO 0)
+    // enable anyway just to avoid any error in this regard, should never fire anway
     Core::enable_isr(CAN1_RX1_IRQn, 5);
     // Core::enable_isr(CAN1_SCE_IRQn, 5);
 
@@ -909,6 +911,9 @@ int32_t CANopenNode::reset_com()
         return 1;
     }
 
+    // get chip unique ID to populate device serial number
+    OD_PERSIST_COMM.x1018_identity.serialNumber = *(syn::System::uniqueID() + 2);
+
     CO_LSS_address_t lssAddress = {.identity = {.vendorID = OD_PERSIST_COMM.x1018_identity.vendor_ID,
                                                 .productCode = OD_PERSIST_COMM.x1018_identity.productCode,
                                                 .revisionNumber = OD_PERSIST_COMM.x1018_identity.revisionNumber,
@@ -1018,6 +1023,7 @@ extern "C"
 {
     void USB_HP_CAN1_TX_IRQHandler(void)
     {
+        //syn::Core::enter_isr();
         uint32_t errorcode = HAL_CAN_ERROR_NONE;
         uint32_t tsrflags = CAN1->TSR;
         /* Transmit Mailbox 0 management *****************************************/
@@ -1118,10 +1124,12 @@ extern "C"
             /* Call weak (surcharged) callback */
             // HAL_CAN_ErrorCallback(hcan);
         }
+        //syn::Core::leave_isr();
     }
 
     void USB_LP_CAN1_RX0_IRQHandler(void)
     {
+        //syn::Core::enter_isr();
         // uint32_t errorcode = HAL_CAN_ERROR_NONE;
         // uint32_t rf0rflags = CAN1->RF0R;
         // /* Receive FIFO 0 overrun interrupt management *****************************/
@@ -1155,10 +1163,12 @@ extern "C"
         //     /* Call weak (surcharged) callback */
         //     // HAL_CAN_ErrorCallback(hcan);
         // }
+        //syn::Core::leave_isr();
     }
 
     void CAN1_RX1_IRQHandler(void)
     {
+        //syn::Core::enter_isr();
         // uint32_t errorcode = HAL_CAN_ERROR_NONE;
         // uint32_t rf1rflags = CAN1->RF1R;
         // /* Receive FIFO 1 overrun interrupt management *****************************/
@@ -1192,6 +1202,7 @@ extern "C"
         //     /* Call weak (surcharged) callback */
         //     // HAL_CAN_ErrorCallback(hcan);
         // }
+        //syn::Core::leave_isr();
     }
 
     // void CAN1_SCE_IRQHandler(void)
