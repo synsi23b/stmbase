@@ -69,7 +69,9 @@ static volatile uint32_t can_error = 0;
 static volatile HAL_CAN_StateTypeDef can_state = HAL_CAN_STATE_RESET;
 
 CO_ReturnError_t err;
+#if SYN_CAN_USE_TIMER == 0
 syn::CANopenNode::CANopenSYNC syn::CANopenNode::_synctimer;
+#endif
 
 /* Local CAN module object */
 static CO_CANmodule_t *CANModule_local = NULL; /* Local instance of global CAN module */
@@ -377,6 +379,18 @@ CO_ReturnError_t CO_CANmodule_init(CO_CANmodule_t *CANmodule, void *CANptr, CO_C
 /******************************************************************************/
 void CO_CANmodule_disable(CO_CANmodule_t *CANmodule)
 {
+#if SYN_CAN_USE_TIMER != 0
+    if(SYN_CAN_USE_TIMER == 4)
+    {
+        TIM4->CR1 = 0;
+    }
+    else
+    {
+        OS_ASSERT(SYN_CAN_USE_TIMER == 0, ERR_BAD_INDEX);
+    }
+#else
+    _synctimer.stop();
+#endif
     (void)CANmodule;
     if (can_state == HAL_CAN_STATE_LISTENING)
     {
@@ -776,8 +790,6 @@ using namespace syn;
 
 int32_t CANopenNode::init(uint8_t desired_id, uint16_t baudrate_k)
 {
-    _synctimer.init(1, true);
-
     desiredNodeID = desired_id;
     baudrate = baudrate_k;
 
@@ -802,8 +814,33 @@ int32_t CANopenNode::init(uint8_t desired_id, uint16_t baudrate_k)
     // enable anyway just to avoid any error in this regard, should never fire anway
     Core::enable_isr(CAN1_RX1_IRQn, 5);
     // Core::enable_isr(CAN1_SCE_IRQn, 5);
-
     // CAN1->IER |= CAN_IER_TMEIE;
+
+
+    // Setup 1ms process timer
+#if SYN_CAN_USE_TIMER != 0
+    TIM_TypeDef* pTimer = NULL;
+    uint32_t irqn;
+    if(SYN_CAN_USE_TIMER == 4)
+    {
+        pTimer = TIM4;
+        irqn = TIM4_IRQn;
+        RCC->APB1ENR |= RCC_APB1ENR_TIM4EN;
+    }
+    else
+    {
+        OS_ASSERT(SYN_CAN_USE_TIMER == 0, ERR_BAD_INDEX);
+    }
+    pTimer->CR1 = 0;
+    pTimer->DIER = TIM_DIER_UIE;
+    pTimer->SR = 0;
+    pTimer->PSC = SystemCoreClock / 1000000 - 1;
+    pTimer->ARR = 1000;
+    Core::enable_isr(static_cast<IRQn_Type>(irqn), 6);
+#else
+    _synctimer.init(1, true);
+#endif
+        
 
 #if (CO_CONFIG_STORAGE) & CO_CONFIG_STORAGE_ENABLE
     CO_storage_t storage;
@@ -967,9 +1004,19 @@ int32_t CANopenNode::reset_com()
     }
 
     /* Restart Timer interrupt function for execution every 1 millisecond */
+#if SYN_CAN_USE_TIMER != 0
+    if(SYN_CAN_USE_TIMER == 4)
+    {
+        TIM4->CNT = 0;
+        TIM4->CR1 = TIM_CR1_CEN;
+    }
+    else
+    {
+        OS_ASSERT(SYN_CAN_USE_TIMER == 0, ERR_BAD_INDEX);
+    }
+#else
     _synctimer.restart();
-    /* Configure CAN transmit and receive interrupt */
-
+#endif
     /* Configure CANopen callbacks, etc */
     if (!CO->nodeIdUnconfigured)
     {
@@ -995,7 +1042,7 @@ int32_t CANopenNode::reset_com()
     return 0;
 }
 
-void CANopenNode::CANopenSYNC::execute()
+void CO_process_1ms()
 {
     CO_LOCK_OD(CANModule_local);
     if (!CO->nodeIdUnconfigured && CANModule_local->CANnormal)
@@ -1017,6 +1064,11 @@ void CANopenNode::CANopenSYNC::execute()
         /* Further I/O or nonblocking application code may go here. */
     }
     CO_UNLOCK_OD(CANModule_local);
+}
+
+void CANopenNode::CANopenSYNC::execute()
+{
+    CO_process_1ms();
 }
 
 extern "C"
@@ -1209,4 +1261,14 @@ extern "C"
     // {
     //     HAL_CAN_IRQHandler(&hcan);
     // }
+
+    #if SYN_CAN_USE_TIMER != 0
+#if SYN_CAN_USE_TIMER == 4
+  void TIM4_IRQHandler()
+  {
+    TIM4->SR = 0;
+    CO_process_1ms();
+  }
+#endif
+#endif
 }
