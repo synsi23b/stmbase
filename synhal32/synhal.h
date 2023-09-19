@@ -15,6 +15,9 @@
 
 #include "../embos/common/RTOS.h"
 
+#include "../CANopenNode/301/CO_ODinterface.h"
+#include "../CANopenNode/301/CO_PDO.h"
+
 namespace syn
 {
   class Atomic
@@ -2338,6 +2341,22 @@ namespace syn
     static int32_t init(uint8_t desired_id, uint16_t baudrate_k);
     // slow process messages, can be in a loop with other code
     static void process(syn::Gpio &led_green, syn::Gpio& led_red);
+    // find a pdo flags entry in CO Object dictionary by index
+    static uint8_t* getFlagsPDO(uint16_t canopen_index);
+    // set the TPDO transmit request flag by Flag object + subindex
+    static void requestTPDO(uint8_t* flagsPDO, uint8_t subidx);
+
+    // class TPDOtrigger
+    // {
+    //   public:
+      
+    //   void init(OD_entry_t * object);
+    //   void trigger();
+    //   private:
+    //     OD_extension_t _ext;
+    //     uint8_t* _flags;
+    // };
+
   private:
     // restart can hadware and node
     static int32_t reset_com();

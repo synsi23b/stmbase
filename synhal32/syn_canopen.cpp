@@ -1,6 +1,7 @@
 #include "synhal.h"
 #include "../CANopenNode/CANopen.h"
 #include "../CANopenNode/301/CO_driver.h"
+#include "../CANopenNode/301/CO_ODinterface.h"
 
 #include <CO_storage_target.h>
 #include <OD.h>
@@ -380,7 +381,7 @@ CO_ReturnError_t CO_CANmodule_init(CO_CANmodule_t *CANmodule, void *CANptr, CO_C
 void CO_CANmodule_disable(CO_CANmodule_t *CANmodule)
 {
 #if SYN_CAN_USE_TIMER != 0
-    if(SYN_CAN_USE_TIMER == 4)
+    if (SYN_CAN_USE_TIMER == 4)
     {
         TIM4->CR1 = 0;
     }
@@ -797,15 +798,26 @@ int32_t CANopenNode::init(uint8_t desired_id, uint16_t baudrate_k)
     RCC->APB1ENR |= RCC_APB1ENR_CAN1EN;
     // initialize GPIO
     // TODO remap pins according to afio register?
+#if !defined(SYN_CAN_1_REMAP) || SYN_CAN_1_REMAP == 0
     {
         Gpio rx('a', 11);
-        rx.mode(Gpio::in_floating, Gpio::Input);
+        rx.mode(Gpio::in_pullup, Gpio::Input);
     }
     {
         Gpio tx('a', 12);
         tx.mode(Gpio::out_alt_push_pull, Gpio::MHz_50, Gpio::Alternate::CAN);
     }
-
+#elif SYN_CAN_1_REMAP == 1
+    Gpio::remap(Gpio::can_rx_pb8_tx_pb9);
+    {
+        Gpio rx('b', 8);
+        rx.mode(Gpio::in_pullup, Gpio::Input);
+    }
+    {
+        Gpio tx('b', 9);
+        tx.mode(Gpio::out_alt_push_pull, Gpio::MHz_50, Gpio::Alternate::CAN);
+    }
+#endif
     // enable CAN interrupts
     // set priority to 8 if using OS functions inside ISR with Core::enter_isr()
     Core::enable_isr(USB_HP_CAN1_TX_IRQn, 5);
@@ -816,12 +828,11 @@ int32_t CANopenNode::init(uint8_t desired_id, uint16_t baudrate_k)
     // Core::enable_isr(CAN1_SCE_IRQn, 5);
     // CAN1->IER |= CAN_IER_TMEIE;
 
-
     // Setup 1ms process timer
 #if SYN_CAN_USE_TIMER != 0
-    TIM_TypeDef* pTimer = NULL;
+    TIM_TypeDef *pTimer = NULL;
     uint32_t irqn;
-    if(SYN_CAN_USE_TIMER == 4)
+    if (SYN_CAN_USE_TIMER == 4)
     {
         pTimer = TIM4;
         irqn = TIM4_IRQn;
@@ -840,7 +851,6 @@ int32_t CANopenNode::init(uint8_t desired_id, uint16_t baudrate_k)
 #else
     _synctimer.init(1, true);
 #endif
-        
 
 #if (CO_CONFIG_STORAGE) & CO_CONFIG_STORAGE_ENABLE
     CO_storage_t storage;
@@ -1005,7 +1015,7 @@ int32_t CANopenNode::reset_com()
 
     /* Restart Timer interrupt function for execution every 1 millisecond */
 #if SYN_CAN_USE_TIMER != 0
-    if(SYN_CAN_USE_TIMER == 4)
+    if (SYN_CAN_USE_TIMER == 4)
     {
         TIM4->CNT = 0;
         TIM4->CR1 = TIM_CR1_CEN;
@@ -1066,16 +1076,43 @@ void CO_process_1ms()
     CO_UNLOCK_OD(CANModule_local);
 }
 
+uint8_t *CANopenNode::getFlagsPDO(uint16_t canopen_index)
+{
+    OD_entry_t *ent = OD_find(OD, canopen_index);
+    if (ent == NULL)
+        return NULL;
+    return OD_getFlagsPDO(ent);
+}
+
+void CANopenNode::requestTPDO(uint8_t *flagsPDO, uint8_t subidx)
+{
+    OD_requestTPDO(flagsPDO, subidx);
+}
+
 void CANopenNode::CANopenSYNC::execute()
 {
     CO_process_1ms();
 }
 
+//void CANopenNode::TPDOtrigger::init(OD_entry_t *pObject)
+//{
+//    _ext.object = NULL;
+//    _ext.read = OD_readOriginal;
+//    _ext.write = OD_writeOriginal;
+//    OD_extension_init(pObject, &_ext);
+//    _flags = OD_getFlagsPDO(pObject);
+//}
+
+//void CANopenNode::TPDOtrigger::trigger()
+//{
+//    OD_requestTPDO(_flags, 1);
+//}
+
 extern "C"
 {
     void USB_HP_CAN1_TX_IRQHandler(void)
     {
-        //syn::Core::enter_isr();
+        // syn::Core::enter_isr();
         uint32_t errorcode = HAL_CAN_ERROR_NONE;
         uint32_t tsrflags = CAN1->TSR;
         /* Transmit Mailbox 0 management *****************************************/
@@ -1176,30 +1213,30 @@ extern "C"
             /* Call weak (surcharged) callback */
             // HAL_CAN_ErrorCallback(hcan);
         }
-        //syn::Core::leave_isr();
+        // syn::Core::leave_isr();
     }
 
     void USB_LP_CAN1_RX0_IRQHandler(void)
     {
-        //syn::Core::enter_isr();
-        // uint32_t errorcode = HAL_CAN_ERROR_NONE;
-        // uint32_t rf0rflags = CAN1->RF0R;
-        // /* Receive FIFO 0 overrun interrupt management *****************************/
-        // if ((rf0rflags & CAN_RF0R_FOVR0) != 0U)
-        // {
-        //     /* Set CAN error code to Rx Fifo 0 overrun error */
-        //     errorcode |= HAL_CAN_ERROR_RX_FOV0;
-        //     /* Clear FIFO0 Overrun Flag */
-        //     CAN1->RF0R = CAN_RF0R_FOVR0;
-        // }
-        // /* Receive FIFO 0 full interrupt management ********************************/
-        // if ((rf0rflags & CAN_RF0R_FULL0) != 0U)
-        // {
-        //     /* Clear FIFO 0 full Flag */
-        //     CAN1->RF0R = CAN_RF0R_FULL0;
-        //     /* Call weak (surcharged) callback */
-        //     // HAL_CAN_RxFifo0FullCallback(hcan);
-        // }
+        // syn::Core::enter_isr();
+        //  uint32_t errorcode = HAL_CAN_ERROR_NONE;
+        //  uint32_t rf0rflags = CAN1->RF0R;
+        //  /* Receive FIFO 0 overrun interrupt management *****************************/
+        //  if ((rf0rflags & CAN_RF0R_FOVR0) != 0U)
+        //  {
+        //      /* Set CAN error code to Rx Fifo 0 overrun error */
+        //      errorcode |= HAL_CAN_ERROR_RX_FOV0;
+        //      /* Clear FIFO0 Overrun Flag */
+        //      CAN1->RF0R = CAN_RF0R_FOVR0;
+        //  }
+        //  /* Receive FIFO 0 full interrupt management ********************************/
+        //  if ((rf0rflags & CAN_RF0R_FULL0) != 0U)
+        //  {
+        //      /* Clear FIFO 0 full Flag */
+        //      CAN1->RF0R = CAN_RF0R_FULL0;
+        //      /* Call weak (surcharged) callback */
+        //      // HAL_CAN_RxFifo0FullCallback(hcan);
+        //  }
         /* Receive FIFO 0 message pending interrupt management *********************/
         /* Check if message is still pending */
         if ((CAN1->RF0R & CAN_RF0R_FMP0) != 0U)
@@ -1215,30 +1252,30 @@ extern "C"
         //     /* Call weak (surcharged) callback */
         //     // HAL_CAN_ErrorCallback(hcan);
         // }
-        //syn::Core::leave_isr();
+        // syn::Core::leave_isr();
     }
 
     void CAN1_RX1_IRQHandler(void)
     {
-        //syn::Core::enter_isr();
-        // uint32_t errorcode = HAL_CAN_ERROR_NONE;
-        // uint32_t rf1rflags = CAN1->RF1R;
-        // /* Receive FIFO 1 overrun interrupt management *****************************/
-        // if ((rf1rflags & CAN_RF1R_FOVR1) != 0U)
-        // {
-        //     /* Set CAN error code to Rx Fifo 1 overrun error */
-        //     errorcode |= HAL_CAN_ERROR_RX_FOV1;
-        //     /* Clear FIFO1 Overrun Flag */
-        //     CAN1->RF0R = CAN_RF1R_FOVR1;
-        // }
-        // /* Receive FIFO 1 full interrupt management ********************************/
-        // if ((rf1rflags & CAN_RF1R_FULL1) != 0U)
-        // {
-        //     /* Clear FIFO 1 full Flag */
-        //     CAN1->RF0R = CAN_RF1R_FULL1;
-        //     /* Call weak (surcharged) callback */
-        //     // HAL_CAN_RxFifo1FullCallback(hcan);
-        // }
+        // syn::Core::enter_isr();
+        //  uint32_t errorcode = HAL_CAN_ERROR_NONE;
+        //  uint32_t rf1rflags = CAN1->RF1R;
+        //  /* Receive FIFO 1 overrun interrupt management *****************************/
+        //  if ((rf1rflags & CAN_RF1R_FOVR1) != 0U)
+        //  {
+        //      /* Set CAN error code to Rx Fifo 1 overrun error */
+        //      errorcode |= HAL_CAN_ERROR_RX_FOV1;
+        //      /* Clear FIFO1 Overrun Flag */
+        //      CAN1->RF0R = CAN_RF1R_FOVR1;
+        //  }
+        //  /* Receive FIFO 1 full interrupt management ********************************/
+        //  if ((rf1rflags & CAN_RF1R_FULL1) != 0U)
+        //  {
+        //      /* Clear FIFO 1 full Flag */
+        //      CAN1->RF0R = CAN_RF1R_FULL1;
+        //      /* Call weak (surcharged) callback */
+        //      // HAL_CAN_RxFifo1FullCallback(hcan);
+        //  }
         /* Receive FIFO 1 message pending interrupt management *********************/
         /* Check if message is still pending */
         if ((CAN1->RF1R & CAN_RF1R_FMP1) != 0U)
@@ -1254,7 +1291,7 @@ extern "C"
         //     /* Call weak (surcharged) callback */
         //     // HAL_CAN_ErrorCallback(hcan);
         // }
-        //syn::Core::leave_isr();
+        // syn::Core::leave_isr();
     }
 
     // void CAN1_SCE_IRQHandler(void)
@@ -1262,13 +1299,13 @@ extern "C"
     //     HAL_CAN_IRQHandler(&hcan);
     // }
 
-    #if SYN_CAN_USE_TIMER != 0
+#if SYN_CAN_USE_TIMER != 0
 #if SYN_CAN_USE_TIMER == 4
-  void TIM4_IRQHandler()
-  {
-    TIM4->SR = 0;
-    CO_process_1ms();
-  }
+    void TIM4_IRQHandler()
+    {
+        TIM4->SR = 0;
+        CO_process_1ms();
+    }
 #endif
 #endif
 }
