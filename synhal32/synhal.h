@@ -962,9 +962,9 @@ namespace syn
 
     // 96bit unique ID, 3 32bit integer
     // function returns the start of that array
-    static uint32_t* uniqueID()
+    static uint32_t *uniqueID()
     {
-      return (uint32_t*)UID_BASE;
+      return (uint32_t *)UID_BASE;
     }
 
     // 0x800 -> 128kb 0x400 -> 64kb
@@ -1004,20 +1004,21 @@ namespace syn
 
     void reset(uint32_t timeout_ms)
     {
-      _deadline = System::milliseconds() + timeout_ms; 
+      _deadline = System::milliseconds() + timeout_ms;
     }
 
     bool is_expired()
     {
       return (int32_t(_deadline - System::milliseconds()) < 0);
     }
+
   private:
     uint32_t _deadline;
   };
 
   /*
-  *   START OF HARDWARE DEFINITIONS
-  */
+   *   START OF HARDWARE DEFINITIONS
+   */
 
   class Gpio
   {
@@ -1319,9 +1320,9 @@ namespace syn
       (void)pull_down;
 #else
       _pPort->PUPDR &= ~(0x3 << (_pin * 2));
-      if(pull_up)
+      if (pull_up)
         _pPort->PUPDR |= (0x1 << (_pin * 2));
-      if(pull_down)
+      if (pull_down)
         _pPort->PUPDR |= (0x2 << (_pin * 2));
 #endif
     }
@@ -1333,7 +1334,7 @@ namespace syn
 
     void set(bool val = true)
     {
-      if(val)
+      if (val)
         _pPort->BSRR = _bitmask;
       else
         clear();
@@ -1608,7 +1609,7 @@ namespace syn
       EXTI->IMR1 &= ~(1 << line);
       EXTI->RTSR1 &= ~(1 << line);
       EXTI->FTSR1 &= ~(1 << line);
-#else 
+#else
       EXTI->IMR &= ~(1 << line);
       EXTI->RTSR &= ~(1 << line);
       EXTI->FTSR &= ~(1 << line);
@@ -1634,7 +1635,7 @@ namespace syn
       uint16_t ret = 0;
 #if defined(STM32G030xx)
       uint16_t mask = (1 << line);
-      if (EXTI->FPR1 & mask )
+      if (EXTI->FPR1 & mask)
       {
         ret = 1;
       }
@@ -1643,7 +1644,7 @@ namespace syn
         ret |= 2;
       }
 #else
-      if(EXTI->PR & (1 << line))
+      if (EXTI->PR & (1 << line))
       {
         return 1;
       }
@@ -1655,20 +1656,20 @@ namespace syn
     // for falling and rising edge devices, the line to clear
     // should be passed as the same value obtained by is_set function
     // val = 1 falling, val = 2 rising, val = 3 both edges
-    static void clear(uint16_t line, uint16_t val=1)
+    static void clear(uint16_t line, uint16_t val = 1)
     {
       uint16_t mask = (1 << line);
 #if defined(STM32G030xx)
-      if(val & 0x1)
+      if (val & 0x1)
       {
         EXTI->FPR1 = mask;
       }
-      if(val & 0x2)
+      if (val & 0x2)
       {
         EXTI->RPR1 = (1 << line);
       }
 #else
-      if(val & 0x1)
+      if (val & 0x1)
       {
         EXTI->PR = mask;
       }
@@ -1725,7 +1726,7 @@ namespace syn
 #ifdef STM32F103xB
       --stream;
       OS_ASSERT(stream < 7, ERR_BAD_INDEX);
-      _pChannel = (DMA_Channel_TypeDef*)((uint32_t*)DMA1_Channel1 + stream * 5);
+      _pChannel = (DMA_Channel_TypeDef *)((uint32_t *)DMA1_Channel1 + stream * 5);
 #endif
 #ifdef STM32F401xC
       OS_ASSERT(stream < 16, ERR_BAD_INDEX);
@@ -1796,13 +1797,13 @@ namespace syn
     // cylcic reading from memory to peripheral. periheral stays the same, memory gets incremented
     // count is the number of transfers, not the number of bytes!
     template <typename Peri_t, typename Mem_t>
-    void cyclicM2P(Mem_t* src, Peri_t* dst, uint16_t count)
+    void cyclicM2P(Mem_t *src, Peri_t *dst, uint16_t count)
     {
 #ifdef STM32F103xB
       _pChannel->CCR = 0; // stop the dma before setting anything
       uint16_t psize = sizeof(Peri_t) >> 1;
       uint16_t msize = sizeof(Mem_t) >> 1;
-      _pChannel->CCR = (msize << 10) | (psize << 8) | DMA_CCR1_MINC | DMA_CCR1_CIRC;
+      _pChannel->CCR = (msize << 10) | (psize << 8) | DMA_CCR1_MINC | DMA_CCR1_CIRC | DMA_CCR1_DIR;
       _pChannel->CNDTR = count;
       _pChannel->CMAR = (uint32_t)src;
       _pChannel->CPAR = (uint32_t)dst;
