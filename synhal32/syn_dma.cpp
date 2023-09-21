@@ -78,7 +78,7 @@ extern "C"
     Core::enter_isr();
 #endif
     const uint16_t shift = 4 * (5 - 1);
-    uint16_t status = DMA1->ISR & (0xE << shift);
+    uint32_t status = DMA1->ISR & (0xE << shift);
     syn_dma_5_isr(status >> (shift + 1));
     DMA1->IFCR = status;
 #if (SYN_DMA_IRQ_TYPE_5 == 1)
@@ -94,7 +94,7 @@ extern "C"
     Core::enter_isr();
 #endif
     const uint16_t shift = 4 * (6 - 1);
-    uint16_t status = DMA1->ISR & (0xE << shift);
+    uint32_t status = DMA1->ISR & (0xE << shift);
     syn_dma_6_isr(status >> (shift + 1));
     DMA1->IFCR = status;
 #if (SYN_DMA_IRQ_TYPE_6 == 1)
