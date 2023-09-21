@@ -1891,60 +1891,11 @@ namespace syn
 #endif
   };
 
+
   class Timer
   {
   public:
-    void init(uint16_t number)
-    {
-      _tclk = 0;
-      _number = number;
-      switch (number)
-      {
-#ifdef STM32F103xB
-      case 1:
-        _pTimer = TIM1;
-        RCC->APB2ENR |= RCC_APB2ENR_TIM1EN;
-        break;
-      case 2:
-        _pTimer = TIM2;
-        RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
-        break;
-      case 3:
-        _pTimer = TIM3;
-        RCC->APB1ENR |= RCC_APB1ENR_TIM3EN;
-        break;
-      case 4:
-        _pTimer = TIM4;
-        RCC->APB1ENR |= RCC_APB1ENR_TIM4EN;
-        break;
-#endif
-#ifdef STM32F401xC
-      case 1:
-        _pTimer = TIM1;
-        RCC->APB2ENR |= RCC_APB2ENR_TIM1EN;
-        break;
-      case 2:
-        _pTimer = TIM2;
-        RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
-        break;
-      case 3:
-        _pTimer = TIM3;
-        RCC->APB1ENR |= RCC_APB1ENR_TIM3EN;
-        break;
-      case 4:
-        _pTimer = TIM4;
-        RCC->APB1ENR |= RCC_APB1ENR_TIM4EN;
-        break;
-
-      case 5:
-        _pTimer = TIM5;
-        RCC->APB1ENR |= RCC_APB1ENR_TIM5EN;
-        break;
-#endif
-      default:
-        OS_ASSERT(true == false, ERR_BAD_PORT_NAME);
-      }
-    }
+    void init(uint16_t number);
 
     void clear_arr()
     {
@@ -1986,11 +1937,37 @@ namespace syn
       return _pTimer->CCR4;
     }
 
-    void ramp(uint32_t target_hz, uint16_t delta);
+    uint32_t hertz() const
+    {
+      uint16_t arr = this->arr();
+      return arr == 0 ? 0 : (_tclk / (arr + 1));
+    }
+
+    uint32_t min_hertz() const 
+    {
+      return _tclk / UINT16_MAX + 1;
+    }
+
+    uint16_t hertz_to_arr(uint32_t hertz) const
+    {
+      if (hertz == 0)
+        return 0;
+      if (hertz > _tclk)
+        return 1;
+      uint32_t arr = _tclk / hertz - 1;
+      if (arr > UINT16_MAX)
+        return UINT16_MAX;
+      return arr;
+    }
+
+    uint32_t arr_to_hertz(uint16_t arr)
+    {
+      return _tclk / (arr + 1);
+    }
 
     uint32_t setStepperHz(uint32_t hz)
     {
-      if(hz == 0)
+      if (hz == 0)
       {
         _pTimer->ARR = 0;
         _pTimer->EGR |= TIM_EGR_UG;
@@ -1998,7 +1975,7 @@ namespace syn
       }
 
       uint32_t arr = (_tclk / 2) / hz;
-      if(arr > UINT16_MAX)
+      if (arr > UINT16_MAX)
       {
         arr = UINT16_MAX;
       }
@@ -2006,10 +1983,10 @@ namespace syn
       {
         arr = 1;
       }
-      
+
       uint32_t prevarr = _pTimer->ARR;
       _pTimer->ARR = arr;
-      if(prevarr == 0)
+      if (prevarr == 0)
       {
         // generate an update event to push the values from shadow registers in real registers
         // this is necessary because if the ARR is zero, the timers are stopped and wont generate
@@ -2040,7 +2017,7 @@ namespace syn
     // enables the corresponding pin to perfom pwm output
     // lower speed at the gpio is desierable for some reason (less jittery / stronger signal)
     void enablePwm(int8_t port, uint8_t pinnum, uint16_t channel, Gpio::Speed speed = Gpio::MHz_2);
-    void enablePwm(syn::Gpio& pin, uint16_t channel, Gpio::Speed speed = Gpio::MHz_2);
+    void enablePwm(syn::Gpio &pin, uint16_t channel, Gpio::Speed speed = Gpio::MHz_2);
 
     // check if the pwm channel output is enabled
     bool is_pwm_out(uint16_t channel)
@@ -2056,7 +2033,7 @@ namespace syn
     {
       --channel;
       OS_ASSERT(channel < 4, ERR_BAD_INDEX);
-      uint16_t *reg = (uint16_t *)(((uint32_t*)(&(_pTimer->CCR1))) + channel);
+      uint16_t *reg = (uint16_t *)(((uint32_t *)(&(_pTimer->CCR1))) + channel);
       *reg = value;
     }
 
@@ -2118,7 +2095,7 @@ namespace syn
     // clear interrupt status register. If its not done, will be an interrupt loop
     void clear_irq(uint32_t mask = 0xFFFF)
     {
-      _pTimer->SR &= ~mask; 
+      _pTimer->SR &= ~mask;
     }
 
     // enable DMA request at Update Event
@@ -2141,22 +2118,86 @@ namespace syn
       _pTimer->CR1 &= !TIM_CR1_CEN;
     }
 
+    // reset counter and prescale-counter
+    // load contents of shadow registers
+    void generate_update_event()
+    {
+      _pTimer->EGR = TIM_EGR_UG;
+    }
+
+    // generate an interrupt or dma request
+    void generate_trigger_event()
+    {
+      _pTimer->EGR = TIM_EGR_TG;
+    }
+
     // stop timer when debugging, careful with RC pwm
     void stopForDebug();
 
+    // get the number of the dma channel for this timer
+    uint16_t dma_channel() const;
+
+    volatile uint16_t* get_arr_register() const
+    {
+      return &_pTimer->ARR;
+    }
   private:
     TIM_TypeDef *_pTimer;
     uint32_t _tclk;
     uint16_t _number;
   };
 
+  class TimerRamper
+  {
+  public:
+    // setup dma and timer
+    // configures the timer in stepper mode
+    void init(uint16_t timer_num, uint16_t buff_size);
+
+    void enable_pwm(int8_t port, uint8_t pinnum, uint16_t channel)
+    {
+      _tim.enablePwm(port, pinnum, channel, syn::Gpio::MHz_10);
+    }
+
+    void linear(uint32_t target_hz, uint16_t delta_max);
+
+    uint32_t current_hz() const 
+    {
+      return _tim.hertz();
+    }
+
+    bool target_reached() const
+    {
+      return _flags == 0;
+    }
+
+    // access to base timer the ramper acts on
+    Timer& base_timer() {
+      return _tim;
+    }
+
+    void isr(uint32_t status);
+  private:
+    void _write_buffer(uint16_t irq_stat = 0);
+
+    Timer _tim;
+    uint32_t _target;
+    uint16_t _delta;
+    uint8_t _flags;
+    uint16_t *_buffer;
+    uint16_t _buffsize;
+    Dma _dma;
+  };
+
   class Usart
   {
-    typedef  void(*usart_write_t)(const uint8_t* pdata, uint16_t count);
-    typedef  uint16_t(*usart_read_t)(uint8_t* pdata, uint16_t count, uint32_t timeout);
-    typedef  uint16_t(*usart_avail_t)();
+    typedef void (*usart_write_t)(const uint8_t *pdata, uint16_t count);
+    typedef uint16_t (*usart_read_t)(uint8_t *pdata, uint16_t count, uint32_t timeout);
+    typedef uint16_t (*usart_avail_t)();
+
   public:
-    enum eBaudrate {
+    enum eBaudrate
+    {
       b9600,
       b19200,
       b57600,
@@ -2167,7 +2208,7 @@ namespace syn
     };
     void init(uint16_t dev, eBaudrate baudrate, bool halfduplex);
 
-    void write(const uint8_t* pdata, uint16_t count)
+    void write(const uint8_t *pdata, uint16_t count)
     {
       _write(pdata, count);
     }
@@ -2177,16 +2218,16 @@ namespace syn
       return _avail();
     }
 
-    uint16_t read(uint8_t* data, uint16_t count, uint32_t timeout = 0)
+    uint16_t read(uint8_t *data, uint16_t count, uint32_t timeout = 0)
     {
       return _read(data, count, timeout);
     }
+
   private:
     usart_write_t _write;
     usart_read_t _read;
     usart_avail_t _avail;
   };
-
 
   class SpiMaster
   {
@@ -2205,7 +2246,7 @@ namespace syn
     bool busy_bidi(uint8_t *pbuffer, uint16_t size);
 
     // writes start address to spi device, than continues to read into buffer for size
-    bool busy_read_regs(uint8_t startaddress, uint8_t* pbuffer, uint16_t size);
+    bool busy_read_regs(uint8_t startaddress, uint8_t *pbuffer, uint16_t size);
 
   private:
     SPI_TypeDef *_pSpi;
@@ -2217,10 +2258,10 @@ namespace syn
     I2cMaster();
     I2cMaster(uint16_t port, uint8_t address);
 
-    void init(uint16_t port, uint8_t address, bool remap=true);
+    void init(uint16_t port, uint8_t address, bool remap = true);
     bool write(uint8_t *data, uint16_t size);
     bool read(uint8_t *data, uint16_t size);
-    
+
   private:
     static void init_runtime_remap_i2c1();
     static void runtime_remap_i2c1(bool remap);
@@ -2336,21 +2377,22 @@ namespace syn
     Bank *_pbank;
   };
 
-  class CANopenNode {
+  class CANopenNode
+  {
   public:
     // initialize CAN interface and CANopenNode stack
     static int32_t init(uint8_t desired_id, uint16_t baudrate_k);
     // slow process messages, can be in a loop with other code
-    static void process(syn::Gpio &led_green, syn::Gpio& led_red);
+    static void process(syn::Gpio &led_green, syn::Gpio &led_red);
     // find a pdo flags entry in CO Object dictionary by index
-    static uint8_t* getFlagsPDO(uint16_t canopen_index);
+    static uint8_t *getFlagsPDO(uint16_t canopen_index);
     // set the TPDO transmit request flag by Flag object + subindex
-    static void requestTPDO(uint8_t* flagsPDO, uint8_t subidx);
+    static void requestTPDO(uint8_t *flagsPDO, uint8_t subidx);
 
     // class TPDOtrigger
     // {
     //   public:
-      
+
     //   void init(OD_entry_t * object);
     //   void trigger();
     //   private:

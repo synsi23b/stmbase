@@ -153,71 +153,179 @@ extern "C"
 } // extern c
 #endif // if(SYN_ENABLE_TIMER_CALLBACK == 1)
 
-#if(SYN_TIMER_1_RAMP_MODE != 0)
-uint16_t _tim1_ramp_target = 0;
-int16_t _tim1_ramp_delta = 0;
-uint16_t _tim1_ramp_buffer[SYN_TIMER_1_RAMP_MODE];
-Dma _tim1_dma;
-#endif // #if(SYN_TIMER_1_RAMP_MODE != 0)
-
-void Timer::ramp(uint32_t target_hz, uint16_t delta)
+void Timer::init(uint16_t number)
 {
-  Dma* pdma = 0;
-  uint16_t* pbuf = 0;
-  uint16_t bufsize = 0;
-  volatile uint16_t* ptarget = 0;
-#if(SYN_TIMER_1_RAMP_MODE != 0)
-  if(_number == 1)
+  _tclk = 0;
+  _number = number;
+  switch (number)
   {
-    pbuf = _tim1_ramp_buffer;
-    bufsize = SYN_TIMER_1_RAMP_MODE;
-    pdma = &_tim1_dma;
-    ptarget = &TIM1->ARR;
+#ifdef STM32F103xB
+  case 1:
+    _pTimer = TIM1;
+    RCC->APB2ENR |= RCC_APB2ENR_TIM1EN;
+    break;
+  case 2:
+    _pTimer = TIM2;
+    RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
+    break;
+  case 3:
+    _pTimer = TIM3;
+    RCC->APB1ENR |= RCC_APB1ENR_TIM3EN;
+    break;
+  case 4:
+    _pTimer = TIM4;
+    RCC->APB1ENR |= RCC_APB1ENR_TIM4EN;
+    break;
+#endif
+#ifdef STM32F401xC
+  case 1:
+    _pTimer = TIM1;
+    RCC->APB2ENR |= RCC_APB2ENR_TIM1EN;
+    break;
+  case 2:
+    _pTimer = TIM2;
+    RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
+    break;
+  case 3:
+    _pTimer = TIM3;
+    RCC->APB1ENR |= RCC_APB1ENR_TIM3EN;
+    break;
+  case 4:
+    _pTimer = TIM4;
+    RCC->APB1ENR |= RCC_APB1ENR_TIM4EN;
+    break;
+
+  case 5:
+    _pTimer = TIM5;
+    RCC->APB1ENR |= RCC_APB1ENR_TIM5EN;
+    break;
+#endif
+  default:
+    OS_ASSERT(true == false, ERR_BAD_PORT_NAME);
   }
-#endif // #if(SYN_TIMER_1_RAMP_MODE != 0)
-  if(pdma == 0)
-    return;
-  pdma->cyclicM2P(pbuf, ptarget, bufsize);
-  // prepare the first buffer, after that, DMA irqs will do this until target is reached
-  uint16_t* pbufend = pbuf + bufsize;
-  uint32_t tclk = _tclk / 2;
-  uint16_t arr = this->arr();
-  uint32_t cur_hz = 0;
-  if(arr > 0)
-    cur_hz = tclk / arr;
+}
 
-  if(target_hz == cur_hz)
-   return;    
-
-  if(target_hz < cur_hz)
+uint16_t Timer::dma_channel() const
+{
+  uint16_t num = 0;
+  switch (_number)
   {
-    for(;pbuf < pbufend; pbuf++)
+  case 1:
+    num = 5;
+    break;
+  case 2:
+    num = 2;
+    break;
+  case 3:
+    num = 3;
+    break;
+  case 4:
+    num = 7;
+    break;
+  default:
+    break;
+  }
+  return num;
+}
+
+void TimerRamper::init(uint16_t timer_num, uint16_t buffsize)
+{
+  _tim.init(timer_num);
+  _tim.configStepper();
+  _buffer = new uint16_t[buffsize];
+  if (_buffer != 0)
+  {
+    _dma.init(_tim.dma_channel());
+    _buffsize = buffsize;
+    auto *target_reg = _tim.enableDmaUpdate(11, 1);
+    _dma.cyclicM2P(_buffer, target_reg, buffsize);
+    _dma.enableIrq(Dma::IRQ_STATUS_FULL | Dma::IRQ_STATUS_HALF);
+    _delta = 0;
+  }
+  _flags = 0;
+}
+
+void TimerRamper::linear(uint32_t target_hz, uint16_t delta)
+{
+  if (_buffer == NULL)
+    return;
+
+  // uint32_t tclk = _tclk / 2;
+  // uint16_t arr = this->arr();
+  uint32_t cur_hz = _tim.hertz();
+  if (target_hz == cur_hz)
+    return;
+  _target = target_hz;
+  _delta = delta;
+  _flags = 0x01;
+  _write_buffer(delta);
+
+  // enable the DMA with the new settings again
+  _dma.start();
+  // write the first element into ARR register to get things going in case of Stepper is at 0 Hz
+  *_tim.get_arr_register() = _buffer[0];
+  // trigger the timer to start the first dma transfer
+  _tim.generate_update_event();
+}
+
+void TimerRamper::_write_buffer(uint16_t irq_stat)
+{
+  // prepare the first buffer, after that, DMA irqs will do this until target is reached
+  uint16_t *pbuf = _buffer;
+  uint16_t *pbufend = pbuf + _buffsize;
+  uint32_t current_hz;
+  if (irq_stat == Dma::IRQ_STATUS_HALF)
+  {
+    uint16_t last_arr = *(pbufend - 1);
+    pbufend = pbuf + _buffsize / 2;
+    current_hz = _tim.arr_to_hertz(last_arr);
+  }
+  else if (irq_stat == Dma::IRQ_STATUS_FULL)
+  {
+    pbuf = _buffer + _buffsize / 2;
+    uint16_t last_arr = *(pbuf - 1);
+    current_hz = _tim.arr_to_hertz(last_arr);
+  }
+  else
+  {
+    current_hz = _tim.hertz();
+  }
+
+  if (current_hz < _target)
+  {
+    if (current_hz == 0)
+      current_hz = _tim.min_hertz() - _delta;
+    for (; pbuf < pbufend; ++pbuf)
     {
-      if(cur_hz > target_hz)
-        cur_hz -= 10; // TODO do actual calculation using the target delta
-      arr = tclk / cur_hz;
-      *pbuf = arr;
+      if (current_hz < _target)
+        current_hz += _delta;
+      if (_target < current_hz)
+        current_hz = _target;
+      *pbuf = _tim.hertz_to_arr(current_hz);
     }
   }
   else
   {
-    for(;pbuf < pbufend; pbuf++)
+    for (; pbuf < pbufend; ++pbuf)
     {
-      if(cur_hz > target_hz)
-        cur_hz += 10; // TODO do actual calculation using the target delta
-      arr = tclk / cur_hz;
-      *pbuf = arr;
+      if (current_hz > _target)
+        current_hz -= _delta;
+      if (_target > current_hz)
+        current_hz = _target;
+      *pbuf = _tim.hertz_to_arr(current_hz);
     }
   }
-  // enable the DMA with the new settings again
-  pdma->start();
-  // generate an update event to push the values from shadow registers in real registers
-  // this is necessary because if the ARR is zero, the timers are stopped and wont generate
-  // the event that loads the new ARR value from shadow registers
-  _pTimer->EGR |= TIM_EGR_UG;
 }
 
-
+void TimerRamper::isr(uint32_t status)
+{
+  if (_tim.hertz() == _target)
+  {
+    _dma.stop();
+    _flags = 0;
+  }
+  _write_buffer(status);
+}
 
 void Timer::configPwm(uint16_t prescaler, uint16_t reload, uint16_t startvalue)
 {
@@ -242,8 +350,8 @@ void Timer::configStepper()
 {
   _pTimer->CNT = 0;
   _pTimer->PSC = 2; // 72MHz / 3 = 24MHz
-  _tclk = SystemCoreClock / (_pTimer->PSC+1);
-  _pTimer->ARR = 0;  // on biggest ARR (65535) is just above 366 Hz but, with toggle mode, the actual output is halfed again.
+  _tclk = SystemCoreClock / (_pTimer->PSC + 1);
+  _pTimer->ARR = 0; // on biggest ARR (65535) is just above 366 Hz but, with toggle mode, the actual output is halfed again.
   _pTimer->CCR1 = 0;
   _pTimer->CCR2 = 0;
   _pTimer->CCR3 = 0;
@@ -263,28 +371,16 @@ void Timer::configStepper()
 
 void Timer::enablePwm(int8_t port, uint8_t pinnum, uint16_t channel, Gpio::Speed speed)
 {
-  --channel;
-  OS_ASSERT(channel < 4, ERR_BAD_INDEX);
-
   Gpio pin(port, pinnum);
-  if(_number < 3)
-  {
-    pin.mode(Gpio::out_alt_push_pull, speed, Gpio::Timer_1_2);
-  }
-  else
-  {
-    pin.mode(Gpio::out_alt_push_pull, speed, Gpio::Timer_3_4_5);
-  }
-  channel *= 4;
-  _pTimer->CCER |= (0x1 << channel);
+  enablePwm(pin, channel, speed);
 }
 
-void Timer::enablePwm(syn::Gpio& pin, uint16_t channel, Gpio::Speed speed)
+void Timer::enablePwm(syn::Gpio &pin, uint16_t channel, Gpio::Speed speed)
 {
   --channel;
   OS_ASSERT(channel < 4, ERR_BAD_INDEX);
 
-  if(_number < 3)
+  if (_number < 3)
   {
     pin.mode(Gpio::out_alt_push_pull, speed, Gpio::Timer_1_2);
   }
@@ -338,16 +434,16 @@ void Timer::enableInput(int8_t port, uint8_t pinnum, bool pulldown, bool pullup)
 {
   Gpio pin(port, pinnum);
   Gpio::Alternate a;
-  if(_number < 3)
+  if (_number < 3)
     a = Gpio::Timer_1_2;
   else
     a = Gpio::Timer_3_4_5;
 #ifdef STM32F103xB
-  if(pulldown)
+  if (pulldown)
   {
     pin.mode(Gpio::in_pulldown, Gpio::Input, a);
   }
-  else if(pullup)
+  else if (pullup)
   {
     pin.mode(Gpio::in_pullup, Gpio::Input, a);
   }
@@ -369,8 +465,8 @@ volatile uint16_t *Timer::enableDmaUpdate(uint16_t base_reg, uint16_t burst_coun
   OS_ASSERT(burst_count < 18, ERR_BAD_INDEX);
   OS_ASSERT(base_reg + burst_count < 19, ERR_IMPOSSIBRU);
   _pTimer->DCR = (burst_count << 8) | base_reg;
-  _pTimer->DIER |= TIM_DIER_UDE;
-  return (volatile uint16_t*)&_pTimer->DMAR;
+  _pTimer->DIER |= TIM_DIER_UDE | TIM_DIER_TDE;
+  return (volatile uint16_t *)&_pTimer->DMAR;
 }
 
 void Timer::stopForDebug()
