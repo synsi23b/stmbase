@@ -7,7 +7,7 @@ class AS5600
 public:
   AS5600()
   {
-    _angle = 0xFFFF;
+    _angle = -1;
     _status = 0;
   }
 
@@ -40,10 +40,7 @@ public:
   {
     if(--_current_interval == 0)
     {
-      if(!_update_status())
-      {
-        _current_interval = 1;
-      }
+      _current_interval = _update_status();
     }
     else
     {
@@ -52,8 +49,8 @@ public:
   }
 
   // returns the read out angle in the range 0 to 4095
-  // returns 0xFFFF on error (no magnet present, i2c error)
-  uint16_t angle() const
+  // returns -1 on error (no magnet present, i2c error)
+  int16_t angle() const
   {
     return _angle;
   }
@@ -62,6 +59,7 @@ public:
   // 0x20 == magnet present
   // 0x01 == magnet weak
   // 0x08 == magnet strong
+  // 0x80 == i2c could not read status register / bus failure
   uint8_t status () const
   {
     return _status;
@@ -86,36 +84,46 @@ public:
   {
     return _status & 0x08;
   }
-private:
-  bool _update_status()
+
+  bool i2c_failure() const
   {
+    return _status & 0x80;
+  }
+private:
+  uint8_t _update_status()
+  {
+    uint8_t next_interval = 1;
     // read status and angle
     uint8_t data[3] = {0x0B, 0, 0};
     if(_i2c.write(data, 1) && _i2c.read(data, 3))
     {
-      // TODO Anding really neccessairy?
+      // Anding really neccessairy? Yes it is.
       _status = data[0] & 0x38;
       if(magnet_present())
       {
         _angle = uint16_t(data[1]) << 8 | uint16_t(data[2]);
         // set read address to raw angle for next angle update to skip address transmission
-        data[0] = 0x0C;
-        if(_i2c.write(data, 1) == true)
+        // only if status is not to be read out everytime
+        if(_status_interval > 1)
         {
-          _current_interval = _status_interval;
+          data[0] = 0x0C;
+          if(_i2c.write(data, 1) == true)
+          {
+            next_interval = _status_interval;
+          }
         }
       }
       else
       {
-        _angle = 0xFFFF;
+        _angle = -1;
       }
     }
     else
     {
-      _status = 0;
-      _angle = 0xFFFF;
+      _status = 0x80;
+      _angle = -1;
     }
-    return _current_interval > 0;
+    return next_interval;
   }
 
   void _update_angle()
@@ -128,7 +136,7 @@ private:
     }
     else
     {
-      _angle = 0xFFFF;
+      _angle = -1;
     }
   }
 
@@ -159,11 +167,11 @@ public:
     _sensor.init(i2c_num, i2c_remap, status_update_interval);
     _pos = 0;
     int16_t angle = _sensor.angle();
-    // possibly the value is 0xFFFF on sensor failure
+    // possibly the value is -1 on sensor failure
     // if the sensor failed, set previous to 0
     // the position will jump when it was possible to read the sensor
     // else the current good reading marks the zero-point
-    if(angle = 0xFFFF)
+    if(angle == -1)
       _prev_angle = 0;
     else
       _prev_angle = angle;
@@ -196,11 +204,26 @@ public:
       // TODO confirm sensor behavior on weak / strong / no magnet or test for magnet_good instead of present
       // get the current angle
       int16_t angle = _sensor.angle();
+      if(angle == -1)
+        return;
       // calculate the change between the values
-      // angle > _prev --> positive value
-      // angle < prev --> negative value
+      // angle > _prev --> positive value or backwards with 0 point crossing
+      // angle < prev --> negative value or forward with 0 point crossing
       // angle == prev --> zero value
       int32_t change = angle - _prev_angle;
+      // if the rate of change per update is bigger than half of the sensor resolution, we cant tell what happened
+      // reading one sensor takes about 0.2ms when reading the status, too
+      // but limiting to an update rate of 100Hz limits the maximum RPS to 50, or 3000 RPM, which is okay for steppers
+      // than again, running a PID loop that mainly reads just the raw angle, could go over 1000Hz easily
+      if(change > 2047)
+      {
+        change = change - 4095;
+      }
+      else if (change < -2047)
+      {
+        change = -4095 - change;
+      }
+
       _pos += change;
       _prev_angle = angle;
     }

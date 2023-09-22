@@ -248,8 +248,12 @@ namespace i2c
 
     void isr_err()
     {
+      uint32_t status_1 = _port->SR1;
       _port->SR1 = 0;
-      _port->CR1 = 0;
+      if(status_1 & I2C_SR1_AF)
+        _port->CR1 = I2C_CR1_STOP;
+      else
+        _port->CR1 = 0;
       *_success = 2;
       if(_data != 0)
       {
