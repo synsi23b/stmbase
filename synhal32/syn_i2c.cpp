@@ -99,9 +99,28 @@ namespace i2c
       //_port->CR1 = I2C_CR1_PE;
     }
 
-    bool masterStartWrite(uint8_t *data, uint16_t size, uint8_t address, uint16_t *success)
+    bool aquireDev(uint8_t *data, uint16_t size, uint8_t address, uint16_t *success)
     {
-      if (_aquireDev(data, size, address, success))
+      OS_ASSERT(size > 0, ERR_BAD_INDEX);
+      bool ret = false;
+      Atomic a;
+      if (_data == 0)
+      {
+        _data = data;
+        _remain = size;
+        _address = address;
+        _success = success;
+        _opdone.try_wait(); // make sure the signal is clear
+        ret = true;
+      }
+      return ret;
+    }
+
+
+    bool masterStartWrite(uint16_t *success)
+    {
+      // make sure we actually acquired the device
+      if (_success == success)
       {
         _port->CR1 = I2C_CR1_START | I2C_CR1_PE;
         return true;
@@ -109,12 +128,13 @@ namespace i2c
       return false;
     }
 
-    bool masterStartRead(uint8_t *data, uint16_t size, uint8_t address, uint16_t *success)
+    bool masterStartRead(uint16_t *success)
     {
-      if (_aquireDev(data, size, address, success))
+      // make sure we actually acquired the device
+      if (_success == success)
       {
         _address |= 0x01;
-        if (size == 1)
+        if (_remain == 1)
         {
           // dont even set the ACK bit
           _port->CR1 = I2C_CR1_START | I2C_CR1_PE;
@@ -197,6 +217,7 @@ namespace i2c
           // donezo
           _port->CR1 = I2C_CR1_STOP;
           *_success = 1;
+          _success = 0;
           _data = 0;
           _opdone.set();
         }
@@ -214,9 +235,14 @@ namespace i2c
           // this was the last byte, transmit stop condtion. and donezo
           _port->CR1 = I2C_CR1_STOP;
           *_success = 1;
+          _success = 0;
           _data = 0;
           _opdone.set();
         }
+      }
+      else if (status_1 & (I2C_SR1_BERR | I2C_SR1_STOPF))
+      {
+        isr_err();
       }
     }
 
@@ -225,26 +251,15 @@ namespace i2c
       _port->SR1 = 0;
       _port->CR1 = 0;
       *_success = 2;
-      _data = 0;
-      _opdone.set();
+      if(_data != 0)
+      {
+        _data = 0;
+        _success = 0;
+        _opdone.set();
+      }
     }
 
   private:
-    bool _aquireDev(uint8_t *data, uint16_t size, uint8_t address, uint16_t *success)
-    {
-      OS_ASSERT(size > 0, ERR_BAD_INDEX);
-      bool ret = false;
-      Atomic a;
-      if (_data == 0)
-      {
-        _data = data;
-        _remain = size;
-        _address = address;
-        _success = success;
-        ret = true;
-      }
-      return ret;
-    }
 
     I2C_TypeDef *_port;
     uint8_t *_data;
@@ -300,38 +315,66 @@ void syn::I2cMaster::init(uint16_t port, uint8_t address, bool remap)
 
 bool syn::I2cMaster::write(uint8_t *data, uint16_t size)
 {
+  uint16_t state = 0;
+  uint16_t counter = 5;
+  while(true)
+  {
+    if(((i2c::Device *)_pdev)->aquireDev(data, size, _address, &state))
+      break;
+    if(--counter == 0)
+      return false; // couldnt aquire device
+    syn::Thread::sleep(10);
+  }
+
   if(_remapped != 0xFF)
   {
     I2cMaster::runtime_remap_i2c1(_remapped);
   }
-  uint16_t state = 0;
-  while (!((i2c::Device *)_pdev)->masterStartWrite(data, size, _address, &state))
-  {
-    ((i2c::Device *)_pdev)->waitDone(10); // check every 10ms at least to make sure never stuck
-  }
+
+  if(!((i2c::Device *)_pdev)->masterStartWrite(&state))
+    return false; // should never happen
   // managed to start the transmission, wait for donezo signal again
+  counter = 5;
   while (state == 0)
   {
-    ((i2c::Device *)_pdev)->waitDone(10);
+    if(!((i2c::Device *)_pdev)->waitDone(10) && counter == 0)
+    {
+      return false;
+    }
+    --counter;
   }
   return state == 1;
 }
 
 bool syn::I2cMaster::read(uint8_t *data, uint16_t size)
 {
+  uint16_t state = 0;
+  uint16_t counter = 5;
+  while(true)
+  {
+    if(((i2c::Device *)_pdev)->aquireDev(data, size, _address, &state))
+      break;
+    if(--counter == 0)
+      return false; // couldnt aquire device
+    syn::Thread::sleep(10);
+  }
+
   if(_remapped != 0xFF)
   {
     I2cMaster::runtime_remap_i2c1(_remapped);
   }
-  uint16_t state = 0;
-  while (!((i2c::Device *)_pdev)->masterStartRead(data, size, _address, &state))
-  {
-    ((i2c::Device *)_pdev)->waitDone(10); // check every 10ms at least to make sure never stuck
-  }
+
+  if(!((i2c::Device *)_pdev)->masterStartRead(&state))
+    return false; // should never happen
   // managed to start the transmission, wait for donezo signal again
+  counter = 5;
   while (state == 0)
   {
-    ((i2c::Device *)_pdev)->waitDone(10);
+    if(!((i2c::Device *)_pdev)->waitDone(10) && counter == 0)
+    {
+      return false;
+    }
+    --counter;
   }
   return state == 1;
 }
