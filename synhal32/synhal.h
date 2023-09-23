@@ -181,9 +181,9 @@ namespace syn
     }
 
     // returns true if the mutex was acquired
-    bool lock(OS_TIME millisec)
+    bool lock(uint32_t timeout_ms)
     {
-      return OS_MUTEX_LockTimed(&_handle, millisec) != 0;
+      return OS_MUTEX_LockTimed(&_handle, timeout_ms) != 0;
     }
 
     // returns true if the mutex was acquired
@@ -234,7 +234,7 @@ namespace syn
 
     // try to take the semaphore, block for maximum timeout milliseconds
     // return true if we got the semaphore
-    bool take(OS_TIME timeout)
+    bool take(uint32_t timeout)
     {
       return OS_SEMAPHORE_TakeTimed(&_handle, timeout) != 0;
     }
@@ -286,7 +286,7 @@ namespace syn
     }
 
     // returns false if the signal didn't fire
-    bool wait(OS_TIME timeout)
+    bool wait(uint32_t timeout)
     {
       return OS_SEMAPHORE_TakeTimed(&_handle, timeout) != 0;
     }
@@ -354,7 +354,7 @@ namespace syn
     }
 
     // returns true if the event is set within the timeout
-    bool wait(OS_TIME timeout)
+    bool wait(uint32_t timeout)
     {
       return OS_EVENT_GetTimed(&_handle, timeout) == 0;
     }
@@ -400,7 +400,7 @@ namespace syn
       OS_TIMER_DeleteEx(&_handle);
     }
 
-    void init(OS_TIME period, bool autoreload)
+    void init(uint32_t period, bool autoreload)
     {
       if (autoreload)
         OS_TIMER_CreateEx(&_handle, reinterpret_cast<OS_TIMER_EX_ROUTINE *>(&SoftTimer::_reload), period, this);
@@ -421,7 +421,7 @@ namespace syn
     }
 
     // return the remaing ticks until fireing
-    OS_TIME remaining()
+    uint32_t remaining()
     {
       return OS_TIMER_GetRemainingPeriodEx(&_handle);
     }
@@ -459,20 +459,26 @@ namespace syn
     OS_OBJNAME _name;
   };
 
-  // similar to ROS rate, tries to keep the owner at that Hertz
+  // similar to ROS rate, sleeps until the time target in global time is reached.
+  // regardless how long other tasks in the loop took
   template <uint32_t Hertz>
   class Rate
   {
   public:
     Rate()
     {
-      _lastwake = OS_TIME_GetTicks();
+      _lastwake = 0;
+    }
+
+    void init()
+    {
+      _lastwake = OS_TIME_Get_us();
     }
 
     void sleep()
     {
-      _lastwake += SYN_SYSTICK_HERTZ / Hertz;
-      OS_TASK_DelayUntil(_lastwake);
+      _lastwake += (1000000 / Hertz);
+      OS_TASK_DelayUntil_us(_lastwake);
     }
 
   private:
@@ -557,16 +563,16 @@ namespace syn
     }
 
     // suspends always the calling thread!
-    static void sleep(OS_TIME millisec)
+    static void sleep(uint32_t millisec)
     {
       if (millisec == 0)
         millisec = 1;
-      OS_TASK_Delay(millisec);
+      OS_TASK_Delay_ms(millisec);
     }
 
-    static void usleep(uint16_t usec)
+    static void usleep(uint32_t usec)
     {
-      OS_Delayus(usec);
+      OS_TASK_Delay_us(usec);
     }
 
     // wait for any event
@@ -576,7 +582,7 @@ namespace syn
     }
 
     // wait for any event, with a timeout
-    OS_TASKEVENT waitNotify(OS_TIME timeout)
+    OS_TASKEVENT waitNotify(uint32_t timeout)
     {
       return OS_TASKEVENT_GetTimed(0xFFFFFFFF, timeout);
     }
@@ -632,7 +638,7 @@ namespace syn
     // will block until the message was put into the box
     // or return without putting if the timer runs out
     // returns true if the message was placed
-    bool put(const Message_t &msg, OS_TIME timeout)
+    bool put(const Message_t &msg, uint32_t timeout)
     {
       if (sizeof(Message_t) > 1)
       {
@@ -704,7 +710,7 @@ namespace syn
     // blocks until a message was received
     // or the timeout was reached
     // returns true if a message could be retrieved
-    bool get(Message_t &msg, OS_TIME timeout)
+    bool get(Message_t &msg, uint32_t timeout)
     {
       if (sizeof(Message_t) > 1)
       {
@@ -2259,8 +2265,8 @@ namespace syn
     I2cMaster(uint16_t port, uint8_t address);
 
     void init(uint16_t port, uint8_t address, bool remap = true);
-    bool write(uint8_t *data, uint16_t size);
-    bool read(uint8_t *data, uint16_t size);
+    bool write(uint8_t *data, uint16_t size, uint16_t timeout_ms = 1);
+    bool read(uint8_t *data, uint16_t size, uint16_t timeout_ms = 1);
 
   private:
     static void init_runtime_remap_i2c1();

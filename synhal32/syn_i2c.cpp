@@ -86,6 +86,8 @@ namespace i2c
 #ifdef STM32F103xB
       _port->CR2 = I2C_CR2_ITBUFEN | I2C_CR2_ITEVTEN | I2C_CR2_ITERREN | 36;
       //_port->OAR1 = 0x4000; // Bit 14 Should always be kept at 1 by software
+      if(_port == I2C1)
+      {
 #if (SYN_ENABLE_I2C_1 == 400)
       _port->CCR = I2C_CCR_FS | 30;
       _port->TRISE = 11;
@@ -93,10 +95,20 @@ namespace i2c
       _port->CCR = 180;
       _port->TRISE = 36;
 #endif
+      }
+      else
+      {
+#if (SYN_ENABLE_I2C_2 == 400)
+      _port->CCR = I2C_CCR_FS | 30;
+      _port->TRISE = 11;
+#else
+      _port->CCR = 180;
+      _port->TRISE = 36;
+#endif        
+      }
 #else //STM32F103xB
       OS_ASSERT(true == false, ERR_NOT_IMPLMENTED);
-#endif 
-      //_port->CR1 = I2C_CR1_PE;
+#endif
     }
 
     bool aquireDev(uint8_t *data, uint16_t size, uint8_t address, uint16_t *success)
@@ -317,17 +329,17 @@ void syn::I2cMaster::init(uint16_t port, uint8_t address, bool remap)
   ((i2c::Device *)_pdev)->init(remap);
 }
 
-bool syn::I2cMaster::write(uint8_t *data, uint16_t size)
+bool syn::I2cMaster::write(uint8_t *data, uint16_t size, uint16_t timeout_ms)
 {
   uint16_t state = 0;
-  uint16_t counter = 5;
   while(true)
   {
     if(((i2c::Device *)_pdev)->aquireDev(data, size, _address, &state))
       break;
-    if(--counter == 0)
+    if(timeout_ms == 0)
       return false; // couldnt aquire device
-    syn::Thread::sleep(10);
+    syn::Thread::sleep(1);
+    --timeout_ms;
   }
 
   if(_remapped != 0xFF)
@@ -338,29 +350,28 @@ bool syn::I2cMaster::write(uint8_t *data, uint16_t size)
   if(!((i2c::Device *)_pdev)->masterStartWrite(&state))
     return false; // should never happen
   // managed to start the transmission, wait for donezo signal again
-  counter = 5;
   while (state == 0)
   {
-    if(!((i2c::Device *)_pdev)->waitDone(10) && counter == 0)
+    if(!((i2c::Device *)_pdev)->waitDone(1) && timeout_ms == 0)
     {
       return false;
     }
-    --counter;
+    --timeout_ms;
   }
   return state == 1;
 }
 
-bool syn::I2cMaster::read(uint8_t *data, uint16_t size)
+bool syn::I2cMaster::read(uint8_t *data, uint16_t size, uint16_t timeout_ms)
 {
   uint16_t state = 0;
-  uint16_t counter = 5;
   while(true)
   {
     if(((i2c::Device *)_pdev)->aquireDev(data, size, _address, &state))
       break;
-    if(--counter == 0)
+    if(timeout_ms == 0)
       return false; // couldnt aquire device
-    syn::Thread::sleep(10);
+    syn::Thread::sleep(1);
+    --timeout_ms;
   }
 
   if(_remapped != 0xFF)
@@ -370,15 +381,18 @@ bool syn::I2cMaster::read(uint8_t *data, uint16_t size)
 
   if(!((i2c::Device *)_pdev)->masterStartRead(&state))
     return false; // should never happen
+  // minimum timeout is about 32 byte per millisecond for 400kHz bus speed
+  uint16_t min_t = size / 32 + 1;
+  if(timeout_ms < min_t)
+    timeout_ms = min_t;
   // managed to start the transmission, wait for donezo signal again
-  counter = 5;
   while (state == 0)
   {
-    if(!((i2c::Device *)_pdev)->waitDone(10) && counter == 0)
+    if(!((i2c::Device *)_pdev)->waitDone(1) && timeout_ms == 0)
     {
       return false;
     }
-    --counter;
+    --timeout_ms;
   }
   return state == 1;
 }
