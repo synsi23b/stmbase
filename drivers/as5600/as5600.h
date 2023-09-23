@@ -217,11 +217,11 @@ public:
       // than again, running a PID loop that mainly reads just the raw angle, could go over 1000Hz easily
       if(change > 2047)
       {
-        change = change - 4095;
+        change = 4095 - change;
       }
       else if (change < -2047)
       {
-        change = -4095 - change;
+        change = 4095 + change;
       }
 
       _pos += change;
