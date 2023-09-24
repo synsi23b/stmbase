@@ -10,8 +10,12 @@ public:
 
   }
 
-  void init(syn::Gpio& nenable, syn::Gpio& dir, syn::Gpio& step, uint16_t timer_num, uint16_t step_channel, uint16_t usart_num, uint8_t address)
+  void init(syn::Gpio& nenable, syn::Gpio& dir, 
+            uint16_t timer_num, uint16_t step_channel,
+            int8_t step_pin_port, uint8_t step_pin_num,
+            uint16_t usart_num, uint8_t address)
   {
+    _acceleration = 1;
     if(usart_num != 0)
     {
       _usart.init(usart_num, syn::Usart::b230400, true);
@@ -24,14 +28,39 @@ public:
     dir.mode(syn::Gpio::out_push_pull);
     dir.set();
     _dir = dir;
-    _tim.init(timer_num);
-    _tim.configStepper();
-    _tim.enablePwm(step, step_channel);
+    _timramp.init(timer_num, 256);
+    _timramp.enable_pwm(step_pin_port, step_pin_num, step_channel);
   }
 
-  void set_speed(uint16_t hz)
+  void set_acceleration(uint16_t acceleration)
   {
-    _tim.setStepperHz(hz);
+    if(acceleration == 0)
+      acceleration = 1;
+    _acceleration = acceleration;
+  }
+
+  void set_speed(int32_t hz)
+  {
+    if(hz < 0)
+    {
+      _dir.clear();
+      hz = -hz;
+    }
+    else if (hz > 0)
+    {
+      _dir.set();
+    }
+    _timramp.linear(hz, _acceleration);
+  }
+
+  bool stopped() const
+  {
+    return _timramp.current_hz() == 0;
+  }
+
+  bool target_reached() const
+  {
+    return _timramp.target_reached();
   }
 
   void enable(bool state = true)
@@ -93,6 +122,11 @@ public:
   {
     return _read_reg(val, 0x41);
   }
+
+  void dma_isr(uint16_t irq_stat)
+  {
+    _timramp.isr(irq_stat);
+  }
 private:
   void _crc_calc(uint8_t* data, uint16_t count)
   {
@@ -150,9 +184,10 @@ private:
     return false;
   }
 
-  syn::Timer _tim;
+  syn::TimerRamper _timramp;
   syn::Gpio _dir;
   syn::Gpio _nenab;
   syn::Usart _usart;
+  uint16_t _acceleration;
   uint8_t _address;
 };

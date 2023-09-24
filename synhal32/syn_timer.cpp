@@ -249,7 +249,7 @@ void TimerRamper::linear(uint32_t target_hz, uint16_t delta)
 {
   if (_buffer == NULL)
     return;
-
+  _dma.stop();
   // uint32_t tclk = _tclk / 2;
   // uint16_t arr = this->arr();
   uint32_t cur_hz = _tim.hertz();
@@ -258,7 +258,7 @@ void TimerRamper::linear(uint32_t target_hz, uint16_t delta)
   _target = target_hz;
   _delta = delta;
   _flags = 0x01;
-  _write_buffer(delta);
+  _write_buffer(0);
 
   // enable the DMA with the new settings again
   _dma.start();
