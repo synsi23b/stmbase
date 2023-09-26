@@ -187,7 +187,10 @@ bool SpiMaster::busy_tx(const uint8_t *pbuffer, uint16_t size)
   while(_pSpi->SR & SPI_SR_BSY)
     ;
   while(_pSpi->SR & SPI_SR_RXNE)
+  {
     uint8_t junk = *((uint8_t*)&_pSpi->DR);
+    (void)junk;
+  }
   _pSpi->CR1 &= ~SPI_CR1_SPE;
   return true;
 }
@@ -214,7 +217,10 @@ bool SpiMaster::busy_tx(const uint16_t *pbuffer, uint16_t size)
   while(_pSpi->SR & SPI_SR_BSY)
     ;
   while(_pSpi->SR & SPI_SR_RXNE)
+  {
     uint16_t junk = _pSpi->DR;
+    (void)junk;
+  }
   _pSpi->CR1 &= ~SPI_CR1_SPE;
   return true;
 }
@@ -262,6 +268,7 @@ bool SpiMaster::busy_read_regs(uint8_t startaddress, uint8_t* pbuffer, uint16_t 
   while((_pSpi->SR & SPI_SR_RXNE) == 0)
       ;
   uint8_t junk = *((uint8_t*)&_pSpi->DR);
+  (void)junk;
   while(size > 0)
   {
     //while((_pSpi->SR & SPI_SR_TXE) == 0)
