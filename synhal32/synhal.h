@@ -1847,6 +1847,13 @@ namespace syn
       return _pChannel->CNDTR;
     }
 
+    // stop the dma and reset the count value
+    void reset(uint16_t count)
+    {
+      stop();
+      _pChannel->CNDTR = count;
+    }
+
 #ifdef STM32F401xC
     enum BurstSize
     {
@@ -2165,7 +2172,7 @@ namespace syn
       _tim.enablePwm(port, pinnum, channel, syn::Gpio::MHz_10);
     }
 
-    void linear(uint32_t target_hz, uint16_t delta_max);
+    void linear(uint32_t target_hz, uint16_t delta_max, uint16_t min_speed_hz);
 
     uint32_t current_hz() const 
     {
@@ -2174,7 +2181,7 @@ namespace syn
 
     bool target_reached() const
     {
-      return _flags == 0;
+      return _tim.arr() == _target;
     }
 
     // access to base timer the ramper acts on
@@ -2187,11 +2194,11 @@ namespace syn
     void _write_buffer(uint16_t irq_stat = 0);
 
     Timer _tim;
-    uint32_t _target;
+    uint16_t _target;
     uint16_t _delta;
-    uint8_t _flags;
     uint16_t *_buffer;
     uint16_t _buffsize;
+    uint16_t _minspeed;
     Dma _dma;
   };
 

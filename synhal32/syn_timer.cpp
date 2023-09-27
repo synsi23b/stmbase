@@ -232,40 +232,49 @@ void TimerRamper::init(uint16_t timer_num, uint16_t buffsize)
 {
   _tim.init(timer_num);
   _tim.configStepper();
+  buffsize = buffsize & 0xFFF0; // clear lower 4 bits, force multiple of 16 as buffsize
+  OS_ASSERT(buffsize > 0, ERR_FORBIDDEN);
   _buffer = new uint16_t[buffsize];
   if (_buffer != 0)
   {
     _dma.init(_tim.dma_channel());
     _buffsize = buffsize;
+    // enable DMA for register with offset 11 (ARR) 1 transfer per DMA request
     auto *target_reg = _tim.enableDmaUpdate(11, 1);
+    // setup DMA mode to keep reading the same memory until stopped
     _dma.cyclicM2P(_buffer, target_reg, buffsize);
+    // enable both DMA interrupts to rewrite half of the memory buffer in the isr
     _dma.enableIrq(Dma::IRQ_STATUS_FULL | Dma::IRQ_STATUS_HALF);
     _delta = 0;
   }
-  _flags = 0;
 }
 
-void TimerRamper::linear(uint32_t target_hz, uint16_t delta)
+void TimerRamper::linear(uint32_t target_hz, uint16_t delta, uint16_t min_speed_hz)
 {
   if (_buffer == NULL)
     return;
-  _dma.stop();
+  _dma.reset(_buffsize);
+
   // uint32_t tclk = _tclk / 2;
   // uint16_t arr = this->arr();
-  uint32_t cur_hz = _tim.hertz();
-  if (target_hz == cur_hz)
+  uint16_t target = _tim.hertz_to_arr(target_hz);
+  if (_tim.arr() == target)
     return;
-  _target = target_hz;
+  _target = target;
   _delta = delta;
-  _flags = 0x01;
+  _minspeed = _tim.hertz_to_arr(min_speed_hz);
+  // call write dma buffer without any IRQ flag to trigger full rewrite
   _write_buffer(0);
 
   // enable the DMA with the new settings again
   _dma.start();
   // write the first element into ARR register to get things going in case of Stepper is at 0 Hz
-  *_tim.get_arr_register() = _buffer[0];
-  // trigger the timer to start the first dma transfer
-  _tim.generate_update_event();
+  //if(_tim.arr() == 0)
+  //{
+    *_tim.get_arr_register() = _buffer[0];
+    // trigger the timer to start the first dma transfer
+    _tim.generate_update_event();
+  //}
 }
 
 void TimerRamper::_write_buffer(uint16_t irq_stat)
@@ -273,58 +282,75 @@ void TimerRamper::_write_buffer(uint16_t irq_stat)
   // prepare the first buffer, after that, DMA irqs will do this until target is reached
   uint16_t *pbuf = _buffer;
   uint16_t *pbufend = pbuf + _buffsize;
-  uint32_t current_hz;
+  uint32_t arr_start;
   if (irq_stat == Dma::IRQ_STATUS_HALF)
   {
-    uint16_t last_arr = *(pbufend - 1);
+    // on half transfer irq, rewrite the first half of the dma input
+    arr_start = *(pbufend - 1);
     pbufend = pbuf + _buffsize / 2;
-    current_hz = _tim.arr_to_hertz(last_arr);
   }
   else if (irq_stat == Dma::IRQ_STATUS_FULL)
   {
+    // on full transfer irq, rewrite the second half of the dma input
     pbuf = _buffer + _buffsize / 2;
-    uint16_t last_arr = *(pbuf - 1);
-    current_hz = _tim.arr_to_hertz(last_arr);
+    arr_start = *(pbuf - 1);
   }
   else
   {
-    current_hz = _tim.hertz();
-  }
-
-  if (current_hz < _target)
-  {
-    if (current_hz == 0)
-      current_hz = _tim.min_hertz() - _delta;
-    for (; pbuf < pbufend; ++pbuf)
+    // call outside of irq to start everything
+    arr_start = _tim.arr();
+    if (arr_start == 0)
     {
-      if (current_hz < _target)
-        current_hz += _delta;
-      if (_target < current_hz)
-        current_hz = _target;
-      *pbuf = _tim.hertz_to_arr(current_hz);
+      arr_start = _minspeed;
     }
   }
-  else
+
+  if (arr_start < _target)
   {
-    for (; pbuf < pbufend; ++pbuf)
+    for (; pbuf < pbufend;)
     {
-      if (current_hz > _target)
-        current_hz -= _delta;
-      if (_target > current_hz)
-        current_hz = _target;
-      *pbuf = _tim.hertz_to_arr(current_hz);
+      if (arr_start < uint32_t(_target))
+        arr_start += _delta;
+      if (uint32_t(_target) < arr_start)
+        arr_start = _target;
+      *pbuf++ = arr_start;
+      *pbuf++ = arr_start;
+      //*pbuf++ = arr_start;
+      //*pbuf++ = arr_start;
+    }
+  }
+  else //if (arr_start > _target)
+  {
+    for (; pbuf < pbufend;)
+    {
+      if (arr_start < _delta || arr_start <= _minspeed)
+      {
+        arr_start = _target;
+      }
+      else
+      {
+        arr_start -= _delta;
+      }
+      if (_target > arr_start)
+        arr_start = _target;
+      *pbuf++ = arr_start;
+      *pbuf++ = arr_start;
+      //*pbuf++ = arr_start;
+      //*pbuf++ = arr_start;
     }
   }
 }
 
 void TimerRamper::isr(uint32_t status)
 {
-  if (_tim.hertz() == _target)
+  if (target_reached())
   {
     _dma.stop();
-    _flags = 0;
   }
-  _write_buffer(status);
+  else
+  {
+    _write_buffer(status);
+  }
 }
 
 void Timer::configPwm(uint16_t prescaler, uint16_t reload, uint16_t startvalue)

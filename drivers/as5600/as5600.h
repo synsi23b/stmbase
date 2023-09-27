@@ -120,7 +120,7 @@ private:
       if(magnet_present())
       {
         _timestamp = t_measure;
-        _angle = uint16_t(data[1]) << 8 | uint16_t(data[2]);
+        _angle = (uint16_t(data[1]) << 8 | uint16_t(data[2])) & 0xFFF;
         // set read address to raw angle for next angle update to skip address transmission
         // only if status is not to be read out everytime
         if(_status_interval > 1)
@@ -168,7 +168,7 @@ private:
     if(_i2c.read(data, 2))
     {
       _timestamp = OS_TIME_Get_us();
-      _angle = uint16_t(data[0]) << 8 | uint16_t(data[1]);
+      _angle = (uint16_t(data[0]) << 8 | uint16_t(data[1])) & 0xFFF;
     }
     else
     {
