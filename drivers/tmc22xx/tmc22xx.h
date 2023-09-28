@@ -60,7 +60,7 @@ public:
     {
       _dir.set();
     }
-    _timramp.linear(hz, _acceleration, _minimum_speed);
+    _timramp.linear(hz);
   }
 
   bool stopped() const

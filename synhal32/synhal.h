@@ -2172,7 +2172,7 @@ namespace syn
       _tim.enablePwm(port, pinnum, channel, syn::Gpio::MHz_10);
     }
 
-    void linear(uint32_t target_hz, uint16_t delta_max, uint16_t min_speed_hz);
+    void linear(uint32_t target_hz);
 
     uint32_t current_hz() const 
     {
@@ -2194,9 +2194,9 @@ namespace syn
     void _write_buffer(uint16_t irq_stat = 0);
 
     Timer _tim;
-    uint16_t _target;
-    uint16_t _delta;
     uint16_t *_buffer;
+    uint16_t _target;
+    //uint16_t _delta;
     uint16_t _buffsize;
     uint16_t _minspeed;
     Dma _dma;

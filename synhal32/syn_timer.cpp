@@ -233,9 +233,10 @@ void TimerRamper::init(uint16_t timer_num, uint16_t buffsize)
   _tim.init(timer_num);
   _tim.configStepper();
   buffsize = buffsize & 0xFFF0; // clear lower 4 bits, force multiple of 16 as buffsize
-  OS_ASSERT(buffsize > 0, ERR_FORBIDDEN);
+  if(buffsize == 0)
+    buffsize = 16;
   _buffer = new uint16_t[buffsize];
-  if (_buffer != 0)
+  if (_buffer != NULL)
   {
     _dma.init(_tim.dma_channel());
     _buffsize = buffsize;
@@ -245,36 +246,29 @@ void TimerRamper::init(uint16_t timer_num, uint16_t buffsize)
     _dma.cyclicM2P(_buffer, target_reg, buffsize);
     // enable both DMA interrupts to rewrite half of the memory buffer in the isr
     _dma.enableIrq(Dma::IRQ_STATUS_FULL | Dma::IRQ_STATUS_HALF);
-    _delta = 0;
+    _minspeed = _tim.hertz_to_arr(1024);
   }
 }
 
-void TimerRamper::linear(uint32_t target_hz, uint16_t delta, uint16_t min_speed_hz)
+void TimerRamper::linear(uint32_t target_hz)
 {
   if (_buffer == NULL)
     return;
   _dma.reset(_buffsize);
 
-  // uint32_t tclk = _tclk / 2;
-  // uint16_t arr = this->arr();
   uint16_t target = _tim.hertz_to_arr(target_hz);
   if (_tim.arr() == target)
     return;
   _target = target;
-  _delta = delta;
-  _minspeed = _tim.hertz_to_arr(min_speed_hz);
   // call write dma buffer without any IRQ flag to trigger full rewrite
   _write_buffer(0);
 
   // enable the DMA with the new settings again
   _dma.start();
   // write the first element into ARR register to get things going in case of Stepper is at 0 Hz
-  //if(_tim.arr() == 0)
-  //{
-    *_tim.get_arr_register() = _buffer[0];
-    // trigger the timer to start the first dma transfer
-    _tim.generate_update_event();
-  //}
+  *_tim.get_arr_register() = _buffer[0];
+  // trigger the timer to start the first dma transfer
+  _tim.generate_update_event();
 }
 
 void TimerRamper::_write_buffer(uint16_t irq_stat)
@@ -299,7 +293,7 @@ void TimerRamper::_write_buffer(uint16_t irq_stat)
   {
     // call outside of irq to start everything
     arr_start = _tim.arr();
-    if (arr_start == 0)
+    if (arr_start < _minspeed)
     {
       arr_start = _minspeed;
     }
@@ -310,9 +304,9 @@ void TimerRamper::_write_buffer(uint16_t irq_stat)
     for (; pbuf < pbufend;)
     {
       if (arr_start < uint32_t(_target))
-        arr_start += _delta;
-      if (uint32_t(_target) < arr_start)
-        arr_start = _target;
+      {
+        arr_start += 1;
+      }
       *pbuf++ = arr_start;
       *pbuf++ = arr_start;
       //*pbuf++ = arr_start;
@@ -323,16 +317,14 @@ void TimerRamper::_write_buffer(uint16_t irq_stat)
   {
     for (; pbuf < pbufend;)
     {
-      if (arr_start < _delta || arr_start <= _minspeed)
+      if(arr_start != _target)
       {
-        arr_start = _target;
+        arr_start -= 1;
+        if(arr_start < _minspeed)
+        {
+          arr_start = _target;
+        }
       }
-      else
-      {
-        arr_start -= _delta;
-      }
-      if (_target > arr_start)
-        arr_start = _target;
       *pbuf++ = arr_start;
       *pbuf++ = arr_start;
       //*pbuf++ = arr_start;
@@ -375,8 +367,8 @@ void Timer::configPwm(uint16_t prescaler, uint16_t reload, uint16_t startvalue)
 void Timer::configStepper()
 {
   _pTimer->CNT = 0;
-  _pTimer->PSC = 2; // 72MHz / 3 = 24MHz
-  _tclk = SystemCoreClock / (_pTimer->PSC + 1);
+  _pTimer->PSC = 0; // 72MHz / 3 = 24MHz
+  _tclk = SystemCoreClock; /// (_pTimer->PSC + 1);
   _pTimer->ARR = 0; // on biggest ARR (65535) is just above 366 Hz but, with toggle mode, the actual output is halfed again.
   _pTimer->CCR1 = 0;
   _pTimer->CCR2 = 0;
