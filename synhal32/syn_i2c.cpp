@@ -148,14 +148,13 @@ namespace i2c
         _address |= 0x01;
         if (_remain == 1)
         {
-          // dont even set the ACK bit
           _port->CR1 = I2C_CR1_START | I2C_CR1_PE;
         }
-        // else if (size == 2)
-        // {
-        //   // set ACK and POS to nack the 2nd byte
-        //   _port->CR1 = I2C_CR1_POS | I2C_CR1_ACK | I2C_CR1_START | I2C_CR1_PE;
-        // }
+        else if (_remain == 2)
+        {
+          // set ACK and POS to nack the 2nd byte
+          _port->CR1 = I2C_CR1_POS | I2C_CR1_ACK | I2C_CR1_START | I2C_CR1_PE;
+        }
         else
         {
           _port->CR1 = I2C_CR1_ACK | I2C_CR1_START | I2C_CR1_PE;
@@ -181,54 +180,70 @@ namespace i2c
       }
       else if (status_1 & I2C_SR1_ADDR)
       {
+        syn::Atomic a;
         // Address was acknowleged
         uint32_t status_2 = _port->SR2;
         // check wether tx or rx
         if (status_2 & I2C_SR2_TRA)
         {
+          // write first data to be send
           _port->DR = *_data++;
           --_remain;
-          if (_remain == 0)
-          {
-            // only had to transmit one byte, set stop to finish after this
-            _port->CR1 = I2C_CR1_STOP | I2C_CR1_PE;
-          }
         }
         else
         {
           if (_remain == 1)
           {
-            // 1 byte reception, assert the stop allready
+            // 1 byte reception, assert the stop allready.
+            // Device has started receiving data when we cleared addr
             _port->CR1 = I2C_CR1_STOP | I2C_CR1_PE;
           }
-          // else if (_remain == 2)
-          // {
-          //   // 2 byte reception clear ack
-          //   _port->CR1 = I2C_CR1_PE;
-          // }
+          else if (_remain == 2)
+          {
+            // 2 byte reception clear ack
+            _port->CR1 = I2C_CR1_POS | I2C_CR1_PE;
+          }
         }
       }
       else if (status_1 & I2C_SR1_RXNE)
       {
         // need to read data from the rx buffer
-        *_data++ = _port->DR;
-        --_remain;
-        // if (_remain == 2)
-        // {
-        //   // clear ACK
-        //   //_port->CR1 &= ~I2C_CR1_ACK;
-        // }
-        if (_remain == 1)
+#ifndef NDEBUG
+        while(_data == 0 && _remain != 0)
+          ;
+#endif
+        if(_remain > 3)
         {
-          // assert stop and clear ACK to NACK byte currently in shift register
-          //_port->CR1 &= ~I2C_CR1_ACK;
-          _port->CR1 = I2C_CR1_STOP | I2C_CR1_PE;
+          *_data++ = _port->DR;
+          --_remain;
         }
-        else if (_remain == 0)
+        else if(_remain == 3 && status_1 & I2C_SR1_BTF)
+        {
+          // clear ACK 
+          _port->CR1 = I2C_CR1_PE;
+          // read from data register
+          *_data++ = _port->DR;
+          --_remain;
+          // programm stop condition
+          //_port->CR1 = I2C_CR1_STOP | I2C_CR1_PE;
+        }
+        else if(_remain == 2 && status_1 & I2C_SR1_BTF)
+        {
+          _port->CR1 = I2C_CR1_STOP | I2C_CR1_PE;
+          *_data++ = _port->DR;
+          --_remain;
+        }
+        else if(_remain == 1)
+        {
+          *_data++ = _port->DR;
+          _remain = 0;
+        }
+        if (_remain == 0)
         {
           // donezo
           _port->CR1 = I2C_CR1_STOP;
-          *_success = 1;
+          if(_success)
+            *_success = 1;
           _success = 0;
           _data = 0;
           _opdone.set();
@@ -237,25 +252,31 @@ namespace i2c
       else if (status_1 & I2C_SR1_TXE)
       {
         // need to write data to the tx buffer
-        if (_remain)
+        if (_remain > 0)
         {
           --_remain;
           _port->DR = *_data++;
         }
-        else
+        else if(status_1 & I2C_SR1_BTF)
         {
           // this was the last byte, transmit stop condtion. and donezo
           _port->CR1 = I2C_CR1_STOP;
-          *_success = 1;
+          if(_success)
+            *_success = 1;
           _success = 0;
           _data = 0;
           _opdone.set();
         }
       }
-      else if (status_1 & (I2C_SR1_BERR | I2C_SR1_STOPF))
-      {
-        isr_err();
-      }
+       else if (status_1 & (I2C_SR1_BERR | I2C_SR1_STOPF))
+       {
+         isr_err();
+       }
+      // else
+      // {
+      //   while(status_1 || status_2)
+      //     ;
+      // }
     }
 
     void isr_err()
@@ -266,7 +287,8 @@ namespace i2c
         _port->CR1 = I2C_CR1_STOP;
       else
         _port->CR1 = 0;
-      *_success = 2;
+      if(_success)
+        *_success = 2;
       if(_data != 0)
       {
         _data = 0;
