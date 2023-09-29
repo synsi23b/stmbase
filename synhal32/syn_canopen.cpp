@@ -71,7 +71,7 @@ static volatile HAL_CAN_StateTypeDef can_state = HAL_CAN_STATE_RESET;
 
 CO_ReturnError_t err;
 #if SYN_CAN_USE_TIMER == 0
-syn::CANopenNode::CANopenSYNC syn::CANopenNode::_synctimer;
+syn::CANopenNode::CANopenTick syn::CANopenNode::_cantick;
 #endif
 
 /* Local CAN module object */
@@ -390,7 +390,7 @@ void CO_CANmodule_disable(CO_CANmodule_t *CANmodule)
         OS_ASSERT(SYN_CAN_USE_TIMER == 0, ERR_BAD_INDEX);
     }
 #else
-    _synctimer.stop();
+    //syn::CANopenNode::_cantick.suspend();
 #endif
     (void)CANmodule;
     if (can_state == HAL_CAN_STATE_LISTENING)
@@ -849,7 +849,7 @@ int32_t CANopenNode::init(uint8_t desired_id, uint16_t baudrate_k)
     pTimer->ARR = 1000;
     Core::enable_isr(static_cast<IRQn_Type>(irqn), 6);
 #else
-    _synctimer.init(1, true);
+    syn::CANopenNode::_cantick.start();
 #endif
 
 #if (CO_CONFIG_STORAGE) & CO_CONFIG_STORAGE_ENABLE
@@ -1025,7 +1025,7 @@ int32_t CANopenNode::reset_com()
         OS_ASSERT(SYN_CAN_USE_TIMER == 0, ERR_BAD_INDEX);
     }
 #else
-    _synctimer.restart();
+    //syn::CANopenNode::_cantick.resume();
 #endif
     /* Configure CANopen callbacks, etc */
     if (!CO->nodeIdUnconfigured)
@@ -1054,7 +1054,7 @@ int32_t CANopenNode::reset_com()
 
 void CO_process_1ms()
 {
-    CO_LOCK_OD(CANModule_local);
+    //CO_LOCK_OD(CANModule_local);
     if (!CO->nodeIdUnconfigured && CANModule_local->CANnormal)
     {
         bool_t syncWas = false;
@@ -1073,8 +1073,21 @@ void CO_process_1ms()
 
         /* Further I/O or nonblocking application code may go here. */
     }
-    CO_UNLOCK_OD(CANModule_local);
+    //CO_UNLOCK_OD(CANModule_local);
 }
+
+#if SYN_CAN_USE_TIMER == 0
+void syn::CANopenNode::CANopenTick::run()
+{
+    syn::Rate<1000> rate;
+    rate.init();
+    while (1)
+    {
+        CO_process_1ms();
+        rate.sleep();
+    }
+}
+#endif
 
 uint8_t *CANopenNode::getFlagsPDO(uint16_t canopen_index)
 {
@@ -1087,11 +1100,6 @@ uint8_t *CANopenNode::getFlagsPDO(uint16_t canopen_index)
 void CANopenNode::requestTPDO(uint8_t *flagsPDO, uint8_t subidx)
 {
     OD_requestTPDO(flagsPDO, subidx);
-}
-
-void CANopenNode::CANopenSYNC::execute()
-{
-    CO_process_1ms();
 }
 
 //void CANopenNode::TPDOtrigger::init(OD_entry_t *pObject)

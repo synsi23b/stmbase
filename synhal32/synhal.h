@@ -2413,16 +2413,24 @@ namespace syn
     //     uint8_t* _flags;
     // };
 
-  private:
+    static void tick(void);
+
     // restart can hadware and node
     static int32_t reset_com();
     // Process that runs elevated from tasks every millisecond
-    class CANopenSYNC : public syn::SoftTimer
+    class CANopenTick : public syn::Thread
     {
     public:
-      void execute();
+      CANopenTick() : syn::Thread("CAN_tick", SYN_OS_PRIO_HIGHEST, 200, _stack)
+      {
+      }
+
+      void run();
+    private:
+
+      uint32_t _stack[200];
     };
 
-    static CANopenSYNC _synctimer;
+    static CANopenTick _cantick;
   };
 } // namespace syn
