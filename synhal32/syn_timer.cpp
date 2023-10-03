@@ -252,13 +252,14 @@ void TimerRamper::init(uint16_t timer_num, uint16_t buffsize)
 
 void TimerRamper::linear(uint32_t target_hz)
 {
+  uint16_t target = _tim.hertz_to_arr(target_hz);
+  if (_tim.arr() == target)
+    return;
+  
   if (_buffer == NULL)
     return;
   _dma.reset(_buffsize);
 
-  uint16_t target = _tim.hertz_to_arr(target_hz);
-  if (_tim.arr() == target)
-    return;
   _target = target;
   // call write dma buffer without any IRQ flag to trigger full rewrite
   _write_buffer(0);
