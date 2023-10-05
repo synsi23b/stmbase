@@ -4,10 +4,10 @@ using namespace syn;
 
 
 #ifdef SYN_I2C_ENABLE_DYN_REMAP
-static Gpio _scl_n_b8;
-static Gpio _sda_n_b9;
-static Gpio _scl_r_b6;
-static Gpio _sda_r_b7;
+static Gpio _scl_r_b8;
+static Gpio _sda_r_b9;
+static Gpio _scl_n_b6;
+static Gpio _sda_n_b7;
 #endif
 
 namespace i2c
@@ -36,10 +36,10 @@ namespace i2c
 #ifdef SYN_I2C_ENABLE_DYN_REMAP
   // put the correct working mode to the other pins that have not been set by the ini function
 #ifdef STM32F103xB
-        _scl_n_b8 = Gpio('B', 8);
-        _sda_n_b9 = Gpio('B', 9);
-        _scl_r_b6 = Gpio('B', 6);
-        _sda_r_b7 = Gpio('B', 7);
+        _scl_r_b8 = Gpio('B', 8);
+        _sda_r_b9 = Gpio('B', 9);
+        _scl_n_b6 = Gpio('B', 6);
+        _sda_n_b7 = Gpio('B', 7);
 #else //STM32F103xB
   OS_ASSERT(true == false, ERR_NOT_IMPLMENTED);
 #endif
@@ -126,6 +126,37 @@ namespace i2c
         ret = true;
       }
       return ret;
+    }
+
+    bool releaseDev(uint16_t success)
+    {
+      Atomic a;
+      if(success == 0x01)
+        return true; // all clear, successfull transfer
+      if(success == 0x02)
+        return false; // error transmission, irq handled it
+      // timeout or weird error, reset the device
+      _remain = 0;
+      _data = 0;
+      _success = 0;
+      _port->CR1 = 0;
+      uint16_t cr2 = _port->CR2;
+      uint16_t ccr = _port->CCR;
+      uint16_t trs = _port->TRISE;
+      if(_port == I2C1)
+      {
+        RCC->APB1RSTR = RCC_APB1RSTR_I2C1RST;
+        RCC->APB1RSTR = 0;
+      }
+      else
+      {
+        RCC->APB1RSTR = RCC_APB1RSTR_I2C2RST;
+        RCC->APB1RSTR = 0;
+      }
+      _port->CR2 = cr2;
+      _port->CCR = ccr;
+      _port->TRISE = trs;
+      return false;
     }
 
 
@@ -267,11 +298,15 @@ namespace i2c
           _data = 0;
           _opdone.set();
         }
+        else if(_port->CR1 == 0)
+        {
+          _port->CR1 = I2C_CR1_STOP;
+        }
       }
-       else if (status_1 & (I2C_SR1_BERR | I2C_SR1_STOPF))
-       {
-         isr_err();
-       }
+      else if (status_1 & (I2C_SR1_BERR | I2C_SR1_STOPF | I2C_SR1_ARLO))
+      {
+        isr_err();
+      }
       // else
       // {
       //   while(status_1 || status_2)
@@ -321,9 +356,9 @@ I2cMaster::I2cMaster()
 
 }
 
-I2cMaster::I2cMaster(uint16_t port, uint8_t address)
+I2cMaster::I2cMaster(uint16_t port, uint8_t address, bool remap)
 {
-  init(port, address);
+  init(port, address, remap);
 }
 
 void syn::I2cMaster::init(uint16_t port, uint8_t address, bool remap)
@@ -369,18 +404,28 @@ bool syn::I2cMaster::write(uint8_t *data, uint16_t size, uint16_t timeout_ms)
     I2cMaster::runtime_remap_i2c1(_remapped);
   }
 
-  if(!((i2c::Device *)_pdev)->masterStartWrite(&state))
-    return false; // should never happen
-  // managed to start the transmission, wait for donezo signal again
-  while (state == 0)
+  if(((i2c::Device *)_pdev)->masterStartWrite(&state))
   {
-    if(!((i2c::Device *)_pdev)->waitDone(1) && timeout_ms == 0)
+    // minimum timeout is about 32 byte per millisecond for 400kHz bus speed
+    uint16_t min_t = size / 32 + 1;
+    if(timeout_ms < min_t)
+      timeout_ms = min_t;
+    // managed to start the transmission, wait for donezo signal again
+    while (state == 0)
     {
-      return false;
+      if(((i2c::Device *)_pdev)->waitDone(1))
+      {
+        // signal got asserted
+        break;
+      }
+      if(--timeout_ms == 0)
+      {
+        break;
+      }
     }
-    --timeout_ms;
   }
-  return state == 1;
+
+  return ((i2c::Device *)_pdev)->releaseDev(state);
 }
 
 bool syn::I2cMaster::read(uint8_t *data, uint16_t size, uint16_t timeout_ms)
@@ -401,22 +446,28 @@ bool syn::I2cMaster::read(uint8_t *data, uint16_t size, uint16_t timeout_ms)
     I2cMaster::runtime_remap_i2c1(_remapped);
   }
 
-  if(!((i2c::Device *)_pdev)->masterStartRead(&state))
-    return false; // should never happen
-  // minimum timeout is about 32 byte per millisecond for 400kHz bus speed
-  uint16_t min_t = size / 32 + 1;
-  if(timeout_ms < min_t)
-    timeout_ms = min_t;
-  // managed to start the transmission, wait for donezo signal again
-  while (state == 0)
+  if(((i2c::Device *)_pdev)->masterStartRead(&state))
   {
-    if(!((i2c::Device *)_pdev)->waitDone(1) && timeout_ms == 0)
+    // minimum timeout is about 32 byte per millisecond for 400kHz bus speed
+    uint16_t min_t = size / 32 + 1;
+    if(timeout_ms < min_t)
+      timeout_ms = min_t;
+    // managed to start the transmission, wait for donezo signal again
+    while (state == 0)
     {
-      return false;
+      if(((i2c::Device *)_pdev)->waitDone(1))
+      {
+        // signal got asserted
+        break;
+      }
+      if(--timeout_ms == 0)
+      {
+        break;
+      }
     }
-    --timeout_ms;
   }
-  return state == 1;
+
+  return ((i2c::Device *)_pdev)->releaseDev(state);
 }
 
 #ifdef SYN_I2C_ENABLE_DYN_REMAP
@@ -427,19 +478,19 @@ void syn::I2cMaster::runtime_remap_i2c1(bool remap)
 #ifdef STM32F103xB
   if(!remap)
   {
-    _scl_n_b8.mode(Gpio::in_floating);
-    _sda_n_b9.mode(Gpio::in_floating);
+    _scl_r_b8.mode(Gpio::in_floating);
+    _sda_r_b9.mode(Gpio::in_floating);
     Gpio::clear_remap(Gpio::i2c1_scl_pb8_sda_pb9);
-    _scl_r_b6.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1);
-    _sda_r_b7.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1);
+    _scl_n_b6.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1);
+    _sda_n_b7.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1);
   }
   else
   {
-    _scl_r_b6.mode(Gpio::in_floating);
-    _sda_r_b7.mode(Gpio::in_floating);
+    _scl_n_b6.mode(Gpio::in_floating);
+    _sda_n_b7.mode(Gpio::in_floating);
     Gpio::remap(Gpio::i2c1_scl_pb8_sda_pb9);
-    _scl_n_b8.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1);
-    _sda_n_b9.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1);
+    _scl_r_b8.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1);
+    _sda_r_b9.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1);
   }
 #else //STM32F103xB
   OS_ASSERT(true == false, ERR_NOT_IMPLMENTED);

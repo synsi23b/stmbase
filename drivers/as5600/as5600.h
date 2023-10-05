@@ -23,7 +23,8 @@ public:
     _current_interval = 1;
     _status = 0;
     _i2c.init(i2c_num, 0x36 << 1, i2c_remap);
-    if(_update_status())
+    _current_interval = _update_status();
+    if(!i2c_failure())
     {
       _configure();
       // reset the read address to expected raw angle after configure call
