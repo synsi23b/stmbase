@@ -25,7 +25,10 @@ public:
       // set chopconf step on both edges, 
       //write_reg(0x10010053 | (1 << 29), 0x6C);
       uint32_t val = reverse_motor ? GCONF::shaft : 0;
-      s_gconf(GCONF::I_scale_analog | GCONF::pdn_disable | GCONF::mstep_reg_select | GCONF::multistep_filt | val);
+      uint32_t gconf = GCONF::I_scale_analog | GCONF::pdn_disable | GCONF::mstep_reg_select | GCONF::multistep_filt | val;
+      s_gconf(gconf);
+      uint32_t rgconf = 0;
+      bool ret = r_gconf(rgconf);
     }
     nenable.set();
     nenable.mode(syn::Gpio::out_push_pull);

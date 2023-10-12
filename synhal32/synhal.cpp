@@ -2,6 +2,10 @@
 
 using namespace syn;
 
+#ifdef STM32F103xB
+uint32_t Gpio::_swd_jtag_cfg = (uint32_t)Gpio::Remap::swj_no_nrst;
+#endif
+
 void SoftTimer::_oneshot(SoftTimer *this_timer)
 {
   this_timer->execute();

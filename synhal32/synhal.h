@@ -1028,6 +1028,7 @@ namespace syn
 
   class Gpio
   {
+    static uint32_t _swd_jtag_cfg;
   public:
     Gpio()
     {
@@ -1366,6 +1367,7 @@ namespace syn
 
     enum Remap
     {
+      none = 0,
       spi1_clk_pb3_miso_pb4_mosi_pb5 = 0x0001,
       i2c1_scl_pb8_sda_pb9 = 0x0002,
       uart1_tx_pb6_rx_pb7 = 0x0004,
@@ -1393,10 +1395,16 @@ namespace syn
       swj_all_disable = 0x4000000
     };
 
+    static void set_swj_config(Remap map)
+    {
+      _swd_jtag_cfg = ((uint32_t)map) & 0x7000000;
+    }
+
     static void remap(Remap map)
     {
 #ifdef STM32F103xB
-      AFIO->MAPR |= (uint32_t)map;
+      uint32_t current = AFIO->MAPR & 0xFFFFFF;
+      AFIO->MAPR = _swd_jtag_cfg | current | (uint32_t)map;
 #elif defined(STM32F401xC)
       (void)(map);
 #elif defined(STM32G030xx)
@@ -1409,7 +1417,9 @@ namespace syn
     static void clear_remap(Remap map)
     {
 #ifdef STM32F103xB
-      AFIO->MAPR &= ~map;
+      //AFIO->MAPR &= ~map;
+      uint32_t current = (AFIO->MAPR & 0xFFFFFF) & (~(uint32_t)map);
+      AFIO->MAPR = _swd_jtag_cfg | current;
 #elif defined(STM32F401xC)
       (void)(map);
 #elif defined(STM32G030xx)
@@ -1685,43 +1695,23 @@ namespace syn
 
   class Adc
   {
-    static const uint32_t ADC_CHANNEL_COUNT = 10;
-
   public:
-    // initialize and start the ADC, will read channels 0 to 9 in a loop
-    // and update the static channel save accordingly. one rotation takes about
-    // 45 micro seconds
-    // uses DMA_channel_1 to copy values
-    static void init();
+    // initialize and start the ADC, will read channels in a loop.
+    // uses DMA_channel_1 to copy values into the data_store array with size count
+    // to measure specific channels, they need to be enabled using the enable method.
+    static void init_auto_dma(uint16_t* data_store, uint16_t count);
 
     // set the pin to analog reading mode
     // channel can be any number between and including 0 and 9
     // 0 .. 7 unlocks pins of Port A 0 .. 7
     // 8 & 9 unlocks pins 0 & 1 of Port B
-    static void enable(uint16_t channel)
-    {
-      OS_ASSERT(channel < ADC_CHANNEL_COUNT, ERR_BAD_INDEX);
-      if (channel < 8)
-      {
-        Gpio pin('A', channel);
-        pin.mode(Gpio::in_analog, Gpio::Input);
-      }
-      else
-      {
-        Gpio pin('B', channel - 8);
-        pin.mode(Gpio::in_analog, Gpio::Input);
-      }
-    }
+    // conversion_idx puts the channel in the order thats its read and stored to the data_store array
+    // from the init method. A channel can also be mentiond multiple times with different conversion_idx
+    // the conversion sequence index starts at 0 and can be up to 15 for a maximum conversion chain of 16
+    static void enable(uint16_t channel, uint16_t conversion_idx);
 
-    // return the last measured value of the specified channel
-    static uint16_t read(uint16_t channel)
-    {
-      OS_ASSERT(channel < ADC_CHANNEL_COUNT, ERR_BAD_INDEX);
-      return _channels[channel];
-    }
-
-  private:
-    static uint16_t _channels[ADC_CHANNEL_COUNT];
+    // after initializing the Adc and enabling all the channels, start the conversions
+    static void start();
   };
 
   class Dma
