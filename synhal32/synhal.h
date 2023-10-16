@@ -2387,6 +2387,9 @@ namespace syn
     static int32_t init(uint8_t desired_id, uint16_t baudrate_k);
     // slow process messages, can be in a loop with other code
     static void process(syn::Gpio &led_green, syn::Gpio &led_red);
+    // set or clear error bits
+    static void set_errorbit_manufacturer(bool state);
+
     // find a pdo flags entry in CO Object dictionary by index
     static uint8_t *getFlagsPDO(uint16_t canopen_index);
     // set the TPDO transmit request flag by Flag object + subindex

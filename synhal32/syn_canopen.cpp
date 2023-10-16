@@ -938,6 +938,11 @@ void CANopenNode::process(syn::Gpio &led_green, syn::Gpio &led_red)
     }
 }
 
+void CANopenNode::set_errorbit_manufacturer(bool state)
+{
+    CO->em->errorStatusBits[8] = state;
+}
+
 int32_t CANopenNode::reset_com()
 {
     /* CANopen communication reset - initialize CANopen objects *******************/
