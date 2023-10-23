@@ -200,7 +200,7 @@ CO_ReturnError_t CO_CANmodule_init(CO_CANmodule_t *CANmodule, void *CANptr, CO_C
     CANmodule->CANnormal = false;
     CANmodule->useCANrxFilters = false; /* Do not use HW filters */
     CANmodule->bufferInhibitFlag = false;
-    CANmodule->firstCANtxMessage = true;
+    //CANmodule->firstCANtxMessage = false;
     CANmodule->CANtxCount = 0U;
     CANmodule->errOld = 0U;
 
@@ -349,7 +349,9 @@ CO_ReturnError_t CO_CANmodule_init(CO_CANmodule_t *CANmodule, void *CANptr, CO_C
                 ;
         }
     }
-    CAN1->MCR = CAN_MCR_ABOM | CAN_MCR_NART | CAN_MCR_INRQ;
+    //CAN1->MCR = CAN_MCR_ABOM | CAN_MCR_NART | CAN_MCR_INRQ;
+    // enable automatic retransmission so that sync tpdo works even on ARLO
+    CAN1->MCR = CAN_MCR_ABOM | CAN_MCR_INRQ;
     CAN1->BTR = btr_reg;
 
     /* Initialize the error code */
@@ -362,13 +364,15 @@ CO_ReturnError_t CO_CANmodule_init(CO_CANmodule_t *CANmodule, void *CANptr, CO_C
     CAN1->FMR = (28 << 8) | CAN_FMR_FINIT;
     // set filters to idmask mode
     CAN1->FM1R = 0;
-    CAN1->FS1R = 1;
-    // assign to FIFO 0;
-    CAN1->FFA1R = 0;
-    CAN1->FA1R = 1; // activate filter 1
+    CAN1->FS1R = 3;
+    // assign to FIFO 0 and 1;
+    CAN1->FFA1R = 2;
+    CAN1->FA1R = 3; // activate both filters
     // set filter to zero, aka dont care in mask mode
-    CAN1->sFilterRegister->FR1 = 0;
-    CAN1->sFilterRegister->FR2 = 0;
+    CAN1->sFilterRegister[0].FR1 = 0;
+    CAN1->sFilterRegister[0].FR2 = 0;
+    CAN1->sFilterRegister[1].FR1 = 0;
+    CAN1->sFilterRegister[1].FR2 = 0;
     CAN1->FMR = (28 << 8); // clear ini bit to activate filter
 
     /* Enable notifications */
@@ -537,11 +541,11 @@ CO_CANsend(CO_CANmodule_t *CANmodule, CO_CANtx_t *buffer)
     /* Verify overflow */
     if (buffer->bufferFull)
     {
-        if (!CANmodule->firstCANtxMessage)
-        {
+        //if (!CANmodule->firstCANtxMessage)
+        //{
             /* don't set error, if bootup message is still on buffers */
             CANmodule->CANerrorStatus |= CO_CAN_ERRTX_OVERFLOW;
-        }
+        //}
         err = CO_ERROR_TX_OVERFLOW;
     }
 
@@ -749,7 +753,7 @@ void can_read_received_msg(uint32_t fifo)
  */
 void can_interrupt_TX()
 {
-    CANModule_local->firstCANtxMessage = false; /* First CAN message (bootup) was sent successfully */
+    //CANModule_local->firstCANtxMessage = false; /* First CAN message (bootup) was sent successfully */
     CANModule_local->bufferInhibitFlag = false; /* Clear flag from previous message */
     if (CANModule_local->CANtxCount > 0U)
     {                                                      /* Are there any new messages waiting to be send */
@@ -764,7 +768,7 @@ void can_interrupt_TX()
          * (unless you can guarantee no higher priority interrupt will try to access to CAN instance and send data,
          *  then no need to lock interrupts..)
          */
-        CO_LOCK_CAN_SEND(CANModule_local);
+        //CO_LOCK_CAN_SEND(CANModule_local);
         for (i = CANModule_local->txSize; i > 0U; --i, ++buffer)
         {
             /* Try to send message */
@@ -783,7 +787,7 @@ void can_interrupt_TX()
         {
             CANModule_local->CANtxCount = 0U;
         }
-        CO_UNLOCK_CAN_SEND(CANModule_local);
+        //CO_UNLOCK_CAN_SEND(CANModule_local);
     }
 }
 
@@ -797,7 +801,6 @@ int32_t CANopenNode::init(uint8_t desired_id, uint16_t baudrate_k)
     // enable clock for hw
     RCC->APB1ENR |= RCC_APB1ENR_CAN1EN;
     // initialize GPIO
-    // TODO remap pins according to afio register?
 #if !defined(SYN_CAN_1_REMAP) || SYN_CAN_1_REMAP == 0
     {
         Gpio rx('a', 11);

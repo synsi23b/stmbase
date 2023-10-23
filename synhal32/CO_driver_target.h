@@ -108,7 +108,7 @@ extern "C"
         volatile bool_t CANnormal;
         volatile bool_t useCANrxFilters;
         volatile bool_t bufferInhibitFlag;
-        volatile bool_t firstCANtxMessage;
+        //volatile bool_t firstCANtxMessage;
         volatile uint16_t CANtxCount;
         uint32_t errOld;
 

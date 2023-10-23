@@ -1701,6 +1701,9 @@ namespace syn
     // to measure specific channels, they need to be enabled using the enable method.
     static void init_auto_dma(uint16_t* data_store, uint16_t count);
 
+    // same as regular init, but set the ADC to 8 bit mode
+    static void init_auto_dma_8bit(uint8_t* data_store, uint16_t count);
+
     // set the pin to analog reading mode
     // channel can be any number between and including 0 and 9
     // 0 .. 7 unlocks pins of Port A 0 .. 7
