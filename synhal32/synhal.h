@@ -1717,6 +1717,15 @@ namespace syn
     static void start();
   };
 
+// helper macro to calculate get bits for a specific measured voltate at 8 bits with a voltage divider.
+// measurement point is in the middle of the resistances div_in and div_gnd
+#define SYN_MILLIVOLT_TO_BITS_8_DIVIDER(millivolt, div_in, div_gnd) (((millivolt * (div_gnd / (div_gnd + div_in))) * 77) / 1000)
+
+// helper macro to calculate get bits for a specific measured voltate at 12 bits with a voltage divider.
+// measurement point is in the middle of the resistances div_in and div_gnd
+#define SYN_MILLIVOLT_TO_BITS_12_DIVIDER(millivolt, div_in, div_gnd) (((millivolt * (div_gnd / (div_gnd + div_in))) * 1241) / 1000)
+
+
   class Dma
   {
   public:
