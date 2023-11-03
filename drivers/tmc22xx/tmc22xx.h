@@ -5,17 +5,31 @@
 class Tmc22xx
 {
 public:
+  class GCONF {
+  public:
+    static const uint32_t I_scale_analog = (1 << 0);
+    static const uint32_t internal_Rsense = (1 << 1);
+    static const uint32_t en_SpreadCycle = (1 << 2);
+    static const uint32_t shaft = (1 << 3);
+    static const uint32_t index_otpw = (1 << 4);
+    static const uint32_t index_step = (1 << 5);
+    static const uint32_t pdn_disable = (1 << 6);
+    static const uint32_t mstep_reg_select = (1 << 7);
+    static const uint32_t multistep_filt = (1 << 8);
+  };
+
   Tmc22xx()
   {
 
   }
 
-  void init(syn::Gpio& nenable, syn::Gpio& dir, 
+  bool init(syn::Gpio& nenable, syn::Gpio& dir, 
             uint16_t timer_num, uint16_t step_channel,
             int8_t step_pin_port, uint8_t step_pin_num,
             uint16_t usart_num, uint8_t address,
             bool reverse_motor)
   {
+    bool ret = false;
     _acceleration = 1;
     _minimum_speed = 5120; // value in Hertz. 1 / 20th rotation per second
     if(usart_num != 0)
@@ -24,9 +38,12 @@ public:
       _address = address;
       // set chopconf step on both edges, 
       //write_reg(0x10010053 | (1 << 29), 0x6C);
-      set_motor_reverse(reverse_motor);
-      //uint32_t rgconf = 0;
-      //bool ret = r_gconf(rgconf);
+      uint32_t sgconf = set_motor_reverse(reverse_motor);
+      uint32_t rgconf = 0;
+      if(r_gconf(rgconf))
+      {
+        ret = rgconf == sgconf;
+      }
     }
     nenable.set();
     nenable.mode(syn::Gpio::out_push_pull);
@@ -36,6 +53,7 @@ public:
     _dir = dir;
     _timramp.init(timer_num, 256);
     _timramp.enable_pwm(step_pin_port, step_pin_num, step_channel);
+    return ret;
   }
 
   void set_acceleration(uint16_t acceleration)
@@ -79,34 +97,22 @@ public:
     _nenab.set(!state);
   }
 
-  bool r_gconf(uint32_t& val)
-  {
-    return read_reg(val, 0x00);
-  }
-
-  void set_motor_reverse(bool true_reverse)
+  uint32_t set_motor_reverse(bool true_reverse)
   {
     uint32_t val = true_reverse ? GCONF::shaft : 0;
     uint32_t gconf = GCONF::I_scale_analog | GCONF::pdn_disable | GCONF::mstep_reg_select | GCONF::multistep_filt | val;
     s_gconf(gconf);
+    return gconf;
   }
-
-  class GCONF {
-  public:
-    static const uint32_t I_scale_analog = (1 << 0);
-    static const uint32_t internal_Rsense = (1 << 1);
-    static const uint32_t en_SpreadCycle = (1 << 2);
-    static const uint32_t shaft = (1 << 3);
-    static const uint32_t index_otpw = (1 << 4);
-    static const uint32_t index_step = (1 << 5);
-    static const uint32_t pdn_disable = (1 << 6);
-    static const uint32_t mstep_reg_select = (1 << 7);
-    static const uint32_t multistep_filt = (1 << 8);
-  };
 
   void s_gconf(uint32_t val)
   {
     write_reg(val, 0x00);
+  }
+
+  bool r_gconf(uint32_t& val)
+  {
+    return read_reg(val, 0x00);
   }
 
   bool r_status(uint32_t& val)
