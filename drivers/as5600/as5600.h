@@ -9,6 +9,8 @@ public:
   {
     _angle = -1;
     _status = 0;
+    _configured = false;
+    _reversed = false;
   }
 
   // initialize state and i2c communication
@@ -24,16 +26,6 @@ public:
     _status = 0;
     _i2c.init(i2c_num, 0x36 << 1, i2c_remap);
     _current_interval = _update_status();
-    if(!i2c_failure())
-    {
-      _configure();
-      // reset the read address to expected raw angle after configure call
-      uint8_t data = 0x0C;
-      if(_i2c.write(&data, 1) == true)
-      {
-        _current_interval = status_update_interval;
-      }
-    }
   }
 
   // run regularily to update angle and state
@@ -49,6 +41,12 @@ public:
     {
       _update_angle();
     }
+  }
+
+  // set the incrementing direction of the sensor programatically
+  void set_reverse(bool rev)
+  {
+    _reversed = rev;
   }
 
   // returns the read out angle in the range 0 to 4095
@@ -100,16 +98,23 @@ public:
 
   uint16_t read_conf()
   {
+    uint16_t ret = 0xFFFF;
     uint8_t data[2] = {0x07, 0};
     if(_i2c.write(data, 1) && _i2c.read(data, 2))
     {
-      return uint16_t(data[0]) << 8 | uint16_t(data[1]);
+      ret = uint16_t(data[0]) << 8 | uint16_t(data[1]);
     }
-    return 0xFFFF;
+    // reset read address to angle register
+    data[0] = 0x0C;
+    _i2c.write(data, 1);
+    return ret;
   }
 private:
   uint8_t _update_status()
   {
+    // configure the sensor (only done once)
+    _configure();
+    // update status
     uint8_t next_interval = 1;
     // read status and angle
     uint8_t data[3] = {0x0B, 0, 0};
@@ -121,7 +126,10 @@ private:
       if(magnet_present())
       {
         _timestamp = t_measure;
-        _angle = (uint16_t(data[1]) << 8 | uint16_t(data[2])) & 0xFFF;
+        if(_reversed)
+          _angle = 0xFFF - ((uint16_t(data[0]) << 8 | uint16_t(data[1])) & 0xFFF);
+        else
+          _angle = (uint16_t(data[0]) << 8 | uint16_t(data[1])) & 0xFFF;
         // set read address to raw angle for next angle update to skip address transmission
         // only if status is not to be read out everytime
         if(_status_interval > 1)
@@ -148,17 +156,17 @@ private:
 
   void _configure()
   {
+    if(_configured)
+      return;
     // reg 0x07
     // FTH 010b -> 7 / 1 threshold
     // SF 01b -> 1.1ms settling time
     // reg 0x08
     // HYST 10b -> 2 LSB
     uint8_t data[3] = {0x07, 0x05, 0x04};
-    if(!_i2c.write(data, 3))
+    if(_i2c.write(data, 3))
     {
-      // failed to configure, try again in 10ms
-      syn::Thread::sleep(10);
-      _i2c.write(data, 3);
+      _configured = true;
     }
   }
 
@@ -169,7 +177,10 @@ private:
     if(_i2c.read(data, 2))
     {
       _timestamp = OS_TIME_Get_us();
-      _angle = (uint16_t(data[0]) << 8 | uint16_t(data[1])) & 0xFFF;
+      if(_reversed)
+        _angle = 0xFFF - ((uint16_t(data[0]) << 8 | uint16_t(data[1])) & 0xFFF);
+      else
+        _angle = (uint16_t(data[0]) << 8 | uint16_t(data[1])) & 0xFFF;
     }
     else
     {
@@ -183,6 +194,8 @@ private:
   uint8_t _status_interval;
   uint8_t _current_interval;
   uint8_t _status;
+  bool _configured;
+  bool _reversed;
 };
 
 // run a AS5600 internally, but keep track of the position when its possible to
@@ -221,9 +234,15 @@ public:
   // 0x20 == magnet present
   // 0x01 == magnet weak
   // 0x08 == magnet strong
+  // 0x80 == i2c could not read status register / bus failure
   uint8_t status() const
   {
     return _sensor.status();
+  }
+
+  void set_reverse(bool rev)
+  {
+    _sensor.set_reverse(rev);
   }
 
   // reset the global position
