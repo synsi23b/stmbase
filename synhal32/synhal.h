@@ -2401,7 +2401,7 @@ namespace syn
     // slow process messages, can be in a loop with other code
     static void process(syn::Gpio &led_green, syn::Gpio &led_red);
     // set or clear error bits
-    static void set_error(bool state, CO_EM_errorStatusBits_t err_bits, CO_EM_errorCode_t err_code, uint32_t info);
+    static void set_error(bool state, uint8_t err_bits, CO_EM_errorCode_t err_code, uint32_t info);
 
     // find a pdo flags entry in CO Object dictionary by index
     static uint8_t *getFlagsPDO(uint16_t canopen_index);
