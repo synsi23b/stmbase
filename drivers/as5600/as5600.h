@@ -127,9 +127,9 @@ private:
       {
         _timestamp = t_measure;
         if(_reversed)
-          _angle = 0xFFF - ((uint16_t(data[0]) << 8 | uint16_t(data[1])) & 0xFFF);
+          _angle = 0xFFF - ((uint16_t(data[1]) << 8 | uint16_t(data[2])) & 0xFFF);
         else
-          _angle = (uint16_t(data[0]) << 8 | uint16_t(data[1])) & 0xFFF;
+          _angle = (uint16_t(data[1]) << 8 | uint16_t(data[2])) & 0xFFF;
         // set read address to raw angle for next angle update to skip address transmission
         // only if status is not to be read out everytime
         if(_status_interval > 1)
