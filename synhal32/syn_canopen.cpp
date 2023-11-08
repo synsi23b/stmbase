@@ -941,9 +941,10 @@ void CANopenNode::process(syn::Gpio &led_green, syn::Gpio &led_red)
     }
 }
 
-void CANopenNode::set_errorbit_manufacturer(bool state)
+void CANopenNode::set_error(bool state, CO_EM_errorStatusBits_t err_bits, CO_EM_errorCode_t err_code, uint32_t info)
 {
-    CO->em->errorStatusBits[8] = state;
+    //CO->em->errorStatusBits[8] = state;
+    CO_error(CO->em, state, err_bits, err_code, info);
 }
 
 int32_t CANopenNode::reset_com()
