@@ -68,6 +68,9 @@ static uint8_t desiredNodeID;
 static uint8_t activeNodeID; /* Assigned Node ID */
 static volatile uint32_t can_error = 0;
 static volatile HAL_CAN_StateTypeDef can_state = HAL_CAN_STATE_RESET;
+// set by init_lss_store before calling CAN init, will configure and load node cfg from perm storage
+static syn::VirtualEeprom* pveeprom = 0;
+static uint16_t lss_store_address;
 
 CO_ReturnError_t err;
 #if SYN_CAN_USE_TIMER == 0
@@ -793,10 +796,37 @@ void can_interrupt_TX()
 
 using namespace syn;
 
+typedef bool_t (*pFunctLSScfgStore)(void *object, uint8_t id, uint16_t bitRate);
+
+void CANopenNode::init_lss_store(VirtualEeprom* veeprom, uint16_t address)
+{
+    pveeprom = veeprom;
+    lss_store_address = address;
+}
+
+uint8_t _store_lss_veeprom(void* pnull, uint8_t id, uint16_t bitrate)
+{
+    uint32_t data = (bitrate << 8) | id;
+    return pveeprom->write(lss_store_address, data);
+}
+
 int32_t CANopenNode::init(uint8_t desired_id, uint16_t baudrate_k)
 {
-    desiredNodeID = desired_id;
-    baudrate = baudrate_k;
+    uint32_t data;
+    if(pveeprom != 0 && pveeprom->read(lss_store_address, data))
+    {
+        desiredNodeID = uint8_t(data & 0xFF);
+        baudrate = data >> 8;
+        printf("Load id %d baudrate %d\n", desiredNodeID, baudrate);
+    }
+    else
+    {
+        if(pveeprom != 0)
+          printf("Err loading id & baud\n");
+        desiredNodeID = desired_id;
+        baudrate = baudrate_k;
+        printf("Start id %d baudrate %d\n", desiredNodeID, baudrate);
+    }
 
     // enable clock for hw
     RCC->APB1ENR |= RCC_APB1ENR_CAN1EN;
@@ -901,8 +931,7 @@ int32_t CANopenNode::init(uint8_t desired_id, uint16_t baudrate_k)
         return 2;
     }
 #endif
-    reset_com();
-    return 0;
+    return reset_com();
 }
 
 void CANopenNode::process(syn::Gpio &led_green, syn::Gpio &led_red)
@@ -943,8 +972,8 @@ void CANopenNode::process(syn::Gpio &led_green, syn::Gpio &led_red)
 
 void CANopenNode::set_error(bool state, uint8_t err_bits, CO_EM_errorCode_t err_code, uint32_t info)
 {
-    //CO->em->errorStatusBits[8] = state;
-    CO_error(CO->em, state, (CO_EM_errorStatusBits_t)err_bits, err_code, info);
+    if (!CO->nodeIdUnconfigured)
+      CO_error(CO->em, state, (CO_EM_errorStatusBits_t)err_bits, err_code, info);
 }
 
 int32_t CANopenNode::reset_com()
@@ -980,6 +1009,10 @@ int32_t CANopenNode::reset_com()
         log_printf("Error: LSS slave initialization failed: %d\n", err);
         return 2;
     }
+    if(pveeprom != 0)
+    {
+      CO_LSSslave_initCfgStoreCallback(CO->LSSslave, 0, _store_lss_veeprom);
+    }
 
     activeNodeID = desiredNodeID;
     uint32_t errInfo = 0;
@@ -1008,20 +1041,6 @@ int32_t CANopenNode::reset_com()
         return 3;
     }
 
-    err = CO_CANopenInitPDO(CO, CO->em, OD, activeNodeID, &errInfo);
-    if (err != CO_ERROR_NO)
-    {
-        if (err == CO_ERROR_OD_PARAMETERS)
-        {
-            log_printf("Error: Object Dictionary entry 0x%X\n", errInfo);
-        }
-        else
-        {
-            log_printf("Error: PDO initialization failed: %d\n", err);
-        }
-        return 4;
-    }
-
     /* Restart Timer interrupt function for execution every 1 millisecond */
 #if SYN_CAN_USE_TIMER != 0
     if (SYN_CAN_USE_TIMER == 4)
@@ -1033,13 +1052,23 @@ int32_t CANopenNode::reset_com()
     {
         OS_ASSERT(SYN_CAN_USE_TIMER == 0, ERR_BAD_INDEX);
     }
-#else
-    //syn::CANopenNode::_cantick.resume();
 #endif
     /* Configure CANopen callbacks, etc */
     if (!CO->nodeIdUnconfigured)
     {
-
+      err = CO_CANopenInitPDO(CO, CO->em, OD, activeNodeID, &errInfo);
+      if (err != CO_ERROR_NO)
+      {
+          if (err == CO_ERROR_OD_PARAMETERS)
+          {
+              log_printf("Error: Object Dictionary entry 0x%X\n", errInfo);
+          }
+          else
+          {
+              log_printf("Error: PDO initialization failed: %d\n", err);
+          }
+          return 4;
+      }
 #if (CO_CONFIG_STORAGE) & CO_CONFIG_STORAGE_ENABLE
         if (storageInitError != 0)
         {
@@ -1058,7 +1087,7 @@ int32_t CANopenNode::reset_com()
     log_printf("CANopenNode - Running...\n");
     fflush(stdout);
     process_time_point = System::microseconds() + 1000;
-    return 0;
+    return err;
 }
 
 void CO_process_1ms()

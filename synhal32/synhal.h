@@ -18,6 +18,7 @@
 #include "../CANopenNode/301/CO_ODinterface.h"
 //#include "../CANopenNode/301/CO_PDO.h"
 #include "../CANopenNode/301/CO_Emergency.h"
+#include "../CANopenNode/305/CO_LSSslave.h"
 
 namespace syn
 {
@@ -2402,6 +2403,8 @@ namespace syn
   class CANopenNode
   {
   public:
+    // if lss is used to determine the node id, configure permanent storage
+    static void init_lss_store(VirtualEeprom* veeprom, uint16_t address);
     // initialize CAN interface and CANopenNode stack
     static int32_t init(uint8_t desired_id, uint16_t baudrate_k);
     // slow process messages, can be in a loop with other code
