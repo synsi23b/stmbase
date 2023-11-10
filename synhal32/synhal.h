@@ -2385,6 +2385,12 @@ namespace syn
     template <typename T>
     bool write(uint16_t vaddress, const T &value)
     {
+      T tmp;
+      if(read(vaddress, tmp))
+      {
+        if(tmp == value)
+          return true;
+      }
       return _pbank->write(vaddress, (const uint8_t *)&value, sizeof(T));
     }
 
