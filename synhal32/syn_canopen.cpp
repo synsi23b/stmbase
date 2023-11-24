@@ -2,6 +2,7 @@
 #include "../CANopenNode/CANopen.h"
 #include "../CANopenNode/301/CO_driver.h"
 #include "../CANopenNode/301/CO_ODinterface.h"
+#include "../CANopenNode/305/CO_LSSslave.h"
 
 #include <CO_storage_target.h>
 #include <OD.h>
@@ -804,7 +805,7 @@ void CANopenNode::init_lss_store(VirtualEeprom* veeprom, uint16_t address)
     lss_store_address = address;
 }
 
-uint8_t _store_lss_veeprom(void* pnull, uint8_t id, uint16_t bitrate)
+bool_t _store_lss_veeprom(void* pnull, uint8_t id, uint16_t bitrate)
 {
     uint32_t data = (bitrate << 8) | id;
     return pveeprom->write(lss_store_address, data);
