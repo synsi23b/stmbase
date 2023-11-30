@@ -157,22 +157,23 @@ public:
     data[6] = value & 0xFF;
     _crc_calc(data, 8);
     _usart.write(data, 8);
+    _usart.read(data, 8, 2);
   }
 
   bool read_reg(uint32_t& value, uint8_t regaddress)
   {
-    uint8_t data[8] = { 0x55, _address, regaddress, 0, 0, 0, 0, 0 };
+    uint8_t data[12] = { 0x55, _address, regaddress, 0, 0, 0, 0, 0 };
     _crc_calc(data, 4);
     _usart.write(data, 4);
-    _usart.read(data, 8, 2);
-    uint8_t crc = data[7];
-    _crc_calc(data, 8);
-    if(data[7] == crc)
+    _usart.read(data, 12, 2);
+    uint8_t crc = data[11];
+    _crc_calc(data+4, 8);
+    if(data[11] == crc)
     {
-      uint32_t tmp = uint32_t(data[3]) << 24;
-      tmp |= uint32_t(data[4]) << 16;
-      tmp |= uint32_t(data[5]) << 8;
-      tmp |= uint32_t(data[6]);
+      uint32_t tmp = uint32_t(data[7]) << 24;
+      tmp |= uint32_t(data[8]) << 16;
+      tmp |= uint32_t(data[9]) << 8;
+      tmp |= uint32_t(data[10]);
       value = tmp;
       return true;
     }

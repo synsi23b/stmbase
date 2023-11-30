@@ -233,9 +233,9 @@ void Usart::init(uint16_t dev, eBaudrate baudrate, bool halfduplex)
   else if(dev == 2)
   {
     _usart2_ll_init(baudrate, halfduplex);
-    if(halfduplex)
-      _write = _usart2_ll_tx_hd;
-    else
+    //if(halfduplex)
+    //  _write = _usart2_ll_tx_hd;
+    //else
       _write = _usart2_ll_tx;
     _read = _usart2_ll_read;
     _avail = _usart2_ll_avail;
