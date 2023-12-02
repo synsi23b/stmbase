@@ -36,14 +36,10 @@ public:
     {
       _usart.init(usart_num, syn::Usart::b230400, true);
       _address = address;
+      write_reg(4 << 8, 0x03); // set answer delay on read reg to 5 * 8 bit times
       // set chopconf step on both edges, 
       //write_reg(0x10010053 | (1 << 29), 0x6C);
-      uint32_t sgconf = set_motor_reverse(reverse_motor);
-      uint32_t rgconf = 0;
-      if(r_gconf(rgconf))
-      {
-        ret = rgconf == sgconf;
-      }
+      ret = set_motor_reverse(reverse_motor);
     }
     nenable.set();
     nenable.mode(syn::Gpio::out_push_pull);
@@ -97,12 +93,11 @@ public:
     _nenab.set(!state);
   }
 
-  uint32_t set_motor_reverse(bool true_reverse)
+  bool set_motor_reverse(bool true_reverse)
   {
     uint32_t val = true_reverse ? GCONF::shaft : 0;
     uint32_t gconf = GCONF::I_scale_analog | GCONF::pdn_disable | GCONF::mstep_reg_select | GCONF::multistep_filt | val;
-    s_gconf(gconf);
-    return gconf;
+    return s_gconf_check(gconf);
   }
 
   void s_gconf(uint32_t val)
@@ -113,6 +108,18 @@ public:
   bool r_gconf(uint32_t& val)
   {
     return read_reg(val, 0x00);
+  }
+
+  bool s_gconf_check(uint32_t val)
+  {
+    s_gconf(val);
+    uint32_t check;
+    if(r_gconf(check) && check == val)
+      return true;
+    // failed to write and read back general config, try again
+    syn::Thread::sleep(1);
+    s_gconf(val);
+    return (r_gconf(check) && check == val);
   }
 
   bool r_status(uint32_t& val)
@@ -162,7 +169,7 @@ public:
 
   bool read_reg(uint32_t& value, uint8_t regaddress)
   {
-    uint8_t data[12] = { 0x55, _address, regaddress, 0, 0, 0, 0, 0 };
+    uint8_t data[12] = { 0x55, _address, regaddress, 0 };
     _crc_calc(data, 4);
     _usart.write(data, 4);
     _usart.read(data, 12, 2);

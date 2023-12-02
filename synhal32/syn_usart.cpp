@@ -109,18 +109,18 @@ void _usart2_ll_tx(const uint8_t* pdata, uint16_t count)
   USART2->CR1 = USART2_LL_CR1_BASE;
 }
 
-void _usart2_ll_tx_hd(const uint8_t* pdata, uint16_t count)
-{
-  _usart2_tx_dma.oneshotM2P(pdata, &(USART2->DR), count);
-  USART2->SR = 0;
-  // turn off receiver before sending in halfduplex mode
-  USART2->CR1 = (USART2_LL_CR1_BASE | USART_CR1_TE) & ~USART_CR1_RE;
-  _usart2_tx_dma.start();
-  _usart2_tx_done.wait();
-  while(!(USART2->SR & USART_SR_TC))
-    ;
-  USART2->CR1 = USART2_LL_CR1_BASE;
-}
+// void _usart2_ll_tx_hd(const uint8_t* pdata, uint16_t count)
+// {
+//   _usart2_tx_dma.oneshotM2P(pdata, &(USART2->DR), count);
+//   USART2->SR = 0;
+//   // turn off receiver before sending in halfduplex mode
+//   USART2->CR1 = (USART2_LL_CR1_BASE | USART_CR1_TE) & ~USART_CR1_RE;
+//   _usart2_tx_dma.start();
+//   _usart2_tx_done.wait();
+//   while(!(USART2->SR & USART_SR_TC))
+//     ;
+//   USART2->CR1 = USART2_LL_CR1_BASE;
+// }
 
 void _usart2_ll_dma_tx_done(uint32_t status)
 {
@@ -236,7 +236,7 @@ void Usart::init(uint16_t dev, eBaudrate baudrate, bool halfduplex)
     //if(halfduplex)
     //  _write = _usart2_ll_tx_hd;
     //else
-      _write = _usart2_ll_tx;
+    _write = _usart2_ll_tx;
     _read = _usart2_ll_read;
     _avail = _usart2_ll_avail;
   }
