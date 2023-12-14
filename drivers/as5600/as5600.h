@@ -55,6 +55,11 @@ public:
     }
   }
 
+  bool get_reversed() const
+  {
+    return _reversed;
+  }
+
   // returns the read out angle in the range 0 to 4095
   // returns -1 on error (no magnet present, i2c error)
   int16_t angle() const
@@ -249,6 +254,11 @@ public:
   void set_reverse(bool rev)
   {
     _sensor.set_reverse(rev);
+  }
+
+  bool get_reversed() const
+  {
+    return _sensor.get_reversed();
   }
 
   // reset the global position

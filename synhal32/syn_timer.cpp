@@ -236,6 +236,7 @@ void TimerRamper::init(uint16_t timer_num, uint16_t buffsize)
   if(buffsize == 0)
     buffsize = 16;
   _buffer = new uint16_t[buffsize];
+  OS_ASSERT(_buffer != NULL, ERR_NULL_POINTER);
   if (_buffer != NULL)
   {
     _dma.init(_tim.dma_channel());
@@ -246,7 +247,7 @@ void TimerRamper::init(uint16_t timer_num, uint16_t buffsize)
     _dma.cyclicM2P(_buffer, target_reg, buffsize);
     // enable both DMA interrupts to rewrite half of the memory buffer in the isr
     _dma.enableIrq(Dma::IRQ_STATUS_FULL | Dma::IRQ_STATUS_HALF);
-    _minspeed = _tim.hertz_to_arr(1024);
+    _minspeed = _tim.hertz_to_arr(10240);
   }
 }
 
