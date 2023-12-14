@@ -46,7 +46,13 @@ public:
   // set the incrementing direction of the sensor programatically
   void set_reverse(bool rev)
   {
+    if(_reversed == rev)
+      return;
     _reversed = rev;
+    if(_angle != -1)
+    {
+      _angle = 0xFFF - _angle;
+    }
   }
 
   // returns the read out angle in the range 0 to 4095
@@ -190,7 +196,7 @@ private:
 
   syn::I2cMaster _i2c;
   uint32_t _timestamp; // the actual stamp is u64, but u32 is more than enough
-  uint16_t _angle;
+  int16_t _angle;
   uint8_t _status_interval;
   uint8_t _current_interval;
   uint8_t _status;
