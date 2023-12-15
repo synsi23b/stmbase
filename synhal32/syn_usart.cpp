@@ -153,6 +153,7 @@ uint16_t _usart2_ll_avail()
   uint16_t done = _usart2_pread - _usart2_rxbuf;
   if(_usart2_rx_loop)
   {
+    // if this number gets bigger than buffer size, it will be the overflow condition
     return SYN_USART2_RXBUF_SIZE * 2 - done - _usart2_rx_dma.count();
   }
   else
@@ -221,6 +222,14 @@ uint16_t _usart2_ll_read(uint8_t* pbuf, uint16_t count, uint32_t timeout)
   return readcount;
 }
 
+void _usart2_ll_reset()
+{
+  _usart2_pread = _usart2_rxbuf;
+  _usart2_rx_loop = false;
+  _usart2_rx_dma.reset(SYN_USART2_RXBUF_SIZE);
+  _usart2_rx_dma.start();
+}
+
 #endif //#if(SYN_ENABLE_UART_2 == 3)
 
 
@@ -239,6 +248,7 @@ void Usart::init(uint16_t dev, eBaudrate baudrate, bool halfduplex)
     _write = _usart2_ll_tx;
     _read = _usart2_ll_read;
     _avail = _usart2_ll_avail;
+    _reset = _usart2_ll_reset;
   }
   else if(dev == 3)
   {

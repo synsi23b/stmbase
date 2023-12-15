@@ -2211,6 +2211,7 @@ namespace syn
     typedef void (*usart_write_t)(const uint8_t *pdata, uint16_t count);
     typedef uint16_t (*usart_read_t)(uint8_t *pdata, uint16_t count, uint32_t timeout);
     typedef uint16_t (*usart_avail_t)();
+    typedef void (*usart_reset_t)();
 
   public:
     enum eBaudrate
@@ -2240,10 +2241,16 @@ namespace syn
       return _read(data, count, timeout);
     }
 
+    void reset()
+    {
+      _reset();
+    }
+
   private:
     usart_write_t _write;
     usart_read_t _read;
     usart_avail_t _avail;
+    usart_reset_t _reset;
   };
 
   class SpiMaster
