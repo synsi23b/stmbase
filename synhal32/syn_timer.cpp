@@ -228,7 +228,7 @@ uint16_t Timer::dma_channel() const
   return num;
 }
 
-void TimerRamper::init(uint16_t timer_num, uint16_t buffsize)
+void TimerRamper::init(uint16_t timer_num, uint16_t buffsize, uint32_t minspeed)
 {
   _tim.init(timer_num);
   _tim.configStepper();
@@ -247,20 +247,21 @@ void TimerRamper::init(uint16_t timer_num, uint16_t buffsize)
     _dma.cyclicM2P(_buffer, target_reg, buffsize);
     // enable both DMA interrupts to rewrite half of the memory buffer in the isr
     _dma.enableIrq(Dma::IRQ_STATUS_FULL | Dma::IRQ_STATUS_HALF);
-    _minspeed = _tim.hertz_to_arr(10240);
+    _minspeed = _tim.hertz_to_arr(minspeed);
   }
 }
 
 void TimerRamper::linear(uint32_t target_hz)
 {
   uint16_t target = _tim.hertz_to_arr(target_hz);
+  if(target > _minspeed && target != 0)
+    target = _minspeed;
   if (_tim.arr() == target)
     return;
   
   if (_buffer == NULL)
     return;
   _dma.reset(_buffsize);
-
   _target = target;
   // call write dma buffer without any IRQ flag to trigger full rewrite
   _write_buffer(0);
@@ -295,17 +296,35 @@ void TimerRamper::_write_buffer(uint16_t irq_stat)
   {
     // call outside of irq to start everything
     arr_start = _tim.arr();
-    if (arr_start < _minspeed)
+    if(arr_start == 0)
     {
       arr_start = _minspeed;
     }
+    //if (arr_start > _minspeed)
+    //{
+    //  arr_start = _minspeed;
+    //}
   }
-
-  if (arr_start < _target)
+  if(_target == 0)
   {
     for (; pbuf < pbufend;)
     {
-      if (arr_start < uint32_t(_target))
+      arr_start += 1;
+      if (arr_start > _minspeed)
+      {
+        arr_start = 0;
+      }
+      *pbuf++ = arr_start;
+      *pbuf++ = arr_start;
+      //*pbuf++ = arr_start;
+      //*pbuf++ = arr_start;
+    }
+  }
+  else if (arr_start < _target)
+  {
+    for (; pbuf < pbufend;)
+    {
+      if (arr_start < _target)
       {
         arr_start += 1;
       }
@@ -315,17 +334,13 @@ void TimerRamper::_write_buffer(uint16_t irq_stat)
       //*pbuf++ = arr_start;
     }
   }
-  else //if (arr_start > _target)
+  else if (arr_start > _target)
   {
     for (; pbuf < pbufend;)
     {
-      if(arr_start != _target)
+      if(arr_start > _target)
       {
         arr_start -= 1;
-        if(arr_start < _minspeed)
-        {
-          arr_start = _target;
-        }
       }
       *pbuf++ = arr_start;
       *pbuf++ = arr_start;

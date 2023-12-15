@@ -31,7 +31,6 @@ public:
   {
     bool ret = false;
     _acceleration = 1;
-    _minimum_speed = 5120; // value in Hertz. 1 / 20th rotation per second
     if(usart_num != 0)
     {
       _usart.init(usart_num, syn::Usart::b230400, true);
@@ -47,7 +46,7 @@ public:
     dir.mode(syn::Gpio::out_push_pull);
     dir.set();
     _dir = dir;
-    _timramp.init(timer_num, 256);
+    _timramp.init(timer_num, 256, 5120); // 5120 minimum speed in Hertz. 1 / 20th rotation per second
     _timramp.enable_pwm(step_pin_port, step_pin_num, step_channel);
     return ret;
   }
@@ -57,11 +56,6 @@ public:
     if(acceleration == 0)
       acceleration = 1;
     _acceleration = acceleration;
-  }
-
-  void set_minimum_speed(uint16_t min_speed_hz)
-  {
-    _minimum_speed = min_speed_hz;
   }
 
   void set_speed(int32_t hz)
@@ -164,15 +158,16 @@ public:
     data[6] = value & 0xFF;
     _crc_calc(data, 8);
     _usart.write(data, 8);
-    _usart.read(data, 8, 2);
   }
 
   bool read_reg(uint32_t& value, uint8_t regaddress)
   {
     uint8_t data[12] = { 0x55, _address, regaddress, 0 };
     _crc_calc(data, 4);
+    _usart.reset();
     _usart.write(data, 4);
-    _usart.read(data, 12, 2);
+    if(_usart.read(data, 12, 2) != 12)
+      return false;
     uint8_t crc = data[11];
     _crc_calc(data+4, 8);
     if(data[11] == crc)
@@ -221,6 +216,5 @@ private:
   syn::Gpio _nenab;
   syn::Usart _usart;
   uint16_t _acceleration;
-  uint16_t _minimum_speed;
   uint8_t _address;
 };

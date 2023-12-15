@@ -2169,7 +2169,7 @@ namespace syn
   public:
     // setup dma and timer
     // configures the timer in stepper mode
-    void init(uint16_t timer_num, uint16_t buff_size);
+    void init(uint16_t timer_num, uint16_t buff_size, uint32_t minimum_speed);
 
     void enable_pwm(int8_t port, uint8_t pinnum, uint16_t channel)
     {
