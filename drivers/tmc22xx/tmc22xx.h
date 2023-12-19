@@ -48,6 +48,9 @@ public:
     _dir = dir;
     _timramp.init(timer_num, 256, 5120); // 5120 minimum speed in Hertz. 1 / 20th rotation per second
     _timramp.enable_pwm(step_pin_port, step_pin_num, step_channel);
+    _target = 0;
+    _new_target = 0;
+    _direction_switch = false;
     return ret;
   }
 
@@ -60,16 +63,60 @@ public:
 
   void set_speed(int32_t hz)
   {
-    if(hz < 0)
+    if(_direction_switch)
     {
-      _dir.clear();
-      hz = -hz;
+      if((_target < 0 && hz < 0) || (_target > 0 && hz > 0))
+      {
+        // new target does not require direction switch anymore
+        _direction_switch = false;
+      }
     }
-    else if (hz > 0)
+    _new_target = hz;
+  }
+
+  void tick()
+  {
+    if(_direction_switch)
     {
-      _dir.set();
+      if(_timramp.target_reached())
+      {
+        _direction_switch = false;
+        if(_new_target < 0)
+        {
+          _dir.clear();
+        }
+        else if (_new_target > 0)
+        {
+          _dir.set();
+        }
+        _timramp.linear(abs(_new_target));
+        _target = _new_target;
+      }
     }
-    _timramp.linear(hz);
+    else if(_target != _new_target)
+    {
+      // got a new target, check for direction switch
+      if((_target < 0 && _new_target > 0) || (_target > 0 && _new_target < 0))
+      {
+        _direction_switch = true;
+        // direction switch required, go to zero first
+        _timramp.linear(0);
+      }
+      else
+      {
+        // either same direction or start from zero, either way set the dir to be sure.
+        if(_new_target < 0)
+        {
+          _dir.clear();
+        }
+        else if (_new_target > 0)
+        {
+          _dir.set();
+        }
+        _timramp.linear(abs(_new_target));
+        _target = _new_target;
+      }
+    }
   }
 
   bool stopped() const
@@ -79,7 +126,7 @@ public:
 
   bool target_reached() const
   {
-    return _timramp.target_reached();
+    return _timramp.target_reached() && _target == _new_target;
   }
 
   void enable(bool state = true)
@@ -215,6 +262,9 @@ private:
   syn::Gpio _dir;
   syn::Gpio _nenab;
   syn::Usart _usart;
+  int32_t _target;
+  int32_t _new_target;
   uint16_t _acceleration;
   uint8_t _address;
+  bool _direction_switch;
 };

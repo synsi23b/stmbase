@@ -274,6 +274,14 @@ void TimerRamper::linear(uint32_t target_hz)
   _tim.generate_update_event();
 }
 
+uint16_t _get_next_value(uint16_t current)
+{
+  current = current >> 10;
+  if(current == 0)
+    return 1;
+  return current;
+}
+
 void TimerRamper::_write_buffer(uint16_t irq_stat)
 {
   // prepare the first buffer, after that, DMA irqs will do this until target is reached
@@ -309,7 +317,7 @@ void TimerRamper::_write_buffer(uint16_t irq_stat)
   {
     for (; pbuf < pbufend;)
     {
-      arr_start += 1;
+      arr_start += _get_next_value(arr_start);
       if (arr_start > _minspeed)
       {
         arr_start = 0;
@@ -326,7 +334,7 @@ void TimerRamper::_write_buffer(uint16_t irq_stat)
     {
       if (arr_start < _target)
       {
-        arr_start += 1;
+        arr_start += _get_next_value(arr_start);
       }
       *pbuf++ = arr_start;
       *pbuf++ = arr_start;
@@ -340,7 +348,7 @@ void TimerRamper::_write_buffer(uint16_t irq_stat)
     {
       if(arr_start > _target)
       {
-        arr_start -= 1;
+        arr_start -= _get_next_value(arr_start);
       }
       *pbuf++ = arr_start;
       *pbuf++ = arr_start;
