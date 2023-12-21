@@ -251,6 +251,11 @@ public:
     return _sensor.status();
   }
 
+  bool magnet_ok() const
+  {
+    return _sensor.magnet_ok();
+  }
+
   void set_reverse(bool rev)
   {
     _sensor.set_reverse(rev);
