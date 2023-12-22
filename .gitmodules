@@ -1,3 +1,3 @@
 [submodule "CANopenNode"]
 	path = CANopenNode
-	url = git@github.com:synsi23b/CANopenNode.git
+	url = https://github.com/synsi23b/CANopenNode.git
