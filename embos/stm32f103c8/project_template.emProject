@@ -5,6 +5,8 @@
     Name="Common"
     arm_compiler_variant="SEGGER"
     arm_linker_heap_size="{heap_size}"
+    c_preprocessor_definitions=""
+    c_user_include_directories="."
     gcc_cplusplus_language_standard="gnu++20" />
   <configuration
     Name="Debug"

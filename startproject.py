@@ -9,7 +9,8 @@ def main():
         1: 'stm32f103c8',
         2: 'stm32f401ccu6',
         3: 'stm8s103',
-        4: 'stm32g030f6p6'
+        4: 'stm32g030f6p6',
+        5: 'stm32g431kbu3'
     }
     is_stm8 = [3]
     chiphelp = "\nAvailable chips: \n"
