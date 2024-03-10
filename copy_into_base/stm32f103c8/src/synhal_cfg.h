@@ -5,6 +5,7 @@
 #define SYN_OS_PRIO_LOW    50
 #define SYN_OS_PRIO_NORMAL 100
 #define SYN_OS_PRIO_HIGH   150
+#define SYN_OS_PRIO_HIGHEST   200
 
 #define SYN_ENABLE_ADC        0
 #define SYN_ENABLE_I2C_1      0 // or 0 for off, 100 for slow, 400 for fast mode

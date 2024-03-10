@@ -9,6 +9,9 @@
 #ifdef STM32G030xx
 #include "../embos/stm32g030f6p6/stm32g0xx.h"
 #endif
+#ifdef STM32G431xx
+#include "../embos/stm32g431kbu3/stm32g4xx.h"
+#endif
 
 #include "../../src/synhal_cfg.h"
 #include "mtl.h"

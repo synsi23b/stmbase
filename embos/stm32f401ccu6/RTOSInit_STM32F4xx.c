@@ -193,20 +193,29 @@ void OS_InitHW(void) {
   SCB_EnableDCache();
 #endif
   //
-  // We assume PLL and core clock were already set by the SystemInit() function,
-  // which was called from the startup code. Therefore, we just ensure the system
-  // clock variable is updated and then set the periodic system timer tick for embOS.
-  //
-  SystemCoreClockUpdate();                                        // Update the system clock variable (might not have been set before)
-  SysTick_Config(OS_TIMER_FREQ / OS_INT_FREQ);                    // Setup SysTick Timer
-  NVIC_SetPriority(SysTick_IRQn, (1u << __NVIC_PRIO_BITS) - 2u);  // Set the priority higher than the PendSV priority
-  //
-  // Inform embOS about the timer settings
+  // Inform embOS about the frequency of the counter
   //
   {
-    OS_SYSTIMER_CONFIG SysTimerConfig = {OS_TIMER_FREQ, OS_INT_FREQ, OS_TIMER_DOWNCOUNTING, _OS_GetHWTimerCycles, _OS_GetHWTimer_IntPending};
+    SystemCoreClockUpdate();
+    OS_SYSTIMER_CONFIG SysTimerConfig = { SystemCoreClock };
     OS_TIME_ConfigSysTimer(&SysTimerConfig);
   }
+  //
+  // Start the counter (here: cycle counter)
+  //
+  if ((CoreDebug->DEMCR & CoreDebug_DEMCR_TRCENA_Msk) == 0) {  // Trace not enabled?
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;            // Enable trace
+  }
+  if ((DWT->CTRL & DWT_CTRL_NOCYCCNT_Msk) == 0) {              // Cycle counter supported?
+    if ((DWT->CTRL & DWT_CTRL_CYCCNTENA_Msk) == 0) {           // Cycle counter not enabled?
+      DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;                     // Enable Cycle counter
+    }
+  }
+  //
+  // Start the hardware timer (here: SysTick)
+  //
+  NVIC_SetPriority(SysTick_IRQn, (1u << __NVIC_PRIO_BITS) - 2u);  // Set the priority higher than the PendSV priority
+  BSP_OS_StartTimer(0xFFFFFFFFu);
   //
   // Configure and initialize SEGGER SystemView
   //

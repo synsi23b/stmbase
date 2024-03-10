@@ -1062,6 +1062,7 @@ typedef struct
 #define PACKAGE_BASE          (0x1FFF7500UL)        /*!< Package data register base address     */
 #define UID_BASE              (0x1FFF7590UL)        /*!< Unique device ID register base address */
 #define FLASHSIZE_BASE        (0x1FFF75E0UL)        /*!< Flash size data register base address  */
+#define FLASHSIZE             ((uint16_t*)FLASHSIZE_BASE)
 /**
   * @}
   */
