@@ -18,6 +18,10 @@
     printf(macropar_message, ##__VA_ARGS__)
 #endif
 
+#ifdef STM32G431xx
+  //OS_ASSERT(true == false, ERR_NOT_IMPLMENTED);
+#else
+
 /* default values for CO_CANopenInit() */
 #define NMT_CONTROL ((CO_NMT_control_t)uint16_t(CO_NMT_STARTUP_TO_OPERATIONAL | CO_NMT_ERR_ON_ERR_REG | CO_ERR_REG_GENERIC_ERR | CO_ERR_REG_COMMUNICATION))
 #define FIRST_HB_TIME 500
@@ -1356,3 +1360,4 @@ extern "C"
 #endif
 #endif
 }
+#endif

@@ -79,7 +79,7 @@
 #include "stm32g4xx.h"
 
 #if !defined  (HSE_VALUE)
-  #define HSE_VALUE     24000000U /*!< Value of the External oscillator in Hz */
+  #define HSE_VALUE     8000000U /*!< Value of the External oscillator in Hz */
 #endif /* HSE_VALUE */
 
 #if !defined  (HSI_VALUE)
@@ -183,6 +183,31 @@ void SystemInit(void)
   #if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
     SCB->CPACR |= ((3UL << (10*2))|(3UL << (11*2)));  /* set CP10 and CP11 Full Access */
   #endif
+  // 1. Disable the PLL by setting PLLON to 0 in Clock control register (RCC_CR)
+  if(!RCC->CR & RCC_CR_HSIRDY)
+  {
+    RCC->CR |= RCC_CR_HSION;
+    while(!(RCC->CR & RCC_CR_HSIRDY))
+      ;
+  }
+  RCC->CR = RCC_CR_HSION;
+  // 2. Wait until PLLRDY is cleared. The PLL is now fully stopped.
+  while(RCC->CR & RCC_CR_PLLON)
+    ;
+  // 3. Change the desired parameter.
+  RCC->CR |= RCC_CR_HSEON;
+  while(!(RCC->CR & RCC_CR_HSERDY))
+    ;
+  // 4. Enable the PLL again by setting PLLON to 1.
+  RCC->CR |= RCC_CR_PLLON;
+  // 5. Enable the desired PLL outputs by configuring PLLPEN, PLLQEN, PLLREN in PLL
+  while(!(RCC->CR & RCC_CR_PLLRDY))
+    ;
+  // 6. set sysclk to pll outputs
+  // configuration register (RCC_PLLCFGR). 
+  // An interrupt can be generated when the PLL is ready, if enabled in the Clock interrupt 
+  // enable register (RCC_CIER).
+  // The PLL output frequency must not exceed 170 MHz.
 
   /* Configure the Vector Table location add offset address ------------------*/
 #if defined(USER_VECT_TAB_ADDRESS)

@@ -168,7 +168,7 @@ void SpiMaster::init(uint16_t port, uint32_t frequency, bool clock_polarity, boo
 bool SpiMaster::busy_tx(const uint8_t *pbuffer, uint16_t size)
 {
   // check 8 bit data frame format
-#if (defined(STM32G030xx))
+#if (defined(STM32G030xx)) ||  (defined(STM32G431xx))
   OS_ASSERT((_pSpi->CR2 & SPI_CR2_DS_3) == 0, ERR_FORBIDDEN);
 #else
   OS_ASSERT((_pSpi->CR1 & SPI_CR1_DFF) == 0, ERR_FORBIDDEN);
@@ -198,7 +198,7 @@ bool SpiMaster::busy_tx(const uint8_t *pbuffer, uint16_t size)
 bool SpiMaster::busy_tx(const uint16_t *pbuffer, uint16_t size)
 {
   // check 16 bit data frame format
-#if (defined(STM32G030xx))
+#if (defined(STM32G030xx)) || (defined(STM32G431xx))
   OS_ASSERT((_pSpi->CR2 & SPI_CR2_DS_3) != 0, ERR_FORBIDDEN);
 #else
   OS_ASSERT((_pSpi->CR1 & SPI_CR1_DFF) != 0, ERR_FORBIDDEN);
@@ -228,7 +228,7 @@ bool SpiMaster::busy_tx(const uint16_t *pbuffer, uint16_t size)
 bool SpiMaster::busy_bidi(uint8_t *pbuffer, uint16_t size)
 {
   // check 8 bit data frame format
-#if (defined(STM32G030xx))
+#if (defined(STM32G030xx)) || (defined(STM32G431xx))
   OS_ASSERT((_pSpi->CR2 & SPI_CR2_DS_3) == 0, ERR_FORBIDDEN);
 #else
   OS_ASSERT((_pSpi->CR1 & SPI_CR1_DFF) == 0, ERR_FORBIDDEN);
@@ -253,7 +253,7 @@ bool SpiMaster::busy_bidi(uint8_t *pbuffer, uint16_t size)
 bool SpiMaster::busy_read_regs(uint8_t startaddress, uint8_t* pbuffer, uint16_t size)
 {
   // check 8 bit data frame format
-#if (defined(STM32G030xx))
+#if (defined(STM32G030xx)) || (defined(STM32G431xx))
   OS_ASSERT((_pSpi->CR2 & SPI_CR2_DS_3) == 0, ERR_FORBIDDEN);
 #else
   OS_ASSERT((_pSpi->CR1 & SPI_CR1_DFF) == 0, ERR_FORBIDDEN);

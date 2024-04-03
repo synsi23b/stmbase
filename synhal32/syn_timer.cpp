@@ -422,7 +422,9 @@ void Timer::enablePwm(syn::Gpio &pin, uint16_t channel, Gpio::Speed speed)
 {
   --channel;
   OS_ASSERT(channel < 4, ERR_BAD_INDEX);
-
+#ifdef STM32G431xx
+  OS_ASSERT(1 == 2, ERR_NOT_IMPLMENTED);
+#else
   if (_number < 3)
   {
     pin.mode(Gpio::out_alt_push_pull, speed, Gpio::Timer_1_2);
@@ -431,6 +433,7 @@ void Timer::enablePwm(syn::Gpio &pin, uint16_t channel, Gpio::Speed speed)
   {
     pin.mode(Gpio::out_alt_push_pull, speed, Gpio::Timer_3_4_5);
   }
+#endif
   channel *= 4;
   _pTimer->CCER |= (0x1 << channel);
 }
@@ -477,10 +480,14 @@ void Timer::enableInput(int8_t port, uint8_t pinnum, bool pulldown, bool pullup)
 {
   Gpio pin(port, pinnum);
   Gpio::Alternate a;
+#ifdef STM32G431xx
+  OS_ASSERT(true == false, ERR_NOT_IMPLMENTED);
+#else
   if (_number < 3)
     a = Gpio::Timer_1_2;
   else
     a = Gpio::Timer_3_4_5;
+#endif
 #ifdef STM32F103xB
   if (pulldown)
   {

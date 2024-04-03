@@ -1152,6 +1152,23 @@ namespace syn
       SDIO_ = 0xC,
       EVENTOUT = 0xF
     };
+#elif defined(STM32G431xx)
+    enum Alternate
+    {
+      Nop = 0x0,
+      Timer_2 = 0x1,
+      Timer_3 = 0x2,
+      Timer_9_10_11 = 0x3,
+      I2C_1 = 0x4,
+      SPI = 0x5,
+      USART_1_2 = 0x7,
+      USART_6 = 0x8,
+      I2C_2 = 0x9,
+      OTG_FS = 0xA,
+      FDCAN = 0xB,
+      SDIO_ = 0xC,
+      EVENTOUT = 0xF
+    };
 #endif
 
     // defaults to floating input (reset state)
@@ -1320,6 +1337,69 @@ namespace syn
       case MHz_2:
         break;
       }
+#elif defined(STM32G431xx)
+      _pPort->MODER &= ~(0x3 << (_pin * 2));
+      _pPort->OSPEEDR &= ~(0x3 << (_pin * 2));
+      _pPort->PUPDR &= ~(0x3 << (_pin * 2));
+      volatile uint32_t *pAfr;
+      uint32_t afr_shift;
+      if (_pin < 8)
+      {
+        pAfr = &_pPort->AFR[0];
+        afr_shift = _pin * 4;
+      }
+      else
+      {
+        pAfr = &_pPort->AFR[1];
+        afr_shift = (_pin - 8) * 4;
+      }
+      *pAfr &= ~(0xF << afr_shift);
+      switch (m)
+      {
+      case in_analog:
+        _pPort->MODER |= (0x3 << (_pin * 2));
+        break;
+      case out_push_pull:
+        _pPort->MODER |= (0x1 << (_pin * 2));
+        _pPort->OTYPER &= ~(0x1 << _pin);
+        break;
+      case in_floating:
+        break;
+      case out_open_drain:
+        _pPort->MODER |= (0x1 << (_pin * 2));
+        _pPort->OTYPER |= (0x1 << _pin);
+        break;
+      case in_pullup:
+        _pPort->PUPDR |= (0x1 << (_pin * 2));
+        break;
+      case in_pulldown:
+        _pPort->PUPDR |= (0x2 << (_pin * 2));
+        break;
+      case out_alt_push_pull:
+        _pPort->MODER |= (0x2 << (_pin * 2));
+        _pPort->OTYPER &= ~(0x1 << _pin);
+        *pAfr |= (a << afr_shift);
+        break;
+      case out_alt_open_drain:
+        _pPort->MODER |= (0x2 << (_pin * 2));
+        _pPort->OTYPER |= (0x1 << _pin);
+        *pAfr |= (a << afr_shift);
+        break;
+      }
+      switch (s)
+      {
+      case MHz_10:
+        _pPort->OSPEEDR |= (0x1 << (_pin * 2));
+        break;
+      case MHz_50:
+        _pPort->OSPEEDR |= (0x2 << (_pin * 2));
+        break;
+      case MHz_100:
+        _pPort->OSPEEDR |= (0x3 << (_pin * 2));
+      case Input:
+      case MHz_2:
+        break;
+      }
 #else
 #error "Unknown chip!"
 #endif
@@ -1359,6 +1439,8 @@ namespace syn
 #elif defined(STM32F401xC)
       _pPort->BSRR = uint32_t(_bitmask) << 16;
 #elif defined(STM32G030xx)
+      _pPort->BSRR = uint32_t(_bitmask) << 16;
+#elif defined(STM32G431xx)
       _pPort->BSRR = uint32_t(_bitmask) << 16;
 #else
 #error "Unknown chip!"
@@ -1414,6 +1496,8 @@ namespace syn
       (void)(map);
 #elif defined(STM32G030xx)
       (void)(map);
+#elif defined(STM32G431xx)
+      (void)(map);
 #else
 #error "Unknown chip!"
 #endif
@@ -1429,6 +1513,8 @@ namespace syn
       (void)(map);
 #elif defined(STM32G030xx)
       (void)(map);
+#elif defined(STM32G431xx)
+      (void)(map);
 #else
 #error "Unknown chip!"
 #endif
@@ -1443,6 +1529,10 @@ namespace syn
       OS_ASSERT(true == false, ERR_NOT_IMPLMENTED);
       return false;
 #elif defined(STM32G030xx)
+      (void)(map);
+      OS_ASSERT(true == false, ERR_NOT_IMPLMENTED);
+      return false;
+#elif defined(STM32G431xx)
       (void)(map);
       OS_ASSERT(true == false, ERR_NOT_IMPLMENTED);
       return false;
@@ -1618,6 +1708,49 @@ namespace syn
       {
         OS_ASSERT(true == false, ERR_BAD_INDEX);
       }
+#elif defined(STM32G431xx)
+      SYSCFG->EXTICR[extiafioreg] &= ~(0xF << extiafionum);
+      SYSCFG->EXTICR[extiafioreg] |= (extiselector << extiafionum);
+      {
+        Atomic a;
+        EXTI->IMR1 |= (1 << line);
+        if (rising)
+          EXTI->RTSR1 |= (1 << line);
+        if (falling)
+          EXTI->FTSR1 |= (1 << line);
+      }
+      if (line == 0)
+      {
+        Core::enable_isr(EXTI0_IRQn, priority);
+      }
+      else if (line == 1)
+      {
+        Core::enable_isr(EXTI1_IRQn, priority);
+      }
+      else if (line == 2)
+      {
+        Core::enable_isr(EXTI2_IRQn, priority);
+      }
+      else if (line == 3)
+      {
+        Core::enable_isr(EXTI3_IRQn, priority);
+      }
+      else if (line == 4)
+      {
+        Core::enable_isr(EXTI4_IRQn, priority);
+      }
+      else if (line < 10)
+      {
+        Core::enable_isr(EXTI9_5_IRQn, priority);
+      }
+      else if (line < 16)
+      {
+        Core::enable_isr(EXTI15_10_IRQn, priority);
+      }
+      else
+      {
+        OS_ASSERT(true == false, ERR_BAD_INDEX);
+      }
 #else
 #error "Unknown chip"
 #endif
@@ -1627,6 +1760,10 @@ namespace syn
     {
       Atomic a;
 #if defined(STM32G030xx)
+      EXTI->IMR1 &= ~(1 << line);
+      EXTI->RTSR1 &= ~(1 << line);
+      EXTI->FTSR1 &= ~(1 << line);
+#elif defined(STM32G431xx)
       EXTI->IMR1 &= ~(1 << line);
       EXTI->RTSR1 &= ~(1 << line);
       EXTI->FTSR1 &= ~(1 << line);
@@ -1641,6 +1778,8 @@ namespace syn
     static void sw_trigger(uint16_t line)
     {
 #if defined(STM32G030xx)
+      EXTI->SWIER1 = (1 << line);
+#elif defined(STM32G431xx)
       EXTI->SWIER1 = (1 << line);
 #else
       EXTI->SWIER = (1 << line);
@@ -1663,6 +1802,12 @@ namespace syn
       if (EXTI->RPR1 & mask)
       {
         ret |= 2;
+      }
+#elif defined(STM32G431xx)
+      uint16_t mask = (1 << line);
+      if (EXTI->PR1 & mask)
+      {
+        ret = 1;
       }
 #else
       if (EXTI->PR & (1 << line))
@@ -1688,6 +1833,11 @@ namespace syn
       if (val & 0x2)
       {
         EXTI->RPR1 = (1 << line);
+      }
+#elif defined(STM32G431xx)
+      if (val & 0x1)
+      {
+        EXTI->PR1 = mask;
       }
 #else
       if (val & 0x1)
@@ -1899,6 +2049,11 @@ namespace syn
     static const uint16_t IRQ_STATUS_DIRECT_ERR = 0x04;
     static const uint16_t IRQ_STATUS_FIFO_ERR = 0x01;
 #endif
+#ifdef STM32G431xx
+    static const uint16_t IRQ_STATUS_ERROR = 0x8;
+    static const uint16_t IRQ_STATUS_HALF = 0x4;
+    static const uint16_t IRQ_STATUS_FULL = 0x2;
+#endif
     void enableIrq(uint16_t irq_status_mask, uint16_t priority = 8);
 
   private:
@@ -1907,6 +2062,10 @@ namespace syn
 #endif
 #ifdef STM32F401xC
     DMA_Stream_TypeDef *_pStream;
+    uint16_t _number;
+#endif
+#ifdef STM32G431xx
+    DMA_Channel_TypeDef *_pChannel;
     uint16_t _number;
 #endif
   };
@@ -2157,10 +2316,17 @@ namespace syn
     // get the number of the dma channel for this timer
     uint16_t dma_channel() const;
 
+#ifdef STM32G431xx
+    volatile uint32_t* get_arr_register() const
+    {
+     return &_pTimer->ARR;
+    }
+#else
     volatile uint16_t* get_arr_register() const
     {
-      return &_pTimer->ARR;
+     return &_pTimer->ARR;
     }
+#endif
   private:
     TIM_TypeDef *_pTimer;
     uint32_t _tclk;

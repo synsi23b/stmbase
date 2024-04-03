@@ -408,5 +408,41 @@ void Dma::enableIrq(uint16_t irq_status_mask, uint16_t priority)
 #ifdef STM32G030xx
   uint32_t irqn;
 #endif
+#ifdef STM32F401xC
+  _pStream->CR |= (irq_status_mask >> 1);
+  uint32_t irqn = 0;
+  if(_number < 7)
+  {
+    irqn = DMA1_Stream0_IRQn + _number;
+  }
+  else if(_number == 7)
+  {
+    irqn = DMA1_Stream7_IRQn;
+  }
+  else if(_number < 13)
+  {
+    irqn = DMA2_Stream0_IRQn + _number - 8;
+  }
+  else
+  {
+    irqn = DMA2_Stream5_IRQn + _number - 13;
+  }
+#endif
+#ifdef STM32G431xx
+  _pChannel->CCR |= (irq_status_mask << 1);
+  uint32_t irqn = 0;
+  if(_number < 6)
+  {
+    irqn = DMA1_Channel1_IRQn + _number;
+  }
+  else if(_number < 11)
+  {
+    irqn = DMA2_Channel1_IRQn + _number - 6;
+  }
+  //else
+  //{
+  //  irqn = DMA2_Stream5_IRQn + _number - 13;
+  //}
+#endif
   Core::enable_isr((IRQn_Type)irqn, priority);
 }

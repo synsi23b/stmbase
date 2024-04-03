@@ -73,14 +73,21 @@ void Adc::init_auto_dma_8bit(uint8_t* data_store, uint16_t count)
 #ifdef STM32F401xC
 #error "Unknown chip!"
 #endif
+#ifdef STM32G431xx
+  RCC->AHB2ENR |= RCC_AHB2ENR_ADC12EN;
+#endif
 }
 
 void Adc::start()
 {
   // start converting
+#ifdef STM32G431xx
+  OS_ASSERT(true == false, ERR_NOT_IMPLMENTED);
+#else
   ADC1->CR2 |= ADC_CR2_ADON;
   while (!(ADC1->SR & ADC_SR_EOC))
     ;
+#endif
 }
 
 void Adc::enable(uint16_t channel, uint16_t conversion_idx)
