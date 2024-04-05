@@ -183,27 +183,47 @@ void SystemInit(void)
   #if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
     SCB->CPACR |= ((3UL << (10*2))|(3UL << (11*2)));  /* set CP10 and CP11 Full Access */
   #endif
-  // 1. Disable the PLL by setting PLLON to 0 in Clock control register (RCC_CR)
-  if(!RCC->CR & RCC_CR_HSIRDY)
-  {
-    RCC->CR |= RCC_CR_HSION;
-    while(!(RCC->CR & RCC_CR_HSIRDY))
-      ;
-  }
+  // 1. reset rcc by just HSI on
   RCC->CR = RCC_CR_HSION;
+  while(!(RCC->CR & RCC_CR_HSIRDY))
+    ;
   // 2. Wait until PLLRDY is cleared. The PLL is now fully stopped.
   while(RCC->CR & RCC_CR_PLLON)
     ;
-  // 3. Change the desired parameter.
+  // 2b. setup flash memory waitstates for 150MHz (4 wait states)
+  uint32_t flashtmp = 0x00040600 | 4;
+  while((FLASH->ACR & 0xF) != 4)
+    FLASH->ACR = flashtmp;
+  // enable HSE bypass clock
+  RCC->CR |= RCC_CR_HSEBYP;
+  while(!(RCC->CR & RCC_CR_HSEBYP))
+    ;
   RCC->CR |= RCC_CR_HSEON;
   while(!(RCC->CR & RCC_CR_HSERDY))
     ;
+  uint32_t base_pll = (5 << RCC_PLLCFGR_PLLPDIV_Pos) | (37 << RCC_PLLCFGR_PLLN_Pos) | RCC_PLLCFGR_PLLSRC_HSE;
+  RCC->PLLCFGR = base_pll;
   // 4. Enable the PLL again by setting PLLON to 1.
   RCC->CR |= RCC_CR_PLLON;
   // 5. Enable the desired PLL outputs by configuring PLLPEN, PLLQEN, PLLREN in PLL
   while(!(RCC->CR & RCC_CR_PLLRDY))
     ;
+  RCC->PLLCFGR = base_pll | RCC_PLLCFGR_PLLREN | RCC_PLLCFGR_PLLQEN | RCC_PLLCFGR_PLLPEN;
   // 6. set sysclk to pll outputs
+  // Transition state:
+  // • Set the AHB prescaler HPRE[3:0] bits to divide the system frequency by 2
+  // • Switch system clock to PLL
+  // • Wait for at least 1 µs and then reconfigure AHB prescaler bits to the needed HCLK frequency
+  RCC->CFGR = RCC_CFGR_HPRE_DIV2;
+  RCC->CFGR = RCC_CFGR_HPRE_DIV2 | RCC_CFGR_SW_PLL;
+  while((RCC->CFGR & RCC_CFGR_SW_Msk) != RCC_CFGR_SW_PLL)
+    ;
+  int32_t count = 100;
+  while(--count > 0)
+  {
+    __NOP();
+  }
+  RCC->CFGR = RCC_CFGR_SW_PLL;
   // configuration register (RCC_PLLCFGR). 
   // An interrupt can be generated when the PLL is ready, if enabled in the Clock interrupt 
   // enable register (RCC_CIER).
