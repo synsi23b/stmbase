@@ -1031,6 +1031,12 @@ namespace syn
    *   START OF HARDWARE DEFINITIONS
    */
 
+  class OptionBytes
+  {
+  public:
+    static void set_user_bit(uint32_t bitmask, uint32_t bitvalue);
+  };
+
   class Gpio
   {
     static uint32_t _swd_jtag_cfg;
@@ -1051,6 +1057,13 @@ namespace syn
 #else
       (void)mask;
 #endif
+    }
+#endif
+
+#ifdef STM32G431xx
+    static void enable_gpio_osc_out()
+    {
+      OptionBytes::set_user_bit(FLASH_OPTR_NRST_MODE_Msk, FLASH_OPTR_NRST_MODE_1);
     }
 #endif
 
@@ -1080,6 +1093,14 @@ namespace syn
       case 'C':
       case 'c':
         _pPort = GPIOC;
+        break;
+      case 'G':
+      case 'g':
+        _pPort = GPIOG;
+        break;
+      case 'F':
+      case 'f':
+        _pPort = GPIOF;
         break;
       default:
         OS_ASSERT(true == false, ERR_BAD_PORT_NAME);

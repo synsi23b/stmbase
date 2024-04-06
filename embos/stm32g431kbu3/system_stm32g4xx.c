@@ -229,6 +229,9 @@ void SystemInit(void)
   // enable register (RCC_CIER).
   // The PLL output frequency must not exceed 170 MHz.
 
+  // configure default enabled peripherals
+  RCC->AHB2ENR = RCC_AHB2ENR_GPIOGEN | RCC_AHB2ENR_GPIOFEN | RCC_AHB2ENR_GPIOCEN | RCC_AHB2ENR_GPIOBEN | RCC_AHB2ENR_GPIOAEN;
+
   /* Configure the Vector Table location add offset address ------------------*/
 #if defined(USER_VECT_TAB_ADDRESS)
   SCB->VTOR = VECT_TAB_BASE_ADDRESS | VECT_TAB_OFFSET; /* Vector Table Relocation in Internal SRAM */
