@@ -40,26 +40,32 @@ namespace i2c
         _sda_r_b9 = Gpio('B', 9);
         _scl_n_b6 = Gpio('B', 6);
         _sda_n_b7 = Gpio('B', 7);
+#elif defined(STM32G431xx)
+  OS_ASSERT(true == false, ERR_NOT_IMPLMENTED);
 #else //STM32F103xB
   OS_ASSERT(true == false, ERR_NOT_IMPLMENTED);
 #endif
 #endif //SYN_I2C_ENABLE_DYN_REMAP
+#ifdef STM32F103xB
         RCC->APB1ENR |= RCC_APB1ENR_I2C1EN;
+#elif defined(STM32G431xx)
+        RCC->APB1ENR1 |= RCC_APB1ENR1_I2C1EN;
+#endif
         if(remap)
         {
           Gpio::remap(Gpio::i2c1_scl_pb8_sda_pb9);
           Gpio scl('B', 8);
           Gpio sda('B', 9);
-          scl.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1);
-          sda.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1);
+          scl.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1_2);
+          sda.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1_2);
         }
         else
         {
           Gpio::clear_remap(Gpio::i2c1_scl_pb8_sda_pb9);
           Gpio scl('B', 6);
           Gpio sda('B', 7);
-          scl.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1);
-          sda.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1);
+          scl.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1_2);
+          sda.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1_2);
         }
         // set irq priority highest - 1 possible with beeing able to call free rtos functions
         NVIC_SetPriority(I2C1_EV_IRQn, 10);
@@ -69,11 +75,25 @@ namespace i2c
       }
       else
       {
-        RCC->APB1ENR |= RCC_APB1ENR_I2C2EN;
-        Gpio scl('B', 10);
-        Gpio sda('B', 11);
-        scl.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_2);
-        sda.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_2);
+#ifdef STM32F103xB
+        RCC->APB1ENR |= RCC_APB1ENR_I2C1EN;
+#elif defined(STM32G431xx)
+        RCC->APB1ENR1 |= RCC_APB1ENR1_I2C2EN;
+#endif
+        if(remap)
+        {
+          Gpio scl('A', 9);
+          Gpio sda('A', 8);
+          scl.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1_2);
+          sda.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1_2);
+        }
+        else
+        {
+          Gpio scl('B', 10);
+          Gpio sda('B', 11);
+          scl.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1_2);
+          sda.mode(Gpio::out_alt_open_drain, Gpio::MHz_10, Gpio::Alternate::I2C_1_2);
+        }
         // set irq priority highest - 1 possible with beeing able to call free rtos functions
         NVIC_SetPriority(I2C2_EV_IRQn, 10);
         NVIC_EnableIRQ(I2C2_EV_IRQn);
@@ -106,11 +126,18 @@ namespace i2c
       _port->TRISE = 36;
 #endif        
       }
-#else //STM32F103xB
+#elif defined(STM32G431xx)
+#if (SYN_ENABLE_I2C_2 == 400)
+      _port->TIMINGR = 0x00E05FFE;
+#else
+      _port->TIMINGR = 0x20C0E6FF;
+#endif
+      //_port->CR1 = I2C_CR1_ERRIE | I2C_CR1_TCIE | I2C_CR1_STOPIE | I2C_CR1_NACKIE | I2C_CR1_RXIE | I2C_CR1_TXIE |  I2C_CR1_PE;
+#else
       OS_ASSERT(true == false, ERR_NOT_IMPLMENTED);
 #endif
     }
-
+#ifdef STM32F103xB
     bool aquireDev(uint8_t *data, uint16_t size, uint8_t address, uint16_t *success)
     {
       OS_ASSERT(size > 0, ERR_BAD_INDEX);
@@ -331,6 +358,266 @@ namespace i2c
         _opdone.set();
       }
     }
+#elif defined(STM32G431xx)
+    bool aquireDev(uint8_t *data, uint16_t size, uint8_t address, uint16_t *success)
+    {
+      OS_ASSERT(size > 0, ERR_BAD_INDEX);
+      bool ret = false;
+      Atomic a;
+      if (_data == 0)
+      {
+        //  | I2C_CR1_TCIE
+        _port->CR1 = I2C_CR1_ERRIE | I2C_CR1_STOPIE | I2C_CR1_NACKIE | I2C_CR1_RXIE | I2C_CR1_TXIE | I2C_CR1_PE;
+        _data = data;
+        _remain = size;
+        _address = address;
+        _success = success;
+        _opdone.try_wait(); // make sure the signal is clear
+        ret = true;
+      }
+      return ret;
+    }
+
+    bool releaseDev(uint16_t success)
+    {
+      Atomic a;
+      if(success == 0x01)
+        return true; // all clear, successfull transfer
+      if(success == 0x02)
+        return false; // error transmission, irq handled it
+      // timeout or weird error, reset the device
+      _remain = 0;
+      _data = 0;
+      _success = 0;
+      uint32_t trs = _port->TIMINGR;
+      _port->CR1 = 0; // reset the device?
+      //uint16_t cr2 = _port->CR2;
+      //uint16_t cr1 = _port->CR1;
+      if(_port == I2C1)
+      {
+        RCC->APB1RSTR1 = RCC_APB1RSTR1_I2C1RST;
+        RCC->APB1RSTR1 = 0;
+      }
+      else
+      {
+        RCC->APB1RSTR1 = RCC_APB1RSTR1_I2C2RST;
+        RCC->APB1RSTR1 = 0;
+      }
+      //_port->CR2 = cr2;
+      _port->TIMINGR = trs;
+      //_port->CR1 = I2C_CR1_ERRIE | I2C_CR1_TCIE | I2C_CR1_STOPIE | I2C_CR1_NACKIE | I2C_CR1_RXIE | I2C_CR1_TXIE |  I2C_CR1_PE;
+      return false;
+    }
+
+
+    bool masterStartWrite(uint16_t *success)
+    {
+      // make sure we actually acquired the device
+      if (_success == success)
+      {
+        _port->CR2 = I2C_CR2_AUTOEND | I2C_CR2_START | (_remain & 0xFF) << 16 | _address;
+        return true;
+      }
+      return false;
+    }
+
+    bool masterStartRead(uint16_t *success)
+    {
+      // make sure we actually acquired the device
+      if (_success == success)
+      {
+        _port->CR2 = I2C_CR2_AUTOEND | I2C_CR2_START | (_remain & 0xFF) << 16 | I2C_CR2_RD_WRN | _address;
+        return true;
+      }
+      return false;
+    }
+
+    bool waitDone(OS_TIME timeout)
+    {
+      return _opdone.wait(timeout);
+    }
+
+    void end_isr(uint16_t state)
+    {
+      if(_success != 0)
+      {
+        *_success = state;
+        _success = 0;
+      }
+      _data = 0;
+      _opdone.set();
+    }
+
+    void isr()
+    {
+      uint32_t status = _port->ISR;
+      if(status & I2C_ISR_TC)
+      {
+        // this was the last byte, transmit stop condtion. and donezo
+        end_isr(1);
+      }
+      else if(status & I2C_ISR_RXNE)
+      {
+        *_data++ = _port->RXDR;
+        --_remain;
+      }
+      else if(status & I2C_ISR_TXIS)
+      {
+        _port->TXDR = *_data++;
+        --_remain;
+      }
+      else if(status & I2C_ISR_NACKF)
+      {
+        _port->ICR = I2C_ICR_NACKCF;
+        end_isr(2);
+      }
+      else if(status & I2C_ISR_STOPF)
+      {
+        _port->ICR = I2C_ICR_STOPCF;
+        if(_remain == 0 && _data != 0)
+        {
+          end_isr(1);
+        }
+        else
+        {
+          end_isr(2);
+        }
+      }
+      else
+      {
+        while(true)
+          ;
+      }
+
+
+//      if (status_1 & I2C_SR1_SB)
+//      {
+//        // Start condition generated, write out address
+//        _port->DR = _address;
+//      }
+//      else if (status_1 & I2C_SR1_ADDR)
+//      {
+//        syn::Atomic a;
+//        // Address was acknowleged
+//        uint32_t status_2 = _port->SR2;
+//        // check wether tx or rx
+//        if (status_2 & I2C_SR2_TRA)
+//        {
+//          // write first data to be send
+//          _port->DR = *_data++;
+//          --_remain;
+//        }
+//        else
+//        {
+//          if (_remain == 1)
+//          {
+//            // 1 byte reception, assert the stop allready.
+//            // Device has started receiving data when we cleared addr
+//            _port->CR1 = I2C_CR1_STOP | I2C_CR1_PE;
+//          }
+//          else if (_remain == 2)
+//          {
+//            // 2 byte reception clear ack
+//            _port->CR1 = I2C_CR1_POS | I2C_CR1_PE;
+//          }
+//        }
+//      }
+//      else if (status_1 & I2C_SR1_RXNE)
+//      {
+//        // need to read data from the rx buffer
+//#ifndef NDEBUG
+//        while(_data == 0 && _remain != 0)
+//          ;
+//#endif
+//        if(_remain > 3)
+//        {
+//          *_data++ = _port->DR;
+//          --_remain;
+//        }
+//        else if(_remain == 3 && status_1 & I2C_SR1_BTF)
+//        {
+//          // clear ACK 
+//          _port->CR1 = I2C_CR1_PE;
+//          // read from data register
+//          *_data++ = _port->DR;
+//          --_remain;
+//          // programm stop condition
+//          //_port->CR1 = I2C_CR1_STOP | I2C_CR1_PE;
+//        }
+//        else if(_remain == 2 && status_1 & I2C_SR1_BTF)
+//        {
+//          _port->CR1 = I2C_CR1_STOP | I2C_CR1_PE;
+//          *_data++ = _port->DR;
+//          --_remain;
+//        }
+//        else if(_remain == 1)
+//        {
+//          *_data++ = _port->DR;
+//          _remain = 0;
+//        }
+//        if (_remain == 0)
+//        {
+//          // donezo
+//          _port->CR1 = I2C_CR1_STOP;
+//          if(_success)
+//            *_success = 1;
+//          _success = 0;
+//          _data = 0;
+//          _opdone.set();
+//        }
+//      }
+//      else if (status_1 & I2C_SR1_TXE)
+//      {
+//        // need to write data to the tx buffer
+//        if (_remain > 0)
+//        {
+//          --_remain;
+//          _port->DR = *_data++;
+//        }
+//        else if(status_1 & I2C_SR1_BTF)
+//        {
+//          // this was the last byte, transmit stop condtion. and donezo
+//          _port->CR1 = I2C_CR1_STOP;
+//          if(_success)
+//            *_success = 1;
+//          _success = 0;
+//          _data = 0;
+//          _opdone.set();
+//        }
+//        else if(_port->CR1 == 0)
+//        {
+//          _port->CR1 = I2C_CR1_STOP;
+//        }
+//      }
+//      else if (status_1 & (I2C_SR1_BERR | I2C_SR1_STOPF | I2C_SR1_ARLO))
+//      {
+//        isr_err();
+//      }
+      // else
+      // {
+      //   while(status_1 || status_2)
+      //     ;
+      // }
+    }
+
+    void isr_err()
+    {
+      uint32_t status_1 = _port->ISR;
+      //_port->ISR = 0;
+      //if(status_1 & I2C_SR1_AF)
+      //  _port->CR1 = I2C_CR1_STOP;
+      //else
+      _port->CR1 = 0;
+      if(_success)
+        *_success = 2;
+      if(_data != 0)
+      {
+        _data = 0;
+        _success = 0;
+        _opdone.set();
+      }
+    }
+#endif
 
   private:
 
@@ -375,7 +662,7 @@ void syn::I2cMaster::init(uint16_t port, uint8_t address, bool remap)
   }
   else
   {
-    _remapped = 0xFF;
+    _remapped = remap ? 1 : 0;
 #if (SYN_ENABLE_I2C_2 != 0)
     _pdev = &i2c::dev_2;
 #else
@@ -398,12 +685,12 @@ bool syn::I2cMaster::write(uint8_t *data, uint16_t size, uint16_t timeout_ms)
     syn::Thread::sleep(1);
     --timeout_ms;
   }
-
+#ifdef SYN_I2C_ENABLE_DYN_REMAP
   if(_remapped != 0xFF)
   {
     I2cMaster::runtime_remap_i2c1(_remapped);
   }
-
+#endif
   if(((i2c::Device *)_pdev)->masterStartWrite(&state))
   {
     // minimum timeout is about 32 byte per millisecond for 400kHz bus speed
@@ -440,12 +727,12 @@ bool syn::I2cMaster::read(uint8_t *data, uint16_t size, uint16_t timeout_ms)
     syn::Thread::sleep(1);
     --timeout_ms;
   }
-
+#ifdef SYN_I2C_ENABLE_DYN_REMAP
   if(_remapped != 0xFF)
   {
     I2cMaster::runtime_remap_i2c1(_remapped);
   }
-
+#endif
   if(((i2c::Device *)_pdev)->masterStartRead(&state))
   {
     // minimum timeout is about 32 byte per millisecond for 400kHz bus speed

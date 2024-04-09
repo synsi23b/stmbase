@@ -1180,11 +1180,11 @@ namespace syn
       Timer_2 = 0x1,
       Timer_3 = 0x2,
       Timer_9_10_11 = 0x3,
-      I2C_1 = 0x4,
+      I2C_1_2 = 0x4,
       SPI = 0x5,
       USART_1_2 = 0x7,
       USART_6 = 0x8,
-      I2C_2 = 0x9,
+      //I2C_2 = 0x9,
       OTG_FS = 0xA,
       FDCAN = 0xB,
       SDIO_ = 0xC,
@@ -2475,6 +2475,11 @@ namespace syn
     void init(uint16_t port, uint8_t address, bool remap);
     bool write(uint8_t *data, uint16_t size, uint16_t timeout_ms = 1);
     bool read(uint8_t *data, uint16_t size, uint16_t timeout_ms = 1);
+
+    void overwrite_address(uint8_t new_address)
+    {
+      _address = new_address;
+    }
 
   private:
     static void init_runtime_remap_i2c1();
