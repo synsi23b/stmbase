@@ -1182,6 +1182,7 @@ namespace syn
       Timer_9_10_11 = 0x3,
       I2C_1_2 = 0x4,
       SPI = 0x5,
+      SPI_3 = 0x6,
       USART_1_2 = 0x7,
       USART_6 = 0x8,
       //I2C_2 = 0x9,
@@ -2458,6 +2459,7 @@ namespace syn
     bool busy_tx(const uint16_t *pbuffer, uint16_t size);
 
     bool busy_bidi(uint8_t *pbuffer, uint16_t size);
+    bool busy_bidi(uint16_t *pbuffer, uint16_t size, uint16_t setup_delay = 0);
 
     // writes start address to spi device, than continues to read into buffer for size
     bool busy_read_regs(uint8_t startaddress, uint8_t *pbuffer, uint16_t size);

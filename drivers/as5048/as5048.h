@@ -23,22 +23,28 @@ public:
     _angle = 0;
     //_status_interval = status_update_interval;
     _status = 0;
-    _spi.init(spi_num, 4000000, false, false, true, true);
+    _spi.init(spi_num, 8000000, false, true, true, true);
     update();
   }
 
   // run regularily to update angle and state
   // state gets updated every status_update_interval ticks
   // if the state update fails for any reason, it will be attempted at the next tick again.
-  void update()
+  void update(uint16_t setup_delay = 10)
   {
     //  angle, diagnostics, magnitude, clear error
     uint16_t command[3] = { 0xC000|0x3FFF, 0x4000|0x3FFD, 0x4000|0x0001 };
     for(int i = 0; i < 3; ++i)
     {
-      _spi.busy_bidi(command + i, 1, 150);
-      if(i < 2)
-        OS_TASK_Delay_Cycles(150);
+      _spi.busy_bidi(command + i, 1, setup_delay);
+      if(i < 2 && setup_delay > 0)
+      {
+        uint16_t x = setup_delay * 7;
+        while(x--)
+        {
+          syn::System::nop();
+        }
+      }
     }
     _timestamp = OS_TIME_Get_us();
     int16_t angle = command[1] & 0x3FFF;
@@ -46,7 +52,7 @@ public:
       _angle = 0x3FFF - angle;
     else
       _angle = angle;
-    _status = uint8_t(command[2] >> 8);
+    _status = command[2] & 0x3FFF;
   }
 
   // set the incrementing direction of the sensor programatically
@@ -90,27 +96,22 @@ public:
 
   bool magnet_ok() const
   {
-    return _status == 0x20;
+    return (_status & 0x0F00) == 0x0100;
   }
 
   bool magnet_present() const
   {
-    return _status & 0x20;
+    return (_status & 0xFF) < 0xFF;
   }
 
   bool magnet_weak() const
   {
-    return _status & 0x10;
+    return _status & 0x0800;
   }
 
   bool magnet_strong() const
   {
-    return _status & 0x08;
-  }
-
-  bool spi_failure() const
-  {
-    return _status & 0x80;
+    return _status & 0x0400;
   }
 
   //uint16_t read_conf()
@@ -208,7 +209,7 @@ private:
   syn::SpiMaster _spi;
   uint32_t _timestamp; // the actual stamp is u64, but u32 is more than enough
   int16_t _angle;
-  uint8_t _status;
+  uint16_t _status;
   //bool _configured;
   bool _reversed;
 };

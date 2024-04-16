@@ -162,7 +162,104 @@ void SpiMaster::init(uint16_t port, uint32_t frequency, bool clock_polarity, boo
   miso.setWeakPullUpDown(false, false);
   mosi.setWeakPullUpDown(true, false);
 #endif
-
+#if (defined(STM32G431xx))
+  Gpio::Speed speed;
+  if (frequency < 10000000)
+  {
+    speed = Gpio::MHz_10;
+  }
+  else
+  {
+    speed = Gpio::MHz_50;
+  }
+  switch (port)
+  {
+  case 0:
+    _pSpi = SPI1;
+    OS_ASSERT((RCC->APB2ENR & RCC_APB2ENR_SPI1EN) == 0, ERR_FORBIDDEN);
+    RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;
+    if(hardware_slave_sel)
+    {
+      nss.init('A', 4);
+      nss.mode(Gpio::out_alt_push_pull, Gpio::MHz_10, Gpio::SPI);
+      nss.setWeakPullUpDown(true, false);
+      _pSpi->CR2 |= SPI_CR2_SSOE;
+    }
+    sck.init('A', 5);
+    sck.mode(Gpio::out_alt_push_pull, speed, Gpio::SPI);
+    miso.init('A', 6);
+    miso.mode(Gpio::out_alt_push_pull, speed, Gpio::SPI);
+    mosi.init('A', 7);
+    mosi.mode(Gpio::out_alt_push_pull, speed, Gpio::SPI);
+    perifreq = SystemCoreClock;
+    break;
+  case 1:
+    _pSpi = SPI2;
+    OS_ASSERT((RCC->APB1ENR1 & RCC_APB1ENR1_SPI2EN) == 0, ERR_FORBIDDEN);
+    RCC->APB1ENR1 |= RCC_APB1ENR1_SPI2EN;
+    if(hardware_slave_sel)
+    {
+      nss.init('B', 12);
+      nss.mode(Gpio::out_alt_push_pull, Gpio::MHz_10, Gpio::SPI);
+      nss.setWeakPullUpDown(true, false);
+      _pSpi->CR2 |= SPI_CR2_SSOE;
+    }
+    sck.init('B', 13);
+    sck.mode(Gpio::out_alt_push_pull, speed, Gpio::SPI);
+    miso.init('B', 14);
+    miso.mode(Gpio::out_alt_open_drain, speed, Gpio::SPI);
+    mosi.init('B', 15);
+    mosi.mode(Gpio::out_alt_push_pull, speed, Gpio::SPI);
+    perifreq = SystemCoreClock;
+    break;
+  case 2:
+    _pSpi = SPI3;
+    OS_ASSERT((RCC->APB1ENR1 & RCC_APB1ENR1_SPI3EN) == 0, ERR_FORBIDDEN);
+    RCC->APB1ENR1 |= RCC_APB1ENR1_SPI3EN;
+    if(hardware_slave_sel)
+    {
+      nss.init('A', 15);
+      nss.mode(Gpio::out_alt_push_pull, Gpio::MHz_10, Gpio::SPI_3);
+      nss.setWeakPullUpDown(true, false);
+      _pSpi->CR2 |= SPI_CR2_SSOE;
+    }
+    sck.init('B', 3);
+    sck.mode(Gpio::out_alt_push_pull, speed, Gpio::SPI_3);
+    miso.init('B', 4);
+    miso.mode(Gpio::out_alt_open_drain, speed, Gpio::SPI_3);
+    mosi.init('B', 5);
+    mosi.mode(Gpio::out_alt_push_pull, speed, Gpio::SPI_3);
+    perifreq = SystemCoreClock;
+    break;
+  }
+    uint32_t baudrateselect = 1;
+  for(; baudrateselect < 8; ++baudrateselect)
+  {
+    uint32_t baudrate = perifreq >> baudrateselect;
+    if(baudrate <= frequency)
+    {
+      break;
+    }
+  }
+  --baudrateselect;
+  if(transfer_size)
+  {
+    // 16 bit mode
+    _pSpi->CR2 |= (SPI_CR2_DS_3 | SPI_CR2_DS_2 | SPI_CR2_DS_1 | SPI_CR2_DS_0);
+  }
+  _pSpi->CR1 = baudrateselect << 3 | clock_polarity << 1 | clock_phase;
+  
+  if(clock_polarity)
+  {
+    sck.setWeakPullUpDown(true, false);
+  }
+  else
+  {
+    sck.setWeakPullUpDown(false, true);
+  }
+  miso.setWeakPullUpDown(false, false);
+  mosi.setWeakPullUpDown(true, false);
+#endif
 }
 
 bool SpiMaster::busy_tx(const uint8_t *pbuffer, uint16_t size)
@@ -246,6 +343,42 @@ bool SpiMaster::busy_bidi(uint8_t *pbuffer, uint16_t size)
     *pbuffer++ = *((uint8_t*)&_pSpi->DR);
     --size;
   }
+  while(_pSpi->SR & SPI_SR_BSY)
+    ;
+  _pSpi->CR1 &= ~SPI_CR1_SPE;
+  return true;
+}
+
+bool SpiMaster::busy_bidi(uint16_t *pbuffer, uint16_t size, uint16_t setup_delay)
+{
+  // check 8 bit data frame format
+#if (defined(STM32G030xx)) || (defined(STM32G431xx))
+  OS_ASSERT((_pSpi->CR2 & SPI_CR2_DS_3) != 0, ERR_FORBIDDEN);
+#else
+  OS_ASSERT((_pSpi->CR1 & SPI_CR1_DFF) == 0, ERR_FORBIDDEN);
+#endif
+  if(_pSpi->SR & SPI_SR_BSY)
+    return false;
+  _pSpi->CR1 |= SPI_CR1_MSTR | SPI_CR1_SPE;
+  while(setup_delay)
+  {
+    syn::System::nop();
+    --setup_delay;
+  }
+  //if(setup_delay)
+  //  syn::Thread::usleep(1);
+  while(size > 0)
+  {
+    //while((_pSpi->SR & SPI_SR_TXE) == 0)
+    //  ;
+    *((uint16_t*)&_pSpi->DR) = *pbuffer;
+    while((_pSpi->SR & SPI_SR_RXNE) == 0)
+      ;
+    *pbuffer++ = *((uint16_t*)&_pSpi->DR);
+    --size;
+  }
+  while(_pSpi->SR & SPI_SR_BSY)
+    ;
   _pSpi->CR1 &= ~SPI_CR1_SPE;
   return true;
 }
