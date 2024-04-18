@@ -1,3 +1,6 @@
 [submodule "CANopenNode"]
 	path = CANopenNode
 	url = https://github.com/synsi23b/CANopenNode.git
+[submodule "Arduino-FOC"]
+	path = Arduino-FOC
+	url = https://github.com/synsi23b/Arduino-FOC.git
