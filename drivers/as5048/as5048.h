@@ -7,8 +7,9 @@ class AS5048
 public:
   AS5048()
   {
-    _angle = -1;
-    _status = 0;
+    //_angle = -1;
+    //_status = 0;
+    //_errorcounter = 0;
     //_configured = false;
     _reversed = false;
   }
@@ -20,9 +21,9 @@ public:
   // angle register address for every read.
   void init(uint16_t spi_num)
   {
-    _angle = 0;
-    //_status_interval = status_update_interval;
+    _angle = -1;
     _status = 0;
+    _errorcounter = 0;
     _spi.init(spi_num, 8000000, false, true, true, true);
     update();
   }
@@ -30,14 +31,17 @@ public:
   // run regularily to update angle and state
   // state gets updated every status_update_interval ticks
   // if the state update fails for any reason, it will be attempted at the next tick again.
-  void update(uint16_t setup_delay = 10)
+  // keep the minimum time between cs low and first clock edge using setup_delay, measure and adapt
+  bool update(uint16_t setup_delay = 10)
   {
-    //  angle, diagnostics, magnitude, clear error
-    uint16_t command[3] = { 0xC000|0x3FFF, 0x4000|0x3FFD, 0x4000|0x0001 };
-    for(int i = 0; i < 3; ++i)
+    //  angle, diagnostics, clear error
+    uint16_t command[2] = { 0xC000|0x3FFF, 0x4000|0x3FFD }; //, 0x4000|0x0001 };
+    uint32_t tstamp = OS_TIME_Get_us();
+    for(int i = 0; i < sizeof(command); ++i)
     {
       _spi.busy_bidi(command + i, 1, setup_delay);
-      if(i < 2 && setup_delay > 0)
+      // keep the minimum time between 2 commands (cs high)
+      if(i < 1 && setup_delay > 0)
       {
         uint16_t x = setup_delay * 7;
         while(x--)
@@ -46,13 +50,37 @@ public:
         }
       }
     }
-    _timestamp = OS_TIME_Get_us();
-    int16_t angle = command[1] & 0x3FFF;
+    // read the data check for errors
+    _status = command[0];
+    if(_status & 0x4000)
+    {
+      ++_errorcounter;
+      return false;
+    }
+    uint16_t ang = command[1];
+    if(ang & 0x4000)
+    {
+      ++_errorcounter;
+      return false;
+    }
+    // check parity
+    int16_t angle = ang & 0x3FFF;
+    uint16_t count = 0;
+    while (ang) {
+        count += ang & 1;
+        ang >>= 1;
+    }
+    if(count & 1)
+    {
+      ++_errorcounter;
+      return false;
+    }
     if(_reversed)
       _angle = 0x3FFF - angle;
     else
       _angle = angle;
-    _status = command[2] & 0x3FFF;
+    _timestamp = tstamp;
+    return true;
   }
 
   // set the incrementing direction of the sensor programatically
@@ -85,10 +113,6 @@ public:
   }
 
   // returns the raw bitwise status word of the sensor
-  // 0x20 == magnet present
-  // 0x01 == magnet weak
-  // 0x08 == magnet strong
-  // 0x80 == i2c could not read status register / bus failure
   uint8_t status () const
   {
     return _status;
@@ -114,103 +138,12 @@ public:
     return _status & 0x0400;
   }
 
-  //uint16_t read_conf()
-  //{
-  //  uint16_t ret = 0xFFFF;
-  //  uint8_t data[2] = {0x07, 0};
-  //  if(_i2c.write(data, 1) && _i2c.read(data, 2))
-  //  {
-  //    ret = uint16_t(data[0]) << 8 | uint16_t(data[1]);
-  //  }
-  //  // reset read address to angle register
-  //  data[0] = 0x0C;
-  //  _i2c.write(data, 1);
-  //  return ret;
-  //}
 private:
-  //uint8_t _update_status()
-  //{
-  //  // configure the sensor (only done once)
-  //  _configure();
-  //  // update status
-  //  uint8_t next_interval = 1;
-  //  // read status and angle
-  //  uint8_t data[3] = {0x0B, 0, 0};
-  //  if(_i2c.write(data, 1) && _i2c.read(data, 3))
-  //  {
-  //    OS_TIME t_measure = OS_TIME_Get_us();
-  //    // Anding really neccessairy? Yes it is.
-  //    _status = data[0] & 0x38;
-  //    if(magnet_present())
-  //    {
-  //      _timestamp = t_measure;
-  //      if(_reversed)
-  //        _angle = 0xFFF - ((uint16_t(data[1]) << 8 | uint16_t(data[2])) & 0xFFF);
-  //      else
-  //        _angle = (uint16_t(data[1]) << 8 | uint16_t(data[2])) & 0xFFF;
-  //      // set read address to raw angle for next angle update to skip address transmission
-  //      // only if status is not to be read out everytime
-  //      if(_status_interval > 1)
-  //      {
-  //        data[0] = 0x0C;
-  //        if(_i2c.write(data, 1) == true)
-  //        {
-  //          next_interval = _status_interval;
-  //        }
-  //      }
-  //    }
-  //    else
-  //    {
-  //      _angle = -1;
-  //    }
-  //  }
-  //  else
-  //  {
-  //    _status = 0x80;
-  //    _angle = -1;
-  //  }
-  //  return next_interval;
-  //}
-
-  //void _configure()
-  //{
-  //  if(_configured)
-  //    return;
-  //  // reg 0x07
-  //  // FTH 010b -> 7 / 1 threshold
-  //  // SF 01b -> 1.1ms settling time
-  //  // reg 0x08
-  //  // HYST 10b -> 2 LSB
-  //  uint8_t data[3] = {0x07, 0x05, 0x04};
-  //  if(_i2c.write(data, 3))
-  //  {
-  //    _configured = true;
-  //  }
-  //}
-
-  //void _update_angle()
-  //{
-  //  uint8_t data[2];
-  //  // address should be set to raw angle already by update method
-  //  if(_i2c.read(data, 2))
-  //  {
-  //    _timestamp = OS_TIME_Get_us();
-  //    if(_reversed)
-  //      _angle = 0xFFF - ((uint16_t(data[0]) << 8 | uint16_t(data[1])) & 0xFFF);
-  //    else
-  //      _angle = (uint16_t(data[0]) << 8 | uint16_t(data[1])) & 0xFFF;
-  //  }
-  //  else
-  //  {
-  //    _angle = -1;
-  //  }
-  //}
-
   syn::SpiMaster _spi;
   uint32_t _timestamp; // the actual stamp is u64, but u32 is more than enough
   int16_t _angle;
   uint16_t _status;
-  //bool _configured;
+  uint32_t _errorcounter;
   bool _reversed;
 };
 
@@ -288,8 +221,7 @@ public:
   // if the state update fails for any reason, it will be attempted at the next tick again.
   bool update()
   {
-    _sensor.update();
-    if(_sensor.magnet_present())
+    if(_sensor.update() && _sensor.magnet_present())
     {
       // TODO confirm sensor behavior on weak / strong / no magnet or test for magnet_good instead of present
       // get the current angle
@@ -342,10 +274,6 @@ public:
     return _sensor.timestamp();
   }
 
-  //uint16_t read_conf()
-  //{
-  //  return _sensor.read_conf();
-  //}
 private:
   AS5048 _sensor;
   int32_t _pos;

@@ -10,8 +10,8 @@ void SpiMaster::init(uint16_t port, uint32_t frequency, bool clock_polarity, boo
   Gpio mosi;
   uint32_t perifreq = 0;
   --port;
-  OS_ASSERT(port < 2, ERR_DEVICE_NOT_ENABLED);
 #if (defined(STM32F103xB) || defined(STM32F401xC))
+  OS_ASSERT(port < 2, ERR_DEVICE_NOT_ENABLED);
   switch (port)
   {
   case 0:
@@ -84,6 +84,7 @@ void SpiMaster::init(uint16_t port, uint32_t frequency, bool clock_polarity, boo
   mosi.setWeakPullUpDown(true, false);
 #endif
 #if (defined(STM32G030xx))
+  OS_ASSERT(port < 2, ERR_DEVICE_NOT_ENABLED);
   Gpio::Speed speed;
   if (frequency < 10000000)
   {
@@ -163,6 +164,7 @@ void SpiMaster::init(uint16_t port, uint32_t frequency, bool clock_polarity, boo
   mosi.setWeakPullUpDown(true, false);
 #endif
 #if (defined(STM32G431xx))
+  OS_ASSERT(port < 3, ERR_DEVICE_NOT_ENABLED);
   Gpio::Speed speed;
   if (frequency < 10000000)
   {
