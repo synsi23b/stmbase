@@ -2653,3 +2653,33 @@ namespace syn
     static CANopenTick _cantick;
   };
 } // namespace syn
+
+//### Arduino Stuff
+
+#define __FlashStringHelper char
+
+class Print {
+  public:
+    Print(){}
+
+    void print(char c) {}
+    void print(const char* str) {}
+    void print(float f, uint16_t decimals) {}
+    void println() {}
+    void println(const char c) {}
+    void println(const char* str) {}
+  private:
+};
+
+inline void delayMicroseconds(uint32_t us){
+  syn::Thread::usleep(us);
+}
+
+inline void delay(uint32_t millis){
+  syn::Thread::sleep(millis);
+}
+
+inline uint16_t analogRead(uint16_t channel)
+{
+  return 0;
+}

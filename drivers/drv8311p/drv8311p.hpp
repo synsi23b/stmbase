@@ -12,9 +12,14 @@ public:
   {
     (void)pin;
     _address = address;
-    _spi.init(spi_port, 4000000, false, false, true, csel == 'x');
+    _spi.init(spi_port, 4000000, false, true, true, csel == 'x');
     if(csel != 'x')
       OS_ASSERT(true == false, ERR_NOT_IMPLMENTED);
+    // read fault reset register
+    //clear_faults();
+    // enable parity bit
+    _write_reg(0x3F, 5 << 12 | 1 << 6);
+    //int16_t val = _read_reg(0x3F);
   }
 
   // if the value is negative (bit 15 set), read failed
@@ -73,6 +78,13 @@ public:
     return _write_reg(0x17, 0x0001);
   }
 
+  bool enable_pwm(bool enable)
+  {
+    if(enable)
+      return _write_reg(0x1D, 1 << 10);
+    return _write_reg(0x1D, 0);
+  }
+
   bool write_pwm_period(uint16_t value)
   {
     return _write_reg(0x18, value & 0x0FFF);
@@ -80,7 +92,8 @@ public:
 
   bool write_pwms(uint16_t a, uint16_t b, uint16_t c)
   {
-    return _write_reg(0x18, value & 0x0FFF);
+    uint16_t values[4] = {0x19, a, b, c};
+    return _write_regs(values, 4);
   }
 
   uint8_t status()
@@ -96,6 +109,7 @@ private:
         data >>= 1;
     }
     return (count & 1) == 0;
+    return true;
   }
 
   // if the value is negative (bit 15 set), read failed
@@ -171,7 +185,7 @@ private:
       if(size > 1)
       {
         // check the parity of the returned value
-        if(_parity_check(command[1]))
+        if(_parity_check(values[1]))
         {
           _status = uint8_t(values[0] & 0xFF);
           return true;
@@ -185,32 +199,6 @@ private:
     }
     return false;
   }
-
-  bool _write_3_regs(uint16_t address, uint16_t a, uint16_t b, uint16_t c)
-  {
-    address <<= 3;
-    // set rw and secondary address
-    address |= 0x8000 | (_address << 11);
-    // check parity, if it fails, set header parity bit
-    if(!_parity_check(address))
-      address |= 0x0001;
-    
-    value = value & 0x7FFF;
-    if(!_parity_check(value))
-      value |= 0x8000;
-    // compose the command and run bidiractional spi
-    uint16_t command[4] = { address , a, b, c };
-    if(_spi.busy_bidi(command, 2))
-    {
-      // check the parity of the returned value
-      if(_parity_check(command[1]))
-      {
-        _status = uint8_t(command[0] & 0xFF);
-        return true;
-      }
-    }
-    return false;
-  } 
 
   syn::SpiMaster _spi;
   uint8_t _address;
