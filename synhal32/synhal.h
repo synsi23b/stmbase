@@ -2662,12 +2662,12 @@ class Print {
   public:
     Print(){}
 
-    void print(char c) {}
-    void print(const char* str) {}
-    void print(float f, uint16_t decimals) {}
-    void println() {}
-    void println(const char c) {}
-    void println(const char* str) {}
+    void print(char c);
+    void print(const char* str);
+    void print(float f, uint16_t decimals);
+    void println();
+    void println(const char c);
+    void println(const char* str);
   private:
 };
 
@@ -2681,5 +2681,6 @@ inline void delay(uint32_t millis){
 
 inline uint16_t analogRead(uint16_t channel)
 {
+  (void)channel;
   return 0;
 }

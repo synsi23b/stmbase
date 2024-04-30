@@ -26,6 +26,8 @@ public:
     _errorcounter = 0;
     _spi.init(spi_num, 8000000, false, true, true, true);
     update();
+    syn::Thread::usleep(50);
+    update();
   }
 
   // run regularily to update angle and state
@@ -34,14 +36,14 @@ public:
   // keep the minimum time between cs low and first clock edge using setup_delay, measure and adapt
   bool update(uint16_t setup_delay = 10)
   {
-    //  angle, diagnostics, clear error
-    uint16_t command[2] = { 0xC000|0x3FFF, 0x4000|0x3FFD }; //, 0x4000|0x0001 };
+    // clear error, angle, diagnostics, 
+    uint16_t command[3] = {  0x4000|0x0001, 0xC000|0x3FFF, 0x4000|0x3FFD }; //  0x4000|0x0001};
     uint32_t tstamp = OS_TIME_Get_us();
-    for(int i = 0; i < sizeof(command); ++i)
+    for(int i = 0; i < 3; ++i)
     {
       _spi.busy_bidi(command + i, 1, setup_delay);
       // keep the minimum time between 2 commands (cs high)
-      if(i < 1 && setup_delay > 0)
+      if(i < 2 && setup_delay > 0)
       {
         uint16_t x = setup_delay * 7;
         while(x--)
@@ -57,7 +59,7 @@ public:
       ++_errorcounter;
       return false;
     }
-    uint16_t ang = command[1];
+    uint16_t ang = command[2];
     if(ang & 0x4000)
     {
       ++_errorcounter;
@@ -143,6 +145,7 @@ private:
   uint32_t _timestamp; // the actual stamp is u64, but u32 is more than enough
   int16_t _angle;
   uint16_t _status;
+  uint16_t _statuscounter;
   uint32_t _errorcounter;
   bool _reversed;
 };

@@ -1,4 +1,5 @@
 #include "synhal.h"
+#include <stdio.h>
 
 using namespace syn;
 
@@ -68,3 +69,37 @@ extern "C"
     syn::System::delay(Delay);
   }
 }
+
+
+void Print::print(char c)
+{
+  putchar(c);
+}
+
+void Print::print(const char* str)
+{
+  printf(str);
+}
+
+void Print::print(float f, uint16_t decimals)
+{
+  uint32_t dec = decimals * 10;
+  printf("%f", f*dec);
+}
+
+void Print::println()
+{
+  putchar('\n');
+}
+
+void Print::println(const char c)
+{
+  char chars[3] = {c, '\n', 0};
+  printf(chars);
+}
+
+void Print::println(const char* str)
+{
+  printf("%s\n", str);
+}
+
