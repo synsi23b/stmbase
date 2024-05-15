@@ -145,7 +145,6 @@ private:
   uint32_t _timestamp; // the actual stamp is u64, but u32 is more than enough
   int16_t _angle;
   uint16_t _status;
-  uint16_t _statuscounter;
   uint32_t _errorcounter;
   bool _reversed;
 };
