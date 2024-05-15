@@ -1187,7 +1187,7 @@ namespace syn
       USART_6 = 0x8,
       //I2C_2 = 0x9,
       OTG_FS = 0xA,
-      FDCAN = 0xB,
+      FDCAN = 0x9,
       SDIO_ = 0xC,
       EVENTOUT = 0xF
     };
@@ -2507,7 +2507,24 @@ namespace syn
     static void _enable_rx();
   };
 
-  class VirtualEeprom
+
+  class EepromBase
+  {
+  public:
+    EepromBase(){}
+
+    virtual bool read(uint16_t address, uint32_t &value)
+    {
+      return false;
+    }
+
+    virtual bool write(uint16_t address, uint32_t &value)
+    {
+      return false;
+    }
+  };
+
+  class VirtualEeprom : public EepromBase
   {
   public:
     static const uint32_t VE_FLASH_BASE = 0x8000000;
@@ -2581,22 +2598,39 @@ namespace syn
       OS_ASSERT(_pbank, ERR_NULL_POINTER);
     }
 
-    template <typename T>
-    bool read(uint16_t vaddress, T &value)
+    //virtual bool
+    //template <typename T>
+    //bool read(uint16_t vaddress, T &value)
+    //{
+    //  return _pbank->read(vaddress, (uint8_t *)&value, sizeof(T));
+    //}
+
+    //template <typename T>
+    //bool write(uint16_t vaddress, const T &value)
+    //{
+    //  T tmp;
+    //  if(read(vaddress, tmp))
+    //  {
+    //    if(tmp == value)
+    //      return true;
+    //  }
+    //  return _pbank->write(vaddress, (const uint8_t *)&value, sizeof(T));
+    //}
+
+    virtual bool read(uint16_t address, uint32_t &value)
     {
-      return _pbank->read(vaddress, (uint8_t *)&value, sizeof(T));
+      return _pbank->read(address, (uint8_t *)&value, sizeof(uint32_t));
     }
 
-    template <typename T>
-    bool write(uint16_t vaddress, const T &value)
+    virtual bool write(uint16_t address, uint32_t &value)
     {
-      T tmp;
-      if(read(vaddress, tmp))
+      uint32_t tmp;
+      if(read(address, tmp))
       {
         if(tmp == value)
           return true;
       }
-      return _pbank->write(vaddress, (const uint8_t *)&value, sizeof(T));
+      return _pbank->write(address, (const uint8_t *)&value, sizeof(uint32_t));
     }
 
   private:
@@ -2608,7 +2642,7 @@ namespace syn
   {
   public:
     // if lss is used to determine the node id, configure permanent storage
-    static void init_lss_store(VirtualEeprom* veeprom, uint16_t address);
+    static void init_lss_store(EepromBase* eeprom, uint16_t address);
     // initialize CAN interface and CANopenNode stack
     static int32_t init(uint8_t desired_id, uint16_t baudrate_k);
     // slow process messages, can be in a loop with other code
