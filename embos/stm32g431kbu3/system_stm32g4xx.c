@@ -190,7 +190,7 @@ void SystemInit(void)
   // 2. Wait until PLLRDY is cleared. The PLL is now fully stopped.
   while(RCC->CR & RCC_CR_PLLON)
     ;
-  // 2b. setup flash memory waitstates for 150MHz (4 wait states)
+  // 2b. setup flash memory waitstates for up to 150MHz (4 wait states)
   uint32_t flashtmp = 0x00040600 | 4;
   while((FLASH->ACR & 0xF) != 4)
     FLASH->ACR = flashtmp;
@@ -201,7 +201,8 @@ void SystemInit(void)
   RCC->CR |= RCC_CR_HSEON;
   while(!(RCC->CR & RCC_CR_HSERDY))
     ;
-  uint32_t base_pll = (5 << RCC_PLLCFGR_PLLPDIV_Pos) | (37 << RCC_PLLCFGR_PLLN_Pos) | RCC_PLLCFGR_PLLSRC_HSE;
+  // set the pll to generate 144MHz
+  uint32_t base_pll = (5 << RCC_PLLCFGR_PLLPDIV_Pos) | (36 << RCC_PLLCFGR_PLLN_Pos) | RCC_PLLCFGR_PLLSRC_HSE;
   RCC->PLLCFGR = base_pll;
   // 4. Enable the PLL again by setting PLLON to 1.
   RCC->CR |= RCC_CR_PLLON;

@@ -127,10 +127,11 @@ namespace i2c
 #endif        
       }
 #elif defined(STM32G431xx)
+//TODO this only checks I2C2 speeds!
 #if (SYN_ENABLE_I2C_2 == 400)
-      _port->TIMINGR = 0x00E05FFE;
+      _port->TIMINGR = 0x00E057FD;
 #else
-      _port->TIMINGR = 0x20C0E6FF;
+      _port->TIMINGR = 0x20B0D9FF;
 #endif
       //_port->CR1 = I2C_CR1_ERRIE | I2C_CR1_TCIE | I2C_CR1_STOPIE | I2C_CR1_NACKIE | I2C_CR1_RXIE | I2C_CR1_TXIE |  I2C_CR1_PE;
 #else
