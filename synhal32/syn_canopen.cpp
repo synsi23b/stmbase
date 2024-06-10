@@ -1673,21 +1673,32 @@ bool_t _store_lss_eeprom(void* pnull, uint8_t id, uint16_t bitrate)
 int32_t CANopenNode::init(uint8_t desired_id, uint16_t baudrate_k)
 {
     uint32_t data;
+    bool read_failed = true;
     if(peeprom != 0 && peeprom->read(lss_store_address, data))
     {
-        desiredNodeID = uint8_t(data & 0xFF);
-        baudrate = data >> 8;
-        printf("Load id %d baudrate %d\n", desiredNodeID, baudrate);
+        if((data & 0xFF000000) == 0xC000000)
+        {
+          uint8_t tmp_id = uint8_t(data & 0xFF);
+          uint16_t tmp_bd = (data >> 8) & 0xFFFF;
+          if(tmp_id > 1 && tmp_id < 128)
+          {
+             if(tmp_bd == 500)
+             {
+                desiredNodeID = tmp_id;
+                baudrate = tmp_bd;
+                read_failed = false;
+             }
+          }
+        }
     }
-    else
+    if(read_failed)
     {
-        if(peeprom != 0)
-          printf("Err loading id & baud\n");
+        printf("Err loading id & baud\n");
         desiredNodeID = desired_id;
         baudrate = baudrate_k;
-        printf("Start id %d baudrate %d\n", desiredNodeID, baudrate);
     }
 
+    printf("Start id %d baudrate %d\n", desiredNodeID, baudrate);
     can_init_hardware_ll();
 
 #if (CO_CONFIG_STORAGE) & CO_CONFIG_STORAGE_ENABLE

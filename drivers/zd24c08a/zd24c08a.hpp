@@ -1,7 +1,7 @@
 #pragma once
 #include "../synhal32/synhal.h"
 
-class Zetta8k {
+class Zetta8k : public syn::EepromBase {
 
 public:
   Zetta8k()
@@ -36,7 +36,7 @@ public:
   // address can be anything from 0 to 1023
   // if the write crosses a 16byte page border, it will fail
   // after writing, the chip needs 3ms to rewrite the page
-  bool write(uint16_t address, uint32_t value)
+  virtual bool write(uint16_t address, uint32_t value)
   {
     uint8_t data[5] = {uint8_t(address & 0xFF), uint8_t(value & 0xFF), uint8_t(value >> 8), uint8_t(value >> 16), uint8_t(value >> 24)};
     return _write(address, data, 5);
@@ -58,7 +58,7 @@ public:
 
   // read the value from the address
   // address can be anything from 0 to 1023
-  bool read(uint16_t address, uint32_t& value)
+  virtual bool read(uint16_t address, uint32_t& value)
   {
     return _read(address, (uint8_t*)&value, 4);
   }
