@@ -88,14 +88,20 @@ public:
     Fault = 8,
   };
 
+  typedef void (*mode_switch_cb_t)(OperationMode);
+  typedef OperationMode (*mode_get_cb_t)();
+
   State402();
   void init(uint16_t* pStatus, int8_t* pMode);
 
   void update(uint16_t controlword, int8_t operation_mode);
 
+  void set_modechange_cb(mode_switch_cb_t cb);
+  void set_getmode_cb(mode_get_cb_t cb);
+
   uint16_t getStatusword() const { return *_pstatusword; };
   InternalState getState() const { return _state; };
-  OperationMode getMode() const { return _mode; }
+  //OperationMode getMode() const { return _mode; }
   //bool waitForNewState(uint32_t timeout, InternalState & state);
   // set the target reached bits in the state display word
   // I checked this only for profiled position mode, (mode specific bits!!)
@@ -124,15 +130,18 @@ private:
 
   void set_clr_status_bit(int bitset, int bitclr);
 
-  void run_profiled_position_mode();
-  void run_cyclic_position_mode();
-  void run_interpolated_position_mode();
-  void tick();
+  //void run_profiled_position_mode();
+  //void run_cyclic_position_mode();
+  //void run_interpolated_position_mode();
+  //void tick();
 
   //std::condition_variable cond_;
   //std::mutex mutex_;
   uint16_t* _pstatusword;
   int8_t* _pmode;
+  // callback if mode is switched
+  mode_switch_cb_t _cb_on_mode_switch;
+  mode_get_cb_t _cb_get_mode;
   //syn::CANopenNode::TPDOtrigger _tpdo_state_mode;
   uint16_t _controlword;
   InternalState _state;

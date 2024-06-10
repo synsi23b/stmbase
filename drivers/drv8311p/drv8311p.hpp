@@ -8,7 +8,7 @@ public:
   {
   }
 
-  void init(uint16_t spi_port, uint8_t address, char csel = 'x', uint8_t pin = 0)
+  bool init(uint16_t spi_port, uint8_t address, char csel = 'x', uint8_t pin = 0)
   {
     (void)pin;
     _address = address;
@@ -18,8 +18,9 @@ public:
     // read fault reset register
     //clear_faults();
     // enable parity bit
-    _write_reg(0x3F, 5 << 12 | 1 << 6);
-    //int16_t val = _read_reg(0x3F);
+    _write_reg(0x3F, (5 << 12) | (1 << 6));
+    int16_t val = _read_reg(0x3F);
+    return (val & (1 << 6)) != 0;
   }
 
   // if the value is negative (bit 15 set), read failed
