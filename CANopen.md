@@ -45,9 +45,18 @@ coctl: NMT: entering pre-operational state
 coctl: NMT: entering operational state
 [3] OK
 ```
-- scan for uncofigured lit-stepper boards (flickering red LED)
+- scan for uncofigured lit-stepper or lit-bldc boards (flickering red LED)
+
+for steppers:
 ```
-[4] _lss_fastscan 0x6c656170 0xFFFFFFFF 0x73746570 0xFFFFFFFF 1 0xFFFFFFFF 0 0
+[4] _lss_fastscan 0x6c656170 0xFFFFFFFF 0x73746570 0xFFFFFFFF 0 0 0 0
+[4] 0x6c656170 0x73746570 0x00000001 0x81122559
+```
+
+for bldcs:
+
+```
+[4] _lss_fastscan 0x6c656170 0xFFFFFFFF 0x626c6463 0xFFFFFFFF 0 0 0 0
 [4] 0x6c656170 0x73746570 0x00000001 0x81122559
 ```
 - In the example, the board with serial number 0x81122559 answered our call and its green LED started flickering.
@@ -71,10 +80,19 @@ we are going to change the id of the board, which was previously configured with
 [55] 0x81122559
 ```
 - with the serialnumber `0x81122559` read from the device, initiate hte LSS session
+
+stepper:
 ```
 [56] lss_switch_sel 0x6c656170 0x73746570 1 0x81122559
 [56] OK
 ```
+
+bldc:
+```
+[56] lss_switch_sel 0x6c656170 0x626c6463 1 0x81122559
+[56] OK
+```
+
 - the green led should be flickering, now set the new node id, store and restart the device for the change to take effect
 ```
 [57] lss_set_node 64
