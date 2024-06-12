@@ -2672,6 +2672,9 @@ namespace syn
     //     uint8_t* _flags;
     // };
 
+    static void lock_OD();
+    static void unlock_OD();
+
     static void tick(void);
 
     // restart can hadware and node

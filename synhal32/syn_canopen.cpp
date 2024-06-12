@@ -821,6 +821,7 @@ void can_init_hardware_ll()
     RCC->CCIPR |= (0x2 << 24);
     // enable clock for hw
     RCC->APB1ENR1 |= RCC_APB1ENR1_FDCANEN;
+    syn::Thread::sleep(1);
     // initialize GPIO
 #if !defined(SYN_CAN_1_REMAP) || SYN_CAN_1_REMAP == 0
     {
@@ -1666,7 +1667,7 @@ void CANopenNode::init_lss_store(EepromBase* eeprom, uint16_t address)
 
 bool_t _store_lss_eeprom(void* pnull, uint8_t id, uint16_t bitrate)
 {
-    uint32_t data = (bitrate << 8) | id;
+    uint32_t data = 0xC000000 | (bitrate << 8) | id;
     return peeprom->write(lss_store_address, data);
 }
 
@@ -1979,6 +1980,16 @@ void CANopenNode::requestTPDO(uint8_t *flagsPDO, uint8_t subidx)
     OD_requestTPDO(flagsPDO, subidx);
 }
 
+void CANopenNode::lock_OD()
+{
+  CO_LOCK_OD(CANModule_local);
+}
+
+void CANopenNode::unlock_OD()
+{
+  CO_UNLOCK_OD(CANModule_local);
+}
+
 //void CANopenNode::TPDOtrigger::init(OD_entry_t *pObject)
 //{
 //    _ext.object = NULL;
@@ -2017,16 +2028,37 @@ extern "C"
       }
     }
 
+    static uint32_t errcount_pea = 0;
+    static uint32_t errcount_ped = 0;
+    static uint32_t errcount_other = 0;
+
     // use IRQ 1 for errors
     void FDCAN1_IT1_IRQHandler(void)
     {
         uint32_t errorcode = HAL_CAN_ERROR_NONE;
-        uint32_t irqs = FDCAN1->IR;
+        uint32_t irqs = FDCAN1->IR & (FDCAN_IR_PEA | FDCAN_IR_PED | FDCAN_IR_EP | FDCAN_IR_EW | FDCAN_IR_BO);
 
-        int counter = 0;
+        if(irqs & FDCAN_IR_PEA)
+        {
+          FDCAN1->IR = FDCAN_IR_PEA;
+          ++errcount_pea;
+          irqs = irqs & ~FDCAN_IR_PEA;
+        }
+        if(irqs & FDCAN_IR_PED)
+        {
+          FDCAN1->IR = FDCAN_IR_PED;
+          ++errcount_ped;
+          irqs = irqs & ~FDCAN_IR_PED;
+        }
+      if(irqs & (FDCAN_IR_EP | FDCAN_IR_EW | FDCAN_IR_BO))
+        {
+          FDCAN1->IR = (FDCAN_IR_EP | FDCAN_IR_EW | FDCAN_IR_BO);
+          ++errcount_other;
+          irqs = irqs & ~(FDCAN_IR_EP | FDCAN_IR_EW | FDCAN_IR_BO);
+        }
         while(irqs)
         {
-          ++counter;
+          
         }
 
         /* Call the Error call Back in case of Errors */
