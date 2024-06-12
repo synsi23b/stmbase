@@ -2513,13 +2513,19 @@ namespace syn
   public:
     EepromBase(){}
 
+    virtual ~EepromBase(){}
+
     virtual bool read(uint16_t address, uint32_t &value)
     {
+      (void)address;
+      (void)value;
       return false;
     }
 
-    virtual bool write(uint16_t address, uint32_t &value)
+    virtual bool write(uint16_t address, uint32_t value)
     {
+      (void)address;
+      (void)value;
       return false;
     }
   };

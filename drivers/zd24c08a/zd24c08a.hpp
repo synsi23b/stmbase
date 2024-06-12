@@ -16,21 +16,21 @@ public:
   // write the value to the address.
   // address can be anything from 0 to 1023
   // after writing, the chip needs 3ms to rewrite the page
-  bool write(uint16_t address, uint8_t value)
-  {
-    uint8_t data[2] = {uint8_t(address & 0xFF), value};
-    return _write(address, data, 2);
-  }
+  //bool write(uint16_t address, uint8_t value)
+  //{
+  //  uint8_t data[2] = {uint8_t(address & 0xFF), value};
+  //  return _write(address, data, 2);
+  //}
 
-  // write the value to the address.
-  // address can be anything from 0 to 1023
-  // if the write crosses a 16byte page border, it will fail
-  // after writing, the chip needs 3ms to rewrite the page
-  bool write(uint16_t address, uint16_t value)
-  {
-    uint8_t data[3] = {uint8_t(address & 0xFF), uint8_t(value & 0xFF),  uint8_t(value >> 8)};
-    return _write(address, data, 3);
-  }
+  //// write the value to the address.
+  //// address can be anything from 0 to 1023
+  //// if the write crosses a 16byte page border, it will fail
+  //// after writing, the chip needs 3ms to rewrite the page
+  //bool write(uint16_t address, uint16_t value)
+  //{
+  //  uint8_t data[3] = {uint8_t(address & 0xFF), uint8_t(value & 0xFF),  uint8_t(value >> 8)};
+  //  return _write(address, data, 3);
+  //}
 
   // write the value to the address.
   // address can be anything from 0 to 1023
@@ -42,19 +42,19 @@ public:
     return _write(address, data, 5);
   }
 
-  // read the value from the address
-  // address can be anything from 0 to 1023
-  bool read(uint16_t address, uint8_t& value)
-  {
-    return _read(address, &value, 1);
-  }
+  //// read the value from the address
+  //// address can be anything from 0 to 1023
+  //bool read(uint16_t address, uint8_t& value)
+  //{
+  //  return _read(address, &value, 1);
+  //}
 
-  // read the value from the address
-  // address can be anything from 0 to 1023
-  bool read(uint16_t address, uint16_t& value)
-  {
-    return _read(address, (uint8_t*)&value, 2);
-  }
+  //// read the value from the address
+  //// address can be anything from 0 to 1023
+  //bool read(uint16_t address, uint16_t& value)
+  //{
+  //  return _read(address, (uint8_t*)&value, 2);
+  //}
 
   // read the value from the address
   // address can be anything from 0 to 1023
