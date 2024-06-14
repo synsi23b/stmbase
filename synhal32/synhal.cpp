@@ -1,4 +1,5 @@
 #include "synhal.h"
+#include "synhal_delay.h"
 #include <stdio.h>
 
 using namespace syn;
@@ -67,6 +68,11 @@ extern "C"
   void HAL_Delay(uint32_t Delay)
   {
     syn::System::delay(Delay);
+  }
+
+  void synhal_delay(int millisecond)
+  {
+    syn::System::delay(millisecond);
   }
 }
 
