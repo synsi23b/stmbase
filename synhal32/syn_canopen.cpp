@@ -675,8 +675,8 @@ void can_init_ll()
     ////CAN1->MCR = CAN_MCR_ABOM | CAN_MCR_NART | CAN_MCR_INRQ;
     // enable automatic retransmission so that sync tpdo works even on ARLO
     FDCAN1->CCCR &= ~FDCAN_CCCR_DAR;
-    // clear transmit pause
-    FDCAN1->CCCR &= ~FDCAN_CCCR_TXP;
+    // enable transmit pause
+    FDCAN1->CCCR |= FDCAN_CCCR_TXP;
     // disable proto exception handling
     FDCAN1->CCCR |= FDCAN_CCCR_PXHD;
     /* Set FDCAN Frame Format */
@@ -1408,7 +1408,7 @@ CO_ReturnError_t CO_CANmodule_init(CO_CANmodule_t *CANmodule, void *CANptr, CO_C
     CANmodule->CANnormal = false;
     CANmodule->useCANrxFilters = false; /* Do not use HW filters */
     CANmodule->bufferInhibitFlag = false;
-    //CANmodule->firstCANtxMessage = false;
+    CANmodule->firstCANtxMessage = false;
     CANmodule->CANtxCount = 0U;
     CANmodule->errOld = 0U;
 
@@ -1498,11 +1498,11 @@ CO_CANsend(CO_CANmodule_t *CANmodule, CO_CANtx_t *buffer)
     /* Verify overflow */
     if (buffer->bufferFull)
     {
-        //if (!CANmodule->firstCANtxMessage)
-        //{
+        if (!CANmodule->firstCANtxMessage)
+        {
             /* don't set error, if bootup message is still on buffers */
             CANmodule->CANerrorStatus |= CO_CAN_ERRTX_OVERFLOW;
-        //}
+        }
         err = CO_ERROR_TX_OVERFLOW;
     }
 
@@ -1617,7 +1617,7 @@ void can_read_received_msg(uint32_t fifo)
  */
 void can_interrupt_TX()
 {
-    //CANModule_local->firstCANtxMessage = false; /* First CAN message (bootup) was sent successfully */
+    CANModule_local->firstCANtxMessage = false; /* First CAN message (bootup) was sent successfully */
     CANModule_local->bufferInhibitFlag = false; /* Clear flag from previous message */
     if (CANModule_local->CANtxCount > 0U)
     {                                                      /* Are there any new messages waiting to be send */
