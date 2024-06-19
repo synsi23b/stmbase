@@ -2628,7 +2628,7 @@ namespace syn
       return _pbank->read(address, (uint8_t *)&value, sizeof(uint32_t));
     }
 
-    virtual bool write(uint16_t address, uint32_t &value)
+    virtual bool write(uint16_t address, uint32_t value)
     {
       uint32_t tmp;
       if(read(address, tmp))
@@ -2683,7 +2683,7 @@ namespace syn
     class CANopenTick : public syn::Thread
     {
     public:
-      CANopenTick() : syn::Thread("CAN_tick", SYN_OS_PRIO_HIGHEST, 200, _stack)
+      CANopenTick() : syn::Thread("CAN_tick", SYN_OS_PRIO_HIGHEST - 10, 200, _stack)
       {
       }
 

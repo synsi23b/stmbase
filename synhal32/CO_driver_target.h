@@ -133,13 +133,15 @@ extern "C"
     // Why disabling the whole Interrupt
 
 #define OS_WEAK_LOCK(STATEPTR)     \
-    do                             \
-    {                              \
-        OS_INT_Preserve(STATEPTR); \
-        OS_INT_Disable();          \
-    } while (0)
+   do                             \
+   {                              \
+       OS_INT_Preserve(STATEPTR); \
+       OS_INT_Disable();          \
+   } while (0)
 
+//#define OS_WEAK_LOCK(STATEPTR) OS_EnterRegion();
 #define OS_WEAK_UNLOCK(STATEPTR) OS_INT_Restore(STATEPTR)
+//#define OS_WEAK_UNLOCK(STATEPTR) OS_LeaveRegion();
 /* (un)lock critical section in CO_CANsend() */
 #define CO_LOCK_CAN_SEND(CAN_MODULE) OS_WEAK_LOCK(&((CAN_MODULE)->primask_send))
 #define CO_UNLOCK_CAN_SEND(CAN_MODULE) OS_WEAK_UNLOCK(&((CAN_MODULE)->primask_send))
@@ -149,8 +151,10 @@ extern "C"
 #define CO_UNLOCK_EMCY(CAN_MODULE) OS_WEAK_UNLOCK(&((CAN_MODULE)->primask_emcy))
 
 /* (un)lock critical section when accessing Object Dictionary */
-#define CO_LOCK_OD(CAN_MODULE) OS_WEAK_LOCK(&((CAN_MODULE)->primask_od))
-#define CO_UNLOCK_OD(CAN_MODULE) OS_WEAK_UNLOCK(&((CAN_MODULE)->primask_od))
+//#define CO_LOCK_OD(CAN_MODULE) OS_WEAK_LOCK(&((CAN_MODULE)->primask_od))
+//#define CO_UNLOCK_OD(CAN_MODULE) OS_WEAK_UNLOCK(&((CAN_MODULE)->primask_od))
+#define CO_LOCK_OD(CAN_MODULE) OS_EnterRegion();
+#define CO_UNLOCK_OD(CAN_MODULE) OS_LeaveRegion();
 
 /* Synchronization between CAN receive and message processing threads. */
 #define CO_MemoryBarrier()
