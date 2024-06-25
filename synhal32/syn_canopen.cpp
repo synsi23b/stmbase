@@ -1848,7 +1848,14 @@ int32_t CANopenNode::reset_com()
     }
 
     // get chip unique ID to populate device serial number
-    OD_PERSIST_COMM.x1018_identity.serialNumber = *(syn::System::uniqueID() + 1);
+    {
+      uint32_t waver_x_y = *syn::System::uniqueID();
+      uint32_t waver_x = (waver_x_y << 8 ) & 0xFF000000;
+      uint32_t waver_y = (waver_x_y << 16) & 0x00FF0000;
+      uint32_t waver_num = *(syn::System::uniqueID() + 1) & 0x0000FFFF;
+      OD_PERSIST_COMM.x1018_identity.serialNumber = waver_x | waver_y | waver_num;
+    }
+    
 
     CO_LSS_address_t lssAddress = {.identity = {.vendorID = OD_PERSIST_COMM.x1018_identity.vendor_ID,
                                                 .productCode = OD_PERSIST_COMM.x1018_identity.productCode,
