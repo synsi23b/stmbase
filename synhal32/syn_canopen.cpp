@@ -1848,7 +1848,7 @@ int32_t CANopenNode::reset_com()
     }
 
     // get chip unique ID to populate device serial number
-    OD_PERSIST_COMM.x1018_identity.serialNumber = *(syn::System::uniqueID() + 2);
+    OD_PERSIST_COMM.x1018_identity.serialNumber = *(syn::System::uniqueID() + 1);
 
     CO_LSS_address_t lssAddress = {.identity = {.vendorID = OD_PERSIST_COMM.x1018_identity.vendor_ID,
                                                 .productCode = OD_PERSIST_COMM.x1018_identity.productCode,
