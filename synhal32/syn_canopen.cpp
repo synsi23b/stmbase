@@ -610,6 +610,100 @@ int32_t can_send_message_ll(CO_CANtx_t *buffer)
     return PutIndex;
 }
 
+uint32_t get_can_timing_reg(uint16_t bitrate)
+{
+    //// http://www.bittiming.can-wiki.info/
+    //// Type: bxCAN, Clock: 36MHz, max brp: 1024, SP: 87.5%, min tq: 8, max tq: 25, FD factor: undefined, SJW: 1
+    uint32_t btr_reg;
+    switch (bitrate)
+    {
+    case 10:
+    {
+       const uint32_t prescaler = 900;
+       // const uint32_t sync_jump = 1;
+       const uint32_t timeseq_1 = 13;
+       const uint32_t timeseq_2 = 2;
+       btr_reg = ((prescaler - 1) << FDCAN_NBTP_NBRP_Pos) | ((timeseq_1 - 1) << FDCAN_NBTP_NTSEG1_Pos) | ((timeseq_2 - 1) << FDCAN_NBTP_NTSEG2_Pos);
+       break;
+    }
+    case 20:
+    {
+       const uint32_t prescaler = 450;
+       // const uint32_t sync_jump = 1;
+       const uint32_t timeseq_1 = 13;
+       const uint32_t timeseq_2 = 2;
+       btr_reg = ((prescaler - 1) << FDCAN_NBTP_NBRP_Pos) | ((timeseq_1 - 1) << FDCAN_NBTP_NTSEG1_Pos) | ((timeseq_2 - 1) << FDCAN_NBTP_NTSEG2_Pos);
+       break;
+    }
+    case 50:
+    {
+       const uint32_t prescaler = 180;
+       // const uint32_t sync_jump = 1;
+       const uint32_t timeseq_1 = 13;
+       const uint32_t timeseq_2 = 2;
+       btr_reg = ((prescaler - 1) << FDCAN_NBTP_NBRP_Pos) | ((timeseq_1 - 1) << FDCAN_NBTP_NTSEG1_Pos) | ((timeseq_2 - 1) << FDCAN_NBTP_NTSEG2_Pos);
+       break;
+    }
+    case 100:
+    {
+       const uint32_t prescaler = 90;
+       // const uint32_t sync_jump = 1;
+       const uint32_t timeseq_1 = 13;
+       const uint32_t timeseq_2 = 2;
+       btr_reg = ((prescaler - 1) << FDCAN_NBTP_NBRP_Pos) | ((timeseq_1 - 1) << FDCAN_NBTP_NTSEG1_Pos) | ((timeseq_2 - 1) << FDCAN_NBTP_NTSEG2_Pos);
+       break;
+    }
+    case 125:
+    {
+       const uint32_t prescaler = 72;
+       // const uint32_t sync_jump = 1;
+       const uint32_t timeseq_1 = 13;
+       const uint32_t timeseq_2 = 2;
+       btr_reg = ((prescaler - 1) << FDCAN_NBTP_NBRP_Pos) | ((timeseq_1 - 1) << FDCAN_NBTP_NTSEG1_Pos) | ((timeseq_2 - 1) << FDCAN_NBTP_NTSEG2_Pos);
+       break;
+    }
+    case 250:
+    {
+       const uint32_t prescaler = 36;
+       // const uint32_t sync_jump = 1;
+       const uint32_t timeseq_1 = 13;
+       const uint32_t timeseq_2 = 2;
+        btr_reg = ((prescaler - 1) << FDCAN_NBTP_NBRP_Pos) | ((timeseq_1 - 1) << FDCAN_NBTP_NTSEG1_Pos) | ((timeseq_2 - 1) << FDCAN_NBTP_NTSEG2_Pos);
+       break;
+    }
+    case 500:
+    {
+        const uint32_t prescaler = 18;
+        // const uint32_t sync_jump = 1;
+        const uint32_t timeseq_1 = 13;
+        const uint32_t timeseq_2 = 2;
+        btr_reg = ((prescaler - 1) << FDCAN_NBTP_NBRP_Pos) | ((timeseq_1 - 1) << FDCAN_NBTP_NTSEG1_Pos) | ((timeseq_2 - 1) << FDCAN_NBTP_NTSEG2_Pos);
+        break;
+    }
+    case 800:
+    {
+       const uint32_t prescaler = 10;
+       // const uint32_t sync_jump = 1;
+       const uint32_t timeseq_1 = 15;
+       const uint32_t timeseq_2 = 2;
+       btr_reg = ((prescaler - 1) << FDCAN_NBTP_NBRP_Pos) | ((timeseq_1 - 1) << FDCAN_NBTP_NTSEG1_Pos) | ((timeseq_2 - 1) << FDCAN_NBTP_NTSEG2_Pos);
+       break;
+    }
+    case 1000:
+    {
+       const uint32_t prescaler = 9;
+       // const uint32_t sync_jump = 1;
+       const uint32_t timeseq_1 = 13;
+       const uint32_t timeseq_2 = 2;
+       btr_reg = ((prescaler - 1) << FDCAN_NBTP_NBRP_Pos) | ((timeseq_1 - 1) << FDCAN_NBTP_NTSEG1_Pos) | ((timeseq_2 - 1) << FDCAN_NBTP_NTSEG2_Pos);
+       break;
+    }
+    default:
+        btr_reg = 0;
+    }
+    return btr_reg;
+}
+
 void can_init_ll()
 {
     ///***************************************/
@@ -686,101 +780,10 @@ void can_init_ll()
     FDCAN1->CCCR &= ~(FDCAN_CCCR_TEST | FDCAN_CCCR_MON | FDCAN_CCCR_ASM);
     FDCAN1->TEST &= ~FDCAN_TEST_LBCK;
 
-    //// http://www.bittiming.can-wiki.info/
-    //// Type: bxCAN, Clock: 36MHz, max brp: 1024, SP: 87.5%, min tq: 8, max tq: 25, FD factor: undefined, SJW: 1
-    uint32_t btr_reg;
-    switch (baudrate)
-    {
-    //case 10:
-    //{
-    //    const uint32_t prescaler = 225;
-    //    // const uint32_t sync_jump = 1;
-    //    const uint32_t timeseq_1 = 13;
-    //    const uint32_t timeseq_2 = 2;
-    //    btr_reg = ((timeseq_2 - 1) << 20) | ((timeseq_1 - 1) << 16) | (prescaler - 1);
-    //    break;
-    //}
-    //case 20:
-    //{
-    //    const uint32_t prescaler = 100;
-    //    // const uint32_t sync_jump = 1;
-    //    const uint32_t timeseq_1 = 15;
-    //    const uint32_t timeseq_2 = 2;
-    //    btr_reg = ((timeseq_2 - 1) << 20) | ((timeseq_1 - 1) << 16) | (prescaler - 1);
-    //    break;
-    //}
-    //case 50:
-    //{
-    //    const uint32_t prescaler = 45;
-    //    // const uint32_t sync_jump = 1;
-    //    const uint32_t timeseq_1 = 13;
-    //    const uint32_t timeseq_2 = 2;
-    //    btr_reg = ((timeseq_2 - 1) << 20) | ((timeseq_1 - 1) << 16) | (prescaler - 1);
-    //    break;
-    //}
-    //case 100:
-    //{
-    //    const uint32_t prescaler = 20;
-    //    // const uint32_t sync_jump = 1;
-    //    const uint32_t timeseq_1 = 15;
-    //    const uint32_t timeseq_2 = 2;
-    //    btr_reg = ((timeseq_2 - 1) << 20) | ((timeseq_1 - 1) << 16) | (prescaler - 1);
-    //    break;
-    //}
-    //case 125:
-    //{
-    //    const uint32_t prescaler = 18;
-    //    // const uint32_t sync_jump = 1;
-    //    const uint32_t timeseq_1 = 13;
-    //    const uint32_t timeseq_2 = 2;
-    //    btr_reg = ((timeseq_2 - 1) << 20) | ((timeseq_1 - 1) << 16) | (prescaler - 1);
-    //    break;
-    //}
-    //case 250:
-    //{
-    //    const uint32_t prescaler = 9;
-    //    // const uint32_t sync_jump = 1;
-    //    const uint32_t timeseq_1 = 13;
-    //    const uint32_t timeseq_2 = 2;
-    //    btr_reg = ((timeseq_2 - 1) << 20) | ((timeseq_1 - 1) << 16) | (prescaler - 1);
-    //    break;
-    //}
-    case 500:
-    {
-        const uint32_t prescaler = 9;
-        // const uint32_t sync_jump = 1;
-        const uint32_t timeseq_1 = 27;
-        const uint32_t timeseq_2 = 4;
-        btr_reg = ((prescaler - 1) << FDCAN_NBTP_NBRP_Pos) | ((timeseq_1 - 1) << FDCAN_NBTP_NTSEG1_Pos) | ((timeseq_2 - 1) << FDCAN_NBTP_NTSEG2_Pos);
-        break;
-    }
-    //case 800:
-    //{
-    //    const uint32_t prescaler = 3;
-    //    // const uint32_t sync_jump = 1;
-    //    const uint32_t timeseq_1 = 12;
-    //    const uint32_t timeseq_2 = 2;
-    //    btr_reg = ((timeseq_2 - 1) << 20) | ((timeseq_1 - 1) << 16) | (prescaler - 1);
-    //    break;
-    //}
-    //case 1000:
-    //{
-    //    const uint32_t prescaler = 2;
-    //    // const uint32_t sync_jump = 1;
-    //    const uint32_t timeseq_1 = 15;
-    //    const uint32_t timeseq_2 = 2;
-    //    btr_reg = ((timeseq_2 - 1) << 20) | ((timeseq_1 - 1) << 16) | (prescaler - 1);
-    //    break;
-    //}
-    default:
-        while (true)
-        {
-            ;
-        }
-    }
+
     // set framerate register
     FDCAN1->DBTP = 0;
-    FDCAN1->NBTP = btr_reg;
+    FDCAN1->NBTP = get_can_timing_reg(baudrate);
     /* Select between Tx FIFO and Tx Queue operation modes */
     FDCAN1->TXBC |= FDCAN_TX_QUEUE_OPERATION;
 
@@ -1060,7 +1063,7 @@ int32_t can_send_message_ll(CO_CANtx_t *buffer)
     return mailbox;
 }
 
-void can_init_ll()
+uint32_t get_can_timing_reg(uint16_t bitrate)
 {
     /***************************************/
     /* STM32 related configuration */
@@ -1152,11 +1155,14 @@ void can_init_ll()
         break;
     }
     default:
-        while (true)
-        {
-            ;
-        }
+        btr_reg = 0;
     }
+    return btr_reg;
+}
+
+void can_init_ll()
+{
+
 
     /* Request initialisation */
     CAN1->MCR |= CAN_MCR_INRQ;
@@ -1197,7 +1203,7 @@ void can_init_ll()
     //CAN1->MCR = CAN_MCR_ABOM | CAN_MCR_NART | CAN_MCR_INRQ;
     // enable automatic retransmission so that sync tpdo works even on ARLO
     CAN1->MCR = CAN_MCR_ABOM | CAN_MCR_INRQ;
-    CAN1->BTR = btr_reg;
+    CAN1->BTR = get_can_timing_reg(baudrate);
 
     /* Initialize the error code */
     can_error = HAL_CAN_ERROR_NONE;
@@ -1671,6 +1677,11 @@ bool_t _store_lss_eeprom(void* pnull, uint8_t id, uint16_t bitrate)
     return peeprom->write(lss_store_address, data);
 }
 
+bool_t _check_lss_bitrate(void* pnull, uint16_t bitrate)
+{
+    return get_can_timing_reg(bitrate) != 0;
+}
+
 int32_t CANopenNode::init(uint8_t desired_id, uint16_t baudrate_k)
 {
     uint32_t data;
@@ -1683,7 +1694,7 @@ int32_t CANopenNode::init(uint8_t desired_id, uint16_t baudrate_k)
           uint16_t tmp_bd = (data >> 8) & 0xFFFF;
           if(tmp_id > 1 && tmp_id < 128)
           {
-             if(tmp_bd == 500)
+             if(get_can_timing_reg(tmp_bd) != 0)
              {
                 desiredNodeID = tmp_id;
                 baudrate = tmp_bd;
@@ -1852,6 +1863,7 @@ int32_t CANopenNode::reset_com()
     if(peeprom != 0)
     {
       CO_LSSslave_initCfgStoreCallback(CO->LSSslave, 0, _store_lss_eeprom);
+      CO_LSSslave_initCheckBitRateCallback(CO->LSSslave, 0, _check_lss_bitrate);
     }
 
     activeNodeID = desiredNodeID;
