@@ -148,7 +148,7 @@ void State402::on_operation_enabled()
 
     if (_mode_old != _mode)
     {
-        printf("run mode switch");
+        printf("run mode switch\n");
         // run mode changed, stop previous executer
         //if (_runner != NULL)
         //{

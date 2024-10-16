@@ -104,6 +104,18 @@ void Print::println(const char c)
   printf(chars);
 }
 
+void Print::println(const float f)
+{
+  printf("%f\n", f);
+}
+
+
+void Print::println(const int i)
+{
+  printf("%d\n", i);
+}
+
+
 void Print::println(const char* str)
 {
   printf("%s\n", str);

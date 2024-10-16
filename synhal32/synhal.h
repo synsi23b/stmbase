@@ -1878,8 +1878,17 @@ namespace syn
     // to measure specific channels, they need to be enabled using the enable method.
     static void init_auto_dma(uint16_t* data_store, uint16_t count);
 
+    static void init_cont_single(uint16_t channel);
+
     // same as regular init, but set the ADC to 8 bit mode
     static void init_auto_dma_8bit(uint8_t* data_store, uint16_t count);
+
+    // internal temperature sensor
+    static void enable_temp();
+    // internal temperature sensor
+    static int16_t temperature(uint16_t measured_value, float vref = 3.3);
+
+    static uint16_t read() { return ADC1->DR; }
 
     // set the pin to analog reading mode
     // channel can be any number between and including 0 and 9
@@ -1926,6 +1935,12 @@ namespace syn
         _pStream = DMA2_Stream0 + stream;
       }
 #endif
+#ifdef STM32G431xx
+      --stream;
+      _number = stream;
+      OS_ASSERT(stream < 7, ERR_BAD_INDEX);
+      _pChannel = (DMA_Channel_TypeDef *)((uint32_t *)DMA1_Channel1 + stream * 5);
+#endif
     }
 
     // stop operation of the dma
@@ -1936,6 +1951,9 @@ namespace syn
 #endif
 #ifdef STM32F401xC
       _pStream->CR &= ~DMA_SxCR_EN;
+#endif
+#ifdef STM32G431xx
+      _pChannel->CCR &= ~DMA_CCR_EN;
 #endif
     }
 
@@ -1951,6 +1969,16 @@ namespace syn
       OS_ASSERT(channel < 8, ERR_BAD_INDEX);
       _pStream->CR |= (channel << 25) | DMA_SxCR_EN;
 #endif
+#ifdef STM32G431xx
+      (void)channel;
+      _pChannel->CCR |= DMA_CCR_EN;
+#endif
+    }
+
+    void setup_multiplexer(uint16_t channel, uint16_t peripheral)
+    {
+      auto mux = DMAMUX1_Channel0 + channel;
+      mux->CCR = peripheral;
     }
 
     // cylcic reading from a peripheral to memory. periheral stays the same, memory gets incremented
@@ -1976,6 +2004,15 @@ namespace syn
       uint16_t psize = sizeof(Peri_t) >> 1;
       uint16_t msize = sizeof(Mem_t) >> 1;
       _pStream->CR = (msize << 13) | (psize << 11) | DMA_SxCR_MINC | DMA_SxCR_CIRC;
+#endif
+#ifdef STM32G431xx
+      _pChannel->CCR = 0; // stop the dma before setting anything
+      uint16_t psize = sizeof(Peri_t) >> 1;
+      uint16_t msize = sizeof(Mem_t) >> 1;
+      _pChannel->CCR = (msize << 10) | (psize << 8) | DMA_CCR_MINC | DMA_CCR_CIRC;
+      _pChannel->CNDTR = count;
+      _pChannel->CMAR = (uint32_t)dst;
+      _pChannel->CPAR = (uint32_t)src;
 #endif
     }
 
@@ -2710,6 +2747,8 @@ class Print {
     void print(float f, uint16_t decimals);
     void println();
     void println(const char c);
+    void println(const int i);
+    void println(const float f);
     void println(const char* str);
   private:
 };
