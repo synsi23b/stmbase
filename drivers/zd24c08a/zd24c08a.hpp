@@ -13,6 +13,16 @@ public:
     _i2c.init(i2c_port, 0xA0, remap);
   }
 
+  struct Page
+  {
+    uint32_t _addressblock; // will be overwritten by the page func
+    union 
+    {
+      uint32_t ui32[4];
+      uint16_t ui16[8];
+      uint8_t ui8[16];
+    }data;
+  };
   // write the value to the address.
   // address can be anything from 0 to 1023
   // after writing, the chip needs 3ms to rewrite the page
@@ -42,6 +52,14 @@ public:
     return _write(address, data, 5);
   }
 
+  bool write_page(uint16_t address, Page& page)
+  {
+    //uint8_t data[5] = {uint8_t(address & 0xFF), uint8_t(value & 0xFF), uint8_t(value >> 8), uint8_t(value >> 16), uint8_t(value >> 24)};
+    page._addressblock = (uint32_t(address & 0xFF)) << 24;
+    uint8_t* data = ((uint8_t*)&page) + 3;
+    return _write(address, data, 17);
+  }
+
   //// read the value from the address
   //// address can be anything from 0 to 1023
   //bool read(uint16_t address, uint8_t& value)
@@ -61,6 +79,14 @@ public:
   virtual bool read(uint16_t address, uint32_t& value)
   {
     return _read(address, (uint8_t*)&value, 4);
+  }
+
+  bool read_page(uint16_t address, Page& page)
+  {
+    //uint8_t data[5] = {uint8_t(address & 0xFF), uint8_t(value & 0xFF), uint8_t(value >> 8), uint8_t(value >> 16), uint8_t(value >> 24)};
+    //page._addressblock = (uint32_t(address & 0xFF)) << 24;
+    uint8_t* data = ((uint8_t*)&page) + 4;
+    return _read(address, data, 16);
   }
 private:
   bool _write(uint16_t address, uint8_t* data, uint16_t size)
