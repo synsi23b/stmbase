@@ -57,7 +57,7 @@ for bldcs:
 
 ```
 [4] _lss_fastscan 0x6c656170 0xFFFFFFFF 0x626c6463 0xFFFFFFFF 0 0 0 0
-[4] 0x6c656170 0x73746570 0x00000001 0x81122559
+[4] 0x6c656170 0x73746570 0x00000000 0x81122559
 ```
 - In the example, the board with serial number 0x81122559 answered our call and its green LED started flickering.
 - give the board a valid, unique node id on the bus (2 .. 127). in the example, we give it id 23
@@ -89,7 +89,7 @@ stepper:
 
 bldc:
 ```
-[56] lss_switch_sel 0x6c656170 0x626c6463 1 0x81122559
+[56] lss_switch_sel 0x6c656170 0x626c6463 0 0x81122559
 [56] OK
 ```
 
